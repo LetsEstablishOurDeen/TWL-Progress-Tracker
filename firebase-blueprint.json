@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "Learner": {
+      "title": "Learner",
+      "description": "A learner in The Wisdom Lounge community",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Phone number or unique ID" },
+        "fullName": { "type": "string" },
+        "password": { "type": "string" },
+        "isApproved": { "type": "boolean" },
+        "booksCompleted": { "type": "array", "items": { "type": "string" } },
+        "presentationsGiven": { "type": "array", "items": { "type": "string" } },
+        "tasksCompleted": { "type": "number" },
+        "joinedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "fullName", "password", "isApproved", "booksCompleted", "presentationsGiven", "tasksCompleted", "joinedAt"]
+    }
+  },
+  "firestore": {
+    "/learners/{learnerId}": {
+      "schema": "Learner",
+      "description": "Collection of all learners"
+    }
+  }
+}

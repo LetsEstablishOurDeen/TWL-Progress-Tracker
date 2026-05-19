@@ -1,0 +1,6 @@
+{
+  "name": "The Wisdom Lounge Tracker",
+  "description": "Keep track of learners' progress, books, presentations, and tasks in The Wisdom Lounge learning community.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
