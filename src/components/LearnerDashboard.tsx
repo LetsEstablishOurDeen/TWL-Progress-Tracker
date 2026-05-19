@@ -185,16 +185,16 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
     <div className="space-y-8">
       {!activeLearner ? (
         <div className="max-w-md mx-auto mt-12 bg-brand-white p-8 rounded-2xl shadow-sm border border-brand-border">
-          <div className="flex bg-brand-beige p-1 rounded-xl mb-8 border border-brand-border">
+            <div className="flex bg-brand-beige p-1 rounded-xl mb-8 border border-brand-border h-12">
             <button 
               onClick={() => { setAuthMode('signin'); setError(null); setSuccess(null); }}
-              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${authMode === 'signin' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 ${authMode === 'signin' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
             >
               Sign In
             </button>
             <button 
               onClick={() => { setAuthMode('signup'); setError(null); setSuccess(null); }}
-              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${authMode === 'signup' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 ${authMode === 'signup' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
             >
               Sign Up
             </button>
@@ -267,7 +267,7 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
                   </button>
                 </div>
               </div>
-              <button type="submit" className="w-full bg-brand-brown text-brand-offwhite py-3 rounded-xl font-medium hover:bg-brand-brown-dark transition-all shadow-md mt-2">
+              <button type="submit" className="w-full bg-brand-brown text-brand-offwhite py-3.5 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-brand-brown-dark transition-all shadow-md active:scale-[0.98] mt-2">
                 Sign In
               </button>
             </form>
@@ -335,7 +335,7 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
                   </button>
                 </div>
               </div>
-              <button type="submit" className="w-full bg-brand-brown text-brand-offwhite py-3 rounded-xl font-medium hover:bg-brand-brown-dark transition-all shadow-md mt-2">
+              <button type="submit" className="w-full bg-brand-brown text-brand-offwhite py-3.5 rounded-xl font-bold uppercase tracking-widest text-xs hover:bg-brand-brown-dark transition-all shadow-md active:scale-[0.98] mt-2">
                 Register
               </button>
             </form>
@@ -369,14 +369,14 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
             <div className="flex flex-col sm:flex-row gap-3 mt-4 md:mt-0">
               <button 
                 onClick={() => setIsRequestModalOpen(true)}
-                className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-brand-offwhite bg-brand-brown rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-brand-offwhite bg-brand-brown rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 Submit Update
               </button>
               <button 
                 onClick={() => setActiveLearner(null)}
-                className="px-5 py-3 text-xs font-bold uppercase tracking-wider text-brand-brown border border-brand-border rounded-xl bg-brand-white shadow-sm hover:text-brand-brown-dark hover:bg-brand-offwhite transition-all"
+                className="px-5 py-3 text-xs font-bold uppercase tracking-wider text-brand-brown border border-brand-border rounded-xl bg-brand-white shadow-sm hover:text-brand-brown-dark hover:bg-brand-offwhite active:scale-95 transition-all"
               >
                 Sign out
               </button>
@@ -508,15 +508,22 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
                   </div>
                   
                   <form onSubmit={handleSubmitRequest} className="p-6 space-y-4">
-                    <div className="flex bg-brand-offwhite p-1 rounded-xl border border-brand-border">
+                    <div className="flex bg-brand-offwhite p-1 rounded-xl border border-brand-border relative">
                       {(['book', 'presentation', 'task'] as const).map(type => (
                         <button
                           key={type}
                           type="button"
                           onClick={() => setRequestType(type)}
-                          className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${requestType === type ? 'bg-brand-brown text-brand-offwhite shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                          className={`relative flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 active:scale-95 ${requestType === type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
                         >
-                          {type}
+                          {requestType === type && (
+                            <motion.div
+                              layoutId="segmented-control-bg"
+                              className="absolute inset-0 bg-brand-brown rounded-lg shadow-md"
+                              transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
+                            />
+                          )}
+                          <span className="relative z-10">{type}</span>
                         </button>
                       ))}
                     </div>
@@ -589,14 +596,14 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
                       <button
                         type="button"
                         onClick={() => setIsRequestModalOpen(false)}
-                        className="flex-1 px-6 py-3 border border-brand-border rounded-xl text-xs font-bold uppercase tracking-widest text-brand-brown hover:bg-brand-offwhite transition-colors"
+                        className="flex-1 px-6 py-3 border border-brand-border rounded-xl text-xs font-bold uppercase tracking-widest text-brand-brown hover:bg-brand-offwhite active:scale-95 transition-all"
                       >
                         Cancel
                       </button>
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="flex-2 px-6 py-3 bg-brand-brown text-brand-offwhite rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="flex-2 px-6 py-3 bg-brand-brown text-brand-offwhite rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {isSubmitting ? 'Submitting...' : (
                           <>

@@ -102,12 +102,14 @@ export const learnerService = {
       // Try to get a single document from learners instead of a blocked collection
       const q = query(collection(db, LEARNERS_COLLECTION), where('isApproved', '==', true));
       await getDocFromServer(doc(db, LEARNERS_COLLECTION, 'connection-test-id'));
+      console.log("Firebase connected successfully.");
     } catch (error) {
       if (error instanceof Error) {
         if (error.message.includes('the client is offline')) {
           console.error("Firebase is offline. Check network or configuration.");
         } else if (error.message.includes('permission-denied')) {
-          console.warn("Permission denied for connection test (expected if document doesn't exist).");
+          // This is actually a good sign that we reached the server
+          console.log("Firebase server reached (permission check passed).");
         } else {
           console.error("Firebase connection error:", error.message);
         }

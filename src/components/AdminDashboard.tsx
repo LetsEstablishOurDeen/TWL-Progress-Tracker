@@ -140,7 +140,7 @@ export function AdminDashboard({
         </div>
         <button 
           onClick={handleAddNew}
-          className="bg-brand-brown text-brand-offwhite px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg hover:shadow-xl hover:bg-brand-brown-dark transition-all flex items-center space-x-2 transform hover:-translate-y-0.5 active:translate-y-0"
+          className="bg-brand-brown text-brand-offwhite px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg hover:shadow-xl hover:bg-brand-brown-dark transition-all flex items-center space-x-2 transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
         >
           <Plus className="w-4 h-4" />
           <span>Enroll New Learner</span>
@@ -160,7 +160,7 @@ export function AdminDashboard({
           </div>
           <button 
             onClick={() => setActiveTab('pending')}
-            className="whitespace-nowrap bg-red-600 text-white px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-xs shadow-md hover:bg-red-700 hover:shadow-lg transition-all"
+            className="whitespace-nowrap bg-red-600 text-white px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-xs shadow-md hover:bg-red-700 hover:shadow-lg active:scale-95 transition-all"
           >
             Review Requests Now
           </button>
@@ -172,26 +172,26 @@ export function AdminDashboard({
             <div className="flex bg-brand-beige p-1 rounded-xl border border-brand-border h-10">
               <button 
                 onClick={() => setActiveTab('all')}
-                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all ${activeTab === 'all' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 ${activeTab === 'all' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 All Learners
               </button>
               <button 
                 onClick={() => setActiveTab('pending')}
-                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center gap-2 ${activeTab === 'pending' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'pending' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 Pending
                 {pendingCount > 0 && <span className="bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">{pendingCount}</span>}
               </button>
               <button 
                 onClick={() => setActiveTab('reports')}
-                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center gap-2 ${activeTab === 'reports' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'reports' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 Reports
               </button>
               <button 
                 onClick={() => setActiveTab('updates')}
-                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center gap-2 ${activeTab === 'updates' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'updates' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 Updates
                 {requests.length > 0 && <span className="bg-brand-brown text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">{requests.length}</span>}
@@ -307,14 +307,14 @@ export function AdminDashboard({
                      <div className="flex items-center gap-3 w-full md:w-auto">
                         <button 
                           onClick={() => handleApproveRequest(req)}
-                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-green-700 shadow-md transition-all"
+                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-green-700 shadow-md active:scale-95 transition-all"
                         >
                           <Check className="w-4 h-4" />
                           Approve
                         </button>
                         <button 
                           onClick={() => handleRejectRequest(req.id)}
-                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-brand-offwhite text-red-600 border border-red-100 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-red-50 transition-all"
+                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-brand-offwhite text-red-600 border border-red-100 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-red-50 active:scale-95 transition-all"
                         >
                           <X className="w-4 h-4" />
                           Reject
