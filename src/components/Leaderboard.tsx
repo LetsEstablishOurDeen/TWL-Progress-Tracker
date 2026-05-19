@@ -65,22 +65,24 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
         
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
           {/* Category Tabs */}
-          <div className="flex bg-brand-beige p-1 rounded-xl shadow-sm border border-brand-border w-full sm:w-auto">
-            <button 
-              onClick={() => setActiveCategory('overall')}
-              className={`flex-1 sm:flex-none px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${activeCategory === 'overall' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
-            >
-              Overall
-            </button>
-            {APP_DOMAINS.map(domain => (
+          <div className="w-full sm:w-auto overflow-x-auto no-scrollbar">
+            <div className="flex bg-brand-beige p-1 rounded-xl shadow-sm border border-brand-border min-w-max">
               <button 
-                key={domain.type}
-                onClick={() => setActiveCategory(domain.type)}
-                className={`flex-1 sm:flex-none px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${activeCategory === domain.type ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                onClick={() => setActiveCategory('overall')}
+                className={`flex-none px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${activeCategory === 'overall' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
-                {domain.label}
+                Overall
               </button>
-            ))}
+              {APP_DOMAINS.map(domain => (
+                <button 
+                  key={domain.type}
+                  onClick={() => setActiveCategory(domain.type)}
+                  className={`flex-none px-4 py-2 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-all ${activeCategory === domain.type ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                >
+                  {domain.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

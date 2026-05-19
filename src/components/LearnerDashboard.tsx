@@ -656,8 +656,8 @@ export function LearnerDashboard({
                     {/* Domain Selection */}
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Category (Domain)</label>
-                      <div className="flex bg-brand-offwhite pt-[10px] pb-0 px-0 rounded-xl border border-brand-border relative overflow-x-auto no-scrollbar -mx-[23px] mt-[3px] mb-[-4px] w-[506px]">
-                        <div className="flex min-w-full">
+                      <div className="flex bg-brand-offwhite p-1 rounded-xl border border-brand-border relative overflow-x-auto no-scrollbar w-full">
+                        <div className="flex min-w-max md:w-full">
                           {APP_DOMAINS.map(domain => (
                             <button
                               key={domain.type}
