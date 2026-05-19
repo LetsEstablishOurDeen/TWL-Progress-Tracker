@@ -1,9 +1,13 @@
 import { useState, FormEvent, ReactNode, useMemo, useEffect } from 'react';
 import { Learner, EditRequest } from '../types';
-import { BookOpen, Mic, CheckCircle2, Search, Medal, Eye, EyeOff, LayoutDashboard, BarChart3, Plus, X, Clock, Send } from 'lucide-react';
+import { 
+  BookOpen, Mic, CheckCircle2, Search, Medal, Eye, EyeOff, 
+  LayoutDashboard, BarChart3, Plus, X, Clock, Send
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getLearnerBadges } from '../lib/badges';
 import { requestService } from '../services/requestService';
+import { MODULES, APP_DOMAINS } from '../constants';
 import { 
   Radar, 
   RadarChart, 
@@ -18,7 +22,74 @@ import {
   Cell
 } from 'recharts';
 
-export function LearnerDashboard({ learners, onRegister }: { learners: Learner[], onRegister: (data: Omit<Learner, 'joinedAt'>) => void }) {
+// Helpers to dynamically extract domain and module values
+const getDomainValue = (learner: any, type: string) => {
+  if (type === 'book') return learner.booksCompleted?.length || 0;
+  if (type === 'presentation') return learner.presentationsGiven?.length || 0;
+  if (type === 'task') return learner.tasksCompleted || 0;
+  
+  // Handle module-based domains
+  const domain = APP_DOMAINS.find(d => d.type === type);
+  if (domain) {
+    return getModuleValue(learner, domain);
+  }
+  
+  return 0;
+};
+
+const getDomainItems = (learner: any, type: string) => {
+  if (type === 'book') return learner.booksCompleted || [];
+  if (type === 'presentation') return learner.presentationsGiven || [];
+  
+  // Handle module-based domains
+  const domain = APP_DOMAINS.find(d => d.type === type);
+  if (domain) {
+    return getModuleItems(learner, domain);
+  }
+  
+  return []; 
+};
+
+// Safely aggregates module stats including sub-options
+const getModuleValue = (learner: any, mod: any) => {
+  let total = learner.moduleStats?.[mod.id] || 0;
+  if ('subOptions' in mod && mod.subOptions) {
+    (mod.subOptions as any[]).forEach((sub: any) => {
+      total += learner.moduleStats?.[sub.id] || 0;
+    });
+  }
+  return total;
+};
+
+// Safely aggregates module items including sub-options
+const getModuleItems = (learner: any, mod: any) => {
+  let items = learner.moduleItems?.[mod.id] || [];
+  if ('subOptions' in mod && mod.subOptions) {
+    (mod.subOptions as any[]).forEach((sub: any) => {
+      items = [...items, ...(learner.moduleItems?.[sub.id] || [])];
+    });
+  }
+  return items;
+};
+
+const getDomainMultiplier = (type: string) => {
+  if (type === 'book') return 5;
+  if (type === 'presentation') return 10;
+  if (type === 'task') return 1;
+  return 2;
+};
+
+export function LearnerDashboard({ 
+  learners, 
+  onRegister,
+  activeLearner,
+  setActiveLearner
+}: { 
+  learners: Learner[], 
+  onRegister: (data: Omit<Learner, 'joinedAt'>) => void,
+  activeLearner: Learner | null,
+  setActiveLearner: (learner: Learner | null) => void
+}) {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [searchTerm, setSearchTerm] = useState('');
   const [password, setPassword] = useState('');
@@ -35,18 +106,22 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [activeLearner, setActiveLearner] = useState<Learner | null>(null);
+  
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
-  const [requestType, setRequestType] = useState<'book' | 'presentation' | 'task'>('book');
+  const [requestType, setRequestType] = useState<EditRequest['type']>(APP_DOMAINS[0]?.type || 'book');
+  
   const [pendingRequests, setPendingRequests] = useState<EditRequest[]>([]);
 
   // Form State
-  const [bookTitle, setBookTitle] = useState('');
+  const [itemTitle, setItemTitle] = useState('');
   const [completionDate, setCompletionDate] = useState('');
   const [timeTaken, setTimeTaken] = useState('');
   const [taskCount, setTaskCount] = useState(1);
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const activeDomain = useMemo(() => APP_DOMAINS.find(d => d.type === requestType), [requestType]);
+  const isTaskLike = requestType === 'task';
 
   useEffect(() => {
     if (activeLearner) {
@@ -69,7 +144,7 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
         learnerName: activeLearner.fullName,
         type: requestType,
         details: {
-          title: bookTitle,
+          title: itemTitle,
           completedAt: completionDate,
           duration: timeTaken,
           count: taskCount,
@@ -79,7 +154,7 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
       setSuccess("Your update request has been submitted for admin approval.");
       setIsRequestModalOpen(false);
       // Reset form
-      setBookTitle('');
+      setItemTitle('');
       setCompletionDate('');
       setTimeTaken('');
       setTaskCount(1);
@@ -125,13 +200,11 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
     setError(null);
     setSuccess(null);
 
-    // Check if passwords match
     if (regPassword !== confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
 
-    // Check if ID already exists
     if (learners.find(l => l.id === regId)) {
       setError("A learner with this Phone Number already exists.");
       return;
@@ -154,7 +227,6 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
     setConfirmPassword('');
     setShowRegPassword(false);
     setShowConfirmPassword(false);
-    // Optionally switch to signin
     setTimeout(() => {
       setAuthMode('signin');
       setSuccess(null);
@@ -163,29 +235,46 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
 
   const activeBadges = activeLearner ? getLearnerBadges(activeLearner) : [];
 
+  const wisdomPoints = useMemo(() => {
+    if (!activeLearner) return 0;
+    let pts = 0;
+    // Points from Core Domains
+    APP_DOMAINS.forEach(d => {
+      pts += getDomainValue(activeLearner, d.type) * getDomainMultiplier(d.type);
+    });
+    return pts;
+  }, [activeLearner]);
+
   const chartData = useMemo(() => {
     if (!activeLearner) return [];
-    return [
-      { subject: 'Books', A: activeLearner.booksCompleted.length, fullMark: 15 },
-      { subject: 'Presentations', A: activeLearner.presentationsGiven.length, fullMark: 10 },
-      { subject: 'Tasks', A: activeLearner.tasksCompleted, fullMark: 50 },
-    ];
+    const data = APP_DOMAINS.map(domain => {
+      const fullMark = domain.type === 'task' ? 50 : 15;
+      return { subject: domain.label, A: getDomainValue(activeLearner, domain.type), fullMark };
+    });
+    return data;
   }, [activeLearner]);
 
   const activityData = useMemo(() => {
     if (!activeLearner) return [];
-    return [
-      { name: 'Books', value: activeLearner.booksCompleted.length, color: '#5A4633' },
-      { name: 'Presentations', value: activeLearner.presentationsGiven.length, color: '#8C7864' },
-      { name: 'Tasks', value: activeLearner.tasksCompleted, color: '#A69280' }
-    ];
+    const colors = ['#5A4633', '#8C7864', '#A69280', '#C4B4A4', '#DCCFC2', '#EBE5DB', '#E0D8C8'];
+    const data: {name: string, value: number, color: string}[] = [];
+    
+    APP_DOMAINS.forEach((domain, index) => {
+      data.push({
+        name: domain.label,
+        value: getDomainValue(activeLearner, domain.type),
+        color: colors[index % colors.length]
+      });
+    });
+    return data;
   }, [activeLearner]);
 
   return (
     <div className="space-y-8">
       {!activeLearner ? (
         <div className="max-w-md mx-auto mt-12 bg-brand-white p-8 rounded-2xl shadow-sm border border-brand-border">
-            <div className="flex bg-brand-beige p-1 rounded-xl mb-8 border border-brand-border h-12">
+          {/* Sign In / Sign Up Selection */}
+          <div className="flex bg-brand-beige p-1 rounded-xl mb-8 border border-brand-border h-12">
             <button 
               onClick={() => { setAuthMode('signin'); setError(null); setSuccess(null); }}
               className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 ${authMode === 'signin' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
@@ -352,13 +441,14 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-5xl mx-auto space-y-6"
+          className="max-w-6xl mx-auto space-y-8"
         >
+          {/* Header Stats */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-brand-beige p-6 sm:p-8 rounded-3xl border border-brand-border shrink-0 shadow-sm">
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-brown-light mb-2 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                Wisdom Points: {(activeLearner.booksCompleted.length * 5) + (activeLearner.presentationsGiven.length * 10) + activeLearner.tasksCompleted}
+                Wisdom Points: {wisdomPoints}
               </p>
               <h1 className="font-serif text-4xl sm:text-5xl font-bold text-brand-text mb-2">{activeLearner.fullName}</h1>
               <div className="flex items-center gap-3">
@@ -383,81 +473,104 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
             </div>
           </div>
 
+          {/* Pending Approvals */}
           {pendingRequests.length > 0 && (
-            <div className="bg-orange-50 border border-orange-200 p-6 rounded-2xl shadow-sm space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600">
-                  <Clock className="w-4 h-4" />
+            <div className="bg-brand-white border-2 border-dashed border-orange-200 p-8 rounded-[2rem] shadow-[0_20px_50px_-20px_rgba(249,115,22,0.1)] space-y-5 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-orange-50 rounded-bl-full -mr-16 -mt-16 transition-transform group-hover:scale-110 duration-700"></div>
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="w-12 h-12 bg-orange-100 rounded-2xl flex items-center justify-center text-orange-600 shadow-inner">
+                  <Clock className="w-5 h-5 animate-pulse" />
                 </div>
                 <div>
-                  <h4 className="font-bold text-orange-950">Pending Approval</h4>
-                  <p className="text-orange-700/80 text-xs">Admin is reviewing your recent submissions.</p>
+                  <h4 className="font-serif text-lg font-bold text-orange-950">Pending Approval</h4>
+                  <p className="text-orange-700/80 text-xs font-medium uppercase tracking-wider">The wisdom lounge is reviewing your progress</p>
                 </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {pendingRequests.map(req => (
-                  <div key={req.id} className="bg-white/80 px-3 py-2 rounded-lg border border-orange-100 text-[10px] font-bold uppercase tracking-wider text-orange-800 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
-                    {req.type === 'book' ? `Book: ${req.details.title}` : req.type === 'presentation' ? `Presentation: ${req.details.title}` : `${req.details.count} Tasks`}
-                  </div>
-                ))}
+              <div className="flex flex-wrap gap-2 relative z-10">
+                {pendingRequests.map(req => {
+                  const domain = APP_DOMAINS.find(d => d.type === req.type);
+                  const domainLabel = domain ? domain.label : req.type;
+                  
+                  return (
+                    <div key={req.id} className="bg-orange-50/50 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-orange-100 text-[10px] font-black uppercase tracking-widest text-orange-800 flex items-center gap-2 shadow-sm transition-all hover:bg-orange-100">
+                      <span className="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]"></span>
+                      {domainLabel}: {req.details.title || `${req.details.count} Completed`}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StatsCard 
-              title="Books Completed" 
-              value={activeLearner.booksCompleted.length} 
-              icon={<BookOpen className="w-6 h-6 text-brand-brown" />} 
-            />
-            <StatsCard 
-              title="Presentations" 
-              value={activeLearner.presentationsGiven.length} 
-              icon={<Mic className="w-6 h-6 text-brand-brown" />} 
-            />
-            <StatsCard 
-              title="Tasks Completed" 
-              value={activeLearner.tasksCompleted} 
-              icon={<CheckCircle2 className="w-6 h-6 text-brand-brown" />} 
-            />
+          {/* Stats Cards Section */}
+          <div className="space-y-4">
+            <h3 className="font-serif text-2xl font-bold text-brand-text mb-4 px-2">Core Domains</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+              {APP_DOMAINS.filter(d => ['book', 'presentation', 'task'].includes(d.type)).map((domain, idx) => {
+                const Icon = { BookOpen, Mic, CheckCircle2 }[domain.icon as any] as any || BookOpen;
+                return (
+                  <StatsCard 
+                    key={`domain-${domain.id}`}
+                    title={`Completed ${domain.label}`} 
+                    value={getDomainValue(activeLearner, domain.type)} 
+                    icon={<Icon className="w-6 h-6 text-brand-brown" />}
+                    variant={idx === 0 ? "primary" : idx === 1 ? "secondary" : "default"}
+                  />
+                );
+              })}
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-brand-white p-6 rounded-2xl shadow-sm border border-brand-border">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-brand-border-light">
-                <LayoutDashboard className="text-brand-brown w-6 h-6" />
-                <h3 className="font-serif text-xl font-bold text-brand-text">Wisdom Balance</h3>
+          {/* Charts Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-brand-white p-8 rounded-[2.5rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-brand-border group transition-all hover:shadow-[0_20px_60px_-20px_rgba(0,0,0,0.1)]">
+              <div className="flex items-center gap-4 mb-8 pb-5 border-b border-brand-border-light">
+                <div className="w-12 h-12 bg-brand-beige rounded-2xl flex items-center justify-center text-brand-brown shadow-sm group-hover:scale-110 transition-transform duration-500">
+                  <LayoutDashboard className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-2xl font-bold text-brand-text">Wisdom Balance</h3>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">Domains & Modules overview</p>
+                </div>
               </div>
-              <div className="h-[250px] w-full">
+              <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={chartData}>
-                    <PolarGrid stroke="#EBE5DB" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#5A4633', fontSize: 12, fontWeight: 600 }} />
+                  <RadarChart cx="50%" cy="50%" outerRadius="75%" data={chartData}>
+                    <PolarGrid stroke="#EBE5DB" strokeDasharray="3 3" />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#5A4633', fontSize: 10, fontWeight: 800, letterSpacing: '0.05em' }} />
                     <Radar
                       name={activeLearner.fullName}
                       dataKey="A"
                       stroke="#5A4633"
+                      strokeWidth={2}
                       fill="#5A4633"
-                      fillOpacity={0.6}
+                      fillOpacity={0.5}
                     />
                   </RadarChart>
                 </ResponsiveContainer>
               </div>
             </div>
 
-            <div className="bg-brand-white p-6 rounded-2xl shadow-sm border border-brand-border">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-brand-border-light">
-                <BarChart3 className="text-brand-brown w-6 h-6" />
-                <h3 className="font-serif text-xl font-bold text-brand-text">Activity Distribution</h3>
+            <div className="bg-brand-white p-8 rounded-[2.5rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-brand-border group transition-all hover:shadow-[0_20px_60px_-20px_rgba(0,0,0,0.1)]">
+              <div className="flex items-center gap-4 mb-8 pb-5 border-b border-brand-border-light">
+                <div className="w-12 h-12 bg-brand-beige rounded-2xl flex items-center justify-center text-brand-brown shadow-sm group-hover:scale-110 transition-transform duration-500">
+                  <BarChart3 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-2xl font-bold text-brand-text">Activity Distribution</h3>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">Contribution breakdown</p>
+                </div>
               </div>
-              <div className="h-[250px] w-full">
+              <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={activityData} layout="vertical" margin={{ left: 20, right: 30 }}>
                     <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" tick={{ fill: '#5A4633', fontSize: 12, fontWeight: 500 }} width={100} />
-                    <Tooltip cursor={{ fill: '#F5F2ED' }} contentStyle={{ borderRadius: '12px', border: '1px solid #EBE5DB', fontFamily: 'serif' }} />
-                    <Bar dataKey="value" radius={[0, 8, 8, 0]} barSize={32}>
+                    <YAxis dataKey="name" type="category" tick={{ fill: '#5A4633', fontSize: 11, fontWeight: 600 }} width={120} axisLine={false} tickLine={false} />
+                    <Tooltip 
+                      cursor={{ fill: 'rgba(235, 229, 219, 0.4)', radius: 12 }} 
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -10px rgba(0,0,0,0.1)', fontFamily: 'serif', padding: '12px 16px' }} 
+                    />
+                    <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={25}>
                       {activityData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
@@ -468,6 +581,7 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
             </div>
           </div>
 
+          {/* Badges */}
           {activeBadges.length > 0 && (
             <div className="bg-brand-white p-6 rounded-2xl shadow-sm border border-brand-border">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-brand-border-light">
@@ -486,11 +600,26 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-            <ListCard title="Actively Completed Books" items={activeLearner.booksCompleted} emptyText="No books completed yet." />
-            <ListCard title="Presentations Given" items={activeLearner.presentationsGiven} emptyText="No presentations given yet." />
+          {/* Detailed Lists */}
+          <div className="space-y-4 mt-8">
+            <h3 className="font-serif text-2xl font-bold text-brand-text px-2">Detailed Activities</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {APP_DOMAINS.map((domain) => {
+                const items = getDomainItems(activeLearner, domain.type);
+                if (domain.type === 'task') return null; // Tasks are numeric, don't show list
+                return (
+                  <ListCard 
+                    key={`domain-list-${domain.type}`}
+                    title={`Completed ${domain.label}`} 
+                    items={items as string[]} 
+                    emptyText={`No ${domain.label.toLowerCase()} completed yet.`} 
+                  />
+                );
+              })}
+            </div>
           </div>
 
+          {/* Submission Modal */}
           <AnimatePresence>
             {isRequestModalOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-brown/40 backdrop-blur-sm">
@@ -501,43 +630,77 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
                   className="bg-brand-white w-full max-w-lg rounded-3xl shadow-2xl border border-brand-border overflow-hidden"
                 >
                   <div className="px-6 py-4 bg-brand-beige border-b border-brand-border flex items-center justify-between">
-                    <h3 className="font-serif text-xl font-bold text-brand-text">Submit Completion</h3>
+                    <h3 className="font-serif text-xl font-bold text-brand-text">Submit Learning Update</h3>
                     <button onClick={() => setIsRequestModalOpen(false)} className="p-2 hover:bg-brand-border rounded-full transition-colors">
                       <X className="w-5 h-5 text-brand-brown" />
                     </button>
                   </div>
                   
-                  <form onSubmit={handleSubmitRequest} className="p-6 space-y-4">
-                    <div className="flex bg-brand-offwhite p-1 rounded-xl border border-brand-border relative">
-                      {(['book', 'presentation', 'task'] as const).map(type => (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => setRequestType(type)}
-                          className={`relative flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 active:scale-95 ${requestType === type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
-                        >
-                          {requestType === type && (
-                            <motion.div
-                              layoutId="segmented-control-bg"
-                              className="absolute inset-0 bg-brand-brown rounded-lg shadow-md"
-                              transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
-                            />
-                          )}
-                          <span className="relative z-10">{type}</span>
-                        </button>
-                      ))}
+                  <form onSubmit={handleSubmitRequest} className="p-6 space-y-5">
+                    
+                    {/* Domain Selection */}
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Category (Domain)</label>
+                      <div className="flex bg-brand-offwhite pt-[10px] pb-0 px-0 rounded-xl border border-brand-border relative overflow-x-auto no-scrollbar -mx-[23px] mt-[3px] mb-[-4px] w-[506px]">
+                        <div className="flex min-w-full">
+                          {APP_DOMAINS.map(domain => (
+                            <button
+                              key={domain.type}
+                              type="button"
+                              onClick={() => setRequestType(domain.type)}
+                              className={`relative flex-1 py-2 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 active:scale-95 whitespace-nowrap ${requestType === domain.type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                            >
+                              {requestType === domain.type && (
+                                <motion.div
+                                  layoutId="segmented-control-bg"
+                                  className="absolute inset-0 bg-brand-brown rounded-lg shadow-md"
+                                  transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
+                                />
+                              )}
+                              <span className="relative z-10">{domain.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
-                    {requestType === 'book' || requestType === 'presentation' ? (
+                    {/* Dynamic Fields based on Domain */}
+                    {['tafsir', 'seerah'].includes(requestType) ? (
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Batch Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={itemTitle}
+                          onChange={(e) => setItemTitle(e.target.value)}
+                          placeholder="e.g. Batch 2024"
+                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                        />
+                      </div>
+                    ) : requestType === 'dowra' ? (
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Year of Dowra Quran</label>
+                        <input
+                          type="text"
+                          required
+                          value={itemTitle}
+                          onChange={(e) => setItemTitle(e.target.value)}
+                          placeholder="e.g. 2023"
+                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                        />
+                      </div>
+                    ) : !isTaskLike ? (
                       <>
                         <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">{requestType === 'book' ? 'Book Title' : 'Presentation Topic'}</label>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                            {activeDomain ? `${activeDomain.label} Title` : 'Title'}
+                          </label>
                           <input
                             type="text"
                             required
-                            value={bookTitle}
-                            onChange={(e) => setBookTitle(e.target.value)}
-                            placeholder={requestType === 'book' ? "e.g. The Republic by Plato" : "e.g. Stoicism in Modern Life"}
+                            value={itemTitle}
+                            onChange={(e) => setItemTitle(e.target.value)}
+                            placeholder={`e.g. ${activeDomain?.label === 'Books' ? 'The Clear Quran' : 'Presentation Topic'}`}
                             className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
                           />
                         </div>
@@ -579,12 +742,12 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
                           />
                         </div>
                         <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Activities Description</label>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Task Description</label>
                           <textarea
                             required
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Briefly describe the tasks you've completed..."
+                            placeholder="Briefly describe the tasks you've completed for this module..."
                             rows={3}
                             className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown resize-none"
                           />
@@ -624,27 +787,53 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
   );
 }
 
-function StatsCard({ title, value, icon }: { title: string, value: number | string, icon: ReactNode }) {
+function StatsCard({ title, value, icon, variant = 'default' }: { title: string, value: number | string, icon: ReactNode, key?: string, variant?: 'default' | 'primary' | 'secondary' }) {
+  const bgStyles = {
+    default: 'bg-brand-beige border-brand-border',
+    primary: 'bg-brand-brown text-brand-offwhite border-brand-brown',
+    secondary: 'bg-brand-white border-brand-brown/10'
+  };
+
+  const titleStyles = {
+    default: 'text-brand-brown-light',
+    primary: 'text-brand-beige/70',
+    secondary: 'text-brand-brown/40'
+  };
+
+  const valueStyles = {
+    default: 'text-brand-brown',
+    primary: 'text-brand-offwhite',
+    secondary: 'text-brand-brown'
+  };
+
+  const iconStyles = {
+    default: 'text-brand-brown opacity-5',
+    primary: 'text-brand-beige opacity-10',
+    secondary: 'text-brand-brown opacity-[0.03]'
+  };
 
   return (
-    <div className="bg-brand-beige p-6 rounded-2xl border border-brand-border shadow-sm flex flex-col items-start relative overflow-hidden h-32 justify-center">
-      <div className="absolute -right-4 -bottom-4 text-brand-brown opacity-5 scale-150">
+    <div className={`${bgStyles[variant]} p-6 sm:p-8 rounded-[2rem] border shadow-[0_8px_30px_rgb(0,0,0,0.02)] flex flex-col items-start relative overflow-hidden h-40 justify-center transition-all hover:shadow-[0_20px_60px_-20px_rgba(0,0,0,0.1)] hover:-translate-y-1 group`}>
+      <div className={`absolute -right-6 -bottom-6 ${iconStyles[variant]} scale-[2.5] transition-transform duration-700 group-hover:scale-[3] group-hover:-rotate-12`}>
         {icon}
       </div>
-      <p className="text-xs font-bold uppercase text-brand-brown-light mb-1 relative z-10">{title}</p>
-      <p className="text-4xl font-serif font-bold text-brand-brown relative z-10">{value}</p>
+      <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${titleStyles[variant]} mb-2 relative z-10 break-words w-full`}>{title}</p>
+      <div className="flex items-baseline gap-1 relative z-10">
+        <p className={`text-4xl sm:text-5xl font-serif font-black ${valueStyles[variant]} leading-none`}>{value}</p>
+        {typeof value === 'number' && <span className={`text-xs font-bold ${titleStyles[variant]} mb-1 opacity-60`}>pts</span>}
+      </div>
     </div>
   );
 }
 
-function ListCard({ title, items, emptyText }: { title: string, items: string[], emptyText: string }) {
+function ListCard({ title, items, emptyText }: { title: string, items: string[], emptyText: string, key?: string }) {
   return (
-    <div className="bg-brand-white p-6 rounded-2xl shadow-sm border border-brand-border flex flex-col">
+    <div className="bg-brand-white p-6 rounded-2xl shadow-sm border border-brand-border flex flex-col h-full">
       <h3 className="font-serif text-xl font-bold text-brand-text mb-4 pb-3 border-b border-brand-border-light">{title}</h3>
       {items.length === 0 ? (
         <p className="text-brand-brown-light text-sm italic">{emptyText}</p>
       ) : (
-        <ul className="space-y-3 flex-1">
+        <ul className="space-y-3 flex-1 overflow-y-auto max-h-60 pr-2">
           {items.map((item, i) => (
             <li key={i} className="flex items-start bg-brand-bg-alt p-3 rounded-lg border border-brand-border-light text-sm">
               <span className="text-brand-text font-medium">{item}</span>

@@ -4,6 +4,7 @@ import { Plus, Edit2, Trash2, Search, CheckCircle2, BarChart3, Users as UsersIco
 import { ManageLearnerModal } from './ManageLearnerModal';
 import { requestService } from '../services/requestService';
 import { motion, AnimatePresence } from 'motion/react';
+import { APP_DOMAINS } from '../constants';
 import { 
   BarChart, 
   Bar, 
@@ -78,6 +79,21 @@ export function AdminDashboard({
       updates = { 
         tasksCompleted: (learner.tasksCompleted || 0) + (request.details.count || 0) 
       };
+    } else {
+      // Handle module-based domains
+      const currentStats = learner.moduleStats || {};
+      const currentItems = learner.moduleItems || {};
+      
+      updates = {
+        moduleStats: {
+          ...currentStats,
+          [request.type]: (currentStats[request.type] || 0) + (request.details.count || 1)
+        },
+        moduleItems: {
+          ...currentItems,
+          [request.type]: [...(currentItems[request.type] || []), request.details.title]
+        }
+      };
     }
 
     try {
@@ -98,25 +114,55 @@ export function AdminDashboard({
   };
 
   const reportingData = useMemo(() => {
-    const totalBooks = learners.reduce((acc, l) => acc + l.booksCompleted.length, 0);
-    const totalPresentations = learners.reduce((acc, l) => acc + l.presentationsGiven.length, 0);
-    const totalTasks = learners.reduce((acc, l) => acc + l.tasksCompleted, 0);
-
-    const contribData = [
-      { name: 'Books', value: totalBooks, color: '#5A4633' },
-      { name: 'Presentations', value: totalPresentations, color: '#8C7864' },
-      { name: 'Tasks', value: totalTasks, color: '#A69280' }
-    ];
+    const totalByDomain: Record<string, number> = {};
+    const colors = ['#5A4633', '#8C7864', '#A69280', '#C4B4A4', '#DCCFC2', '#EBE5DB', '#E0D8C8'];
+    
+    const contribData = APP_DOMAINS.map((domain, index) => {
+      let value = 0;
+      if (domain.type === 'book') value = learners.reduce((acc, l) => acc + l.booksCompleted.length, 0);
+      else if (domain.type === 'presentation') value = learners.reduce((acc, l) => acc + l.presentationsGiven.length, 0);
+      else if (domain.type === 'task') value = learners.reduce((acc, l) => acc + l.tasksCompleted, 0);
+      else {
+        // Module-based domains
+        value = learners.reduce((acc, l) => {
+          let modVal = l.moduleStats?.[domain.id] || 0;
+          if ('subOptions' in domain && domain.subOptions) {
+            domain.subOptions.forEach((sub: any) => {
+              modVal += l.moduleStats?.[sub.id] || 0;
+            });
+          }
+          return acc + modVal;
+        }, 0);
+      }
+      
+      totalByDomain[domain.type] = value;
+      return { name: domain.label, value, color: colors[index % colors.length] };
+    });
 
     const topLearners = [...learners]
-      .map(l => ({
-        name: l.fullName,
-        points: (l.booksCompleted.length * 5) + (l.presentationsGiven.length * 10) + l.tasksCompleted
-      }))
+      .map(l => {
+        let points = (l.booksCompleted.length * 5) + (l.presentationsGiven.length * 10) + l.tasksCompleted;
+        // Add points from other domains
+        APP_DOMAINS.forEach(domain => {
+          if (!['book', 'presentation', 'task'].includes(domain.type)) {
+            let modVal = l.moduleStats?.[domain.id] || 0;
+            if ('subOptions' in domain && domain.subOptions) {
+              domain.subOptions.forEach((sub: any) => {
+                modVal += l.moduleStats?.[sub.id] || 0;
+              });
+            }
+            points += modVal * 2; // Multiplier of 2 for modules
+          }
+        });
+        return {
+          name: l.fullName,
+          points: points
+        };
+      })
       .sort((a, b) => b.points - a.points)
       .slice(0, 5);
 
-    return { contribData, topLearners, totalBooks, totalPresentations, totalTasks };
+    return { contribData, topLearners, totalByDomain };
   }, [learners]);
 
   const handleEdit = (learner: Learner) => {
@@ -215,9 +261,18 @@ export function AdminDashboard({
           <div className="p-6 space-y-8 bg-brand-bg-alt">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatItem label="Active Members" value={learners.filter(l => l.isApproved).length} icon={<UsersIcon className="w-4 h-4" />} color="bg-brand-brown" />
-              <StatItem label="Books Read" value={reportingData.totalBooks} icon={<BookOpen className="w-4 h-4" />} color="bg-brand-brown" />
-              <StatItem label="Presentations" value={reportingData.totalPresentations} icon={<Mic className="w-4 h-4" />} color="bg-brand-brown" />
-              <StatItem label="Tasks Done" value={reportingData.totalTasks} icon={<CheckCircle2 className="w-4 h-4" />} color="bg-brand-brown" />
+              {APP_DOMAINS.map(domain => {
+                const Icon = { BookOpen, Mic, CheckCircle2 }[domain.icon as any] as any || BookOpen;
+                return (
+                  <StatItem 
+                    key={domain.id}
+                    label={domain.label} 
+                    value={reportingData.totalByDomain[domain.type] || 0} 
+                    icon={<Icon className="w-4 h-4" />} 
+                    color="bg-brand-brown" 
+                  />
+                );
+              })}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -281,9 +336,16 @@ export function AdminDashboard({
                      className="bg-brand-white p-5 rounded-2xl border border-brand-border shadow-sm flex flex-col md:flex-row items-center justify-between gap-6"
                    >
                      <div className="flex items-start gap-4 flex-1">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${req.type === 'book' ? 'bg-blue-50 text-blue-600' : req.type === 'presentation' ? 'bg-purple-50 text-purple-600' : 'bg-green-50 text-green-600'}`}>
-                          {req.type === 'book' ? <BookOpen className="w-6 h-6" /> : req.type === 'presentation' ? <Mic className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
-                        </div>
+                        {(() => {
+                           const domain = APP_DOMAINS.find(d => d.type === req.type);
+                           const Icon = { BookOpen, Mic, CheckCircle2 }[domain?.icon as any] as any || BookOpen;
+                           const colors = { book: 'bg-blue-50 text-blue-600', presentation: 'bg-purple-50 text-purple-600', task: 'bg-green-50 text-green-600' };
+                           return (
+                             <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${colors[req.type] || 'bg-brand-beige text-brand-brown'}`}>
+                               <Icon className="w-6 h-6" />
+                             </div>
+                           );
+                        })()}
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className="font-serif font-bold text-brand-text">{req.learnerName}</h4>
@@ -292,13 +354,15 @@ export function AdminDashboard({
                           <p className="text-sm text-brand-brown">
                             Requested to add: <span className="font-bold">{req.type === 'task' ? `${req.details.count} Completion(s)` : req.details.title}</span>
                           </p>
-                          {req.type !== 'task' && (
-                            <p className="text-xs text-brand-brown-light mt-1 flex items-center gap-3">
-                              <span>Completed: {req.details.completedAt}</span>
-                              <span className="w-1 h-1 bg-brand-border rounded-full"></span>
-                              <span>Duration: {req.details.duration}</span>
-                            </p>
-                          )}
+                          <div className="flex items-center gap-2 mt-1">
+                            {req.type !== 'task' && (
+                              <p className="text-xs text-brand-brown-light flex items-center gap-2">
+                                <span>Completed: {req.details.completedAt}</span>
+                                <span className="w-1 h-1 bg-brand-border rounded-full"></span>
+                                <span>Duration: {req.details.duration}</span>
+                              </p>
+                            )}
+                          </div>
                           {req.type === 'task' && req.details.description && (
                             <p className="text-xs text-brand-brown-light mt-1 italic">"{req.details.description}"</p>
                           )}
@@ -445,7 +509,7 @@ export function AdminDashboard({
   );
 }
 
-function StatItem({ label, value, icon, color }: { label: string, value: number, icon: ReactNode, color: string }) {
+function StatItem({ label, value, icon, color }: { label: string, value: number, icon: ReactNode, color: string, key?: string }) {
   return (
     <div className="bg-brand-white p-4 rounded-xl border border-brand-border shadow-sm flex items-center gap-4">
       <div className={`w-10 h-10 ${color} rounded-lg flex items-center justify-center text-white`}>

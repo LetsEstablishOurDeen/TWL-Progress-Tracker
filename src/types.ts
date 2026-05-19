@@ -7,13 +7,17 @@ export interface Learner {
   presentationsGiven: string[];
   tasksCompleted: number;
   joinedAt: string;
+  enrolledModules?: string[];
+  moduleStats?: Record<string, number>;
+  moduleItems?: Record<string, string[]>;
 }
 
 export interface EditRequest {
   id: string;
   learnerId: string;
   learnerName: string;
-  type: 'book' | 'presentation' | 'task';
+  type: string;
+  moduleId?: string;
   details: {
     title?: string;
     completedAt?: string;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLearners } from './store';
+import { Learner } from './types';
 import { Users, Library, Trophy, LogIn, LogOut } from 'lucide-react';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LearnerDashboard } from './components/LearnerDashboard';
@@ -12,9 +13,16 @@ type ViewMode = 'learner' | 'admin' | 'leaderboard';
 const ADMIN_EMAIL = 'araizhasan00@gmail.com';
 
 export default function App() {
-  const [viewMode, setViewMode] = useState<ViewMode>('learner');
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    return (localStorage.getItem('wisdom_lounge_view_mode') as ViewMode) || 'learner';
+  });
   const { learners, addLearner, approveLearner, removeLearner, updateLearner } = useLearners();
+
+  useEffect(() => {
+    localStorage.setItem('wisdom_lounge_view_mode', viewMode);
+  }, [viewMode]);
   const [user, setUser] = useState<any>(null);
+  const [activeLearner, setActiveLearner] = useState<Learner | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -22,6 +30,27 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // Handle Learner persistence
+  useEffect(() => {
+    const savedLearnerId = localStorage.getItem('wisdom_lounge_learner_id');
+    if (savedLearnerId && learners.length > 0) {
+      const found = learners.find(l => l.id === savedLearnerId);
+      if (found && found.isApproved) {
+        setActiveLearner(found);
+      } else if (found && !found.isApproved) {
+        localStorage.removeItem('wisdom_lounge_learner_id');
+      }
+    }
+  }, [learners]);
+
+  useEffect(() => {
+    if (activeLearner) {
+      localStorage.setItem('wisdom_lounge_learner_id', activeLearner.id);
+    } else {
+      localStorage.removeItem('wisdom_lounge_learner_id');
+    }
+  }, [activeLearner]);
 
   const handleAdminSignIn = async () => {
     try {
@@ -163,6 +192,8 @@ export default function App() {
           <LearnerDashboard 
             learners={learners} 
             onRegister={addLearner}
+            activeLearner={activeLearner}
+            setActiveLearner={setActiveLearner}
           />
         )}
         {viewMode === 'leaderboard' && (
