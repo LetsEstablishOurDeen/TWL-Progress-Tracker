@@ -1,7 +1,9 @@
-import { useState, useMemo, ReactNode } from 'react';
-import { Learner } from '../types';
-import { Plus, Edit2, Trash2, Search, CheckCircle2, BarChart3, Users as UsersIcon, BookOpen, Mic } from 'lucide-react';
+import { useState, useMemo, ReactNode, useEffect } from 'react';
+import { Learner, EditRequest } from '../types';
+import { Plus, Edit2, Trash2, Search, CheckCircle2, BarChart3, Users as UsersIcon, BookOpen, Mic, Bell, Check, X } from 'lucide-react';
 import { ManageLearnerModal } from './ManageLearnerModal';
+import { requestService } from '../services/requestService';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   BarChart, 
   Bar, 
@@ -29,8 +31,25 @@ export function AdminDashboard({
   onUpdate: (id: string, l: Partial<Learner>) => void
 }) {
   const pendingCount = learners.filter(l => !l.isApproved).length;
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'reports'>(pendingCount > 0 ? 'pending' : 'all');
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'reports' | 'updates'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [requests, setRequests] = useState<EditRequest[]>([]);
+
+  useEffect(() => {
+    const unsubscribe = requestService.subscribeToRequests((allRequests) => {
+      setRequests(allRequests.filter(r => r.status === 'pending'));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (pendingCount > 0 && activeTab === 'all') {
+      setActiveTab('pending');
+    } else if (requests.length > 0 && activeTab === 'all') {
+      setActiveTab('updates');
+    }
+  }, [pendingCount, requests.length]);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLearner, setEditingLearner] = useState<Learner | null>(null);
   const [learnerToDelete, setLearnerToDelete] = useState<string | null>(null);
@@ -40,6 +59,43 @@ export function AdminDashboard({
     const matchesTab = activeTab === 'all' ? true : activeTab === 'pending' ? !l.isApproved : true;
     return matchesSearch && matchesTab;
   });
+
+  const handleApproveRequest = async (request: EditRequest) => {
+    const learner = learners.find(l => l.id === request.learnerId);
+    if (!learner) return;
+
+    let updates: Partial<Learner> = {};
+
+    if (request.type === 'book') {
+      updates = { 
+        booksCompleted: [...learner.booksCompleted, `${request.details.title} (${request.details.duration})`] 
+      };
+    } else if (request.type === 'presentation') {
+      updates = { 
+        presentationsGiven: [...learner.presentationsGiven, `${request.details.title} (${request.details.completedAt})`] 
+      };
+    } else if (request.type === 'task') {
+      updates = { 
+        tasksCompleted: (learner.tasksCompleted || 0) + (request.details.count || 0) 
+      };
+    }
+
+    try {
+      await onUpdate(learner.id, updates);
+      await requestService.updateRequestStatus(request.id, 'approved');
+      // Optionally delete or keep history. For now, let's just keep as approved.
+    } catch (err) {
+      console.error("Failed to approve request:", err);
+    }
+  };
+
+  const handleRejectRequest = async (id: string) => {
+    try {
+      await requestService.updateRequestStatus(id, 'rejected');
+    } catch (err) {
+      console.error("Failed to reject request:", err);
+    }
+  };
 
   const reportingData = useMemo(() => {
     const totalBooks = learners.reduce((acc, l) => acc + l.booksCompleted.length, 0);
@@ -133,8 +189,15 @@ export function AdminDashboard({
               >
                 Reports
               </button>
+              <button 
+                onClick={() => setActiveTab('updates')}
+                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all flex items-center gap-2 ${activeTab === 'updates' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+              >
+                Updates
+                {requests.length > 0 && <span className="bg-brand-brown text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">{requests.length}</span>}
+              </button>
             </div>
-            {activeTab !== 'reports' && (
+            {activeTab !== 'reports' && activeTab !== 'updates' && (
               <div className="relative w-full sm:max-w-xs flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-brown-light w-4 h-4" />
                 <input 
@@ -201,6 +264,66 @@ export function AdminDashboard({
                 </div>
               </div>
             </div>
+          </div>
+        ) : activeTab === 'updates' ? (
+          <div className="p-6 space-y-4 bg-brand-bg-alt min-h-[400px]">
+             {requests.length === 0 ? (
+               <div className="flex flex-col items-center justify-center py-20 text-brand-brown-light">
+                 <Bell className="w-12 h-12 mb-4 opacity-20" />
+                 <p className="font-medium italic">No pending update requests.</p>
+               </div>
+             ) : (
+               <div className="grid grid-cols-1 gap-4">
+                 {requests.map(req => (
+                   <motion.div 
+                     layout
+                     key={req.id} 
+                     className="bg-brand-white p-5 rounded-2xl border border-brand-border shadow-sm flex flex-col md:flex-row items-center justify-between gap-6"
+                   >
+                     <div className="flex items-start gap-4 flex-1">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${req.type === 'book' ? 'bg-blue-50 text-blue-600' : req.type === 'presentation' ? 'bg-purple-50 text-purple-600' : 'bg-green-50 text-green-600'}`}>
+                          {req.type === 'book' ? <BookOpen className="w-6 h-6" /> : req.type === 'presentation' ? <Mic className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="font-serif font-bold text-brand-text">{req.learnerName}</h4>
+                            <span className="text-[10px] font-mono text-brand-brown-light">ID: {req.learnerId}</span>
+                          </div>
+                          <p className="text-sm text-brand-brown">
+                            Requested to add: <span className="font-bold">{req.type === 'task' ? `${req.details.count} Completion(s)` : req.details.title}</span>
+                          </p>
+                          {req.type !== 'task' && (
+                            <p className="text-xs text-brand-brown-light mt-1 flex items-center gap-3">
+                              <span>Completed: {req.details.completedAt}</span>
+                              <span className="w-1 h-1 bg-brand-border rounded-full"></span>
+                              <span>Duration: {req.details.duration}</span>
+                            </p>
+                          )}
+                          {req.type === 'task' && req.details.description && (
+                            <p className="text-xs text-brand-brown-light mt-1 italic">"{req.details.description}"</p>
+                          )}
+                        </div>
+                     </div>
+                     <div className="flex items-center gap-3 w-full md:w-auto">
+                        <button 
+                          onClick={() => handleApproveRequest(req)}
+                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-green-700 shadow-md transition-all"
+                        >
+                          <Check className="w-4 h-4" />
+                          Approve
+                        </button>
+                        <button 
+                          onClick={() => handleRejectRequest(req.id)}
+                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-brand-offwhite text-red-600 border border-red-100 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-red-50 transition-all"
+                        >
+                          <X className="w-4 h-4" />
+                          Reject
+                        </button>
+                     </div>
+                   </motion.div>
+                 ))}
+               </div>
+             )}
           </div>
         ) : (
           <div className="overflow-x-auto">

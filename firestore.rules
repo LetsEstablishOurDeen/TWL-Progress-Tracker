@@ -47,5 +47,11 @@ service cloud.firestore {
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
+
+    match /edit_requests/{requestId} {
+      allow read: if true; // Everyone can see pending status if we need, but admin is main reader
+      allow create: if true; // Learners can request edits
+      allow update, delete: if isAdmin();
+    }
   }
 }

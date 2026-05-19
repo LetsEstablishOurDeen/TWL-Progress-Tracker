@@ -1,8 +1,9 @@
-import { useState, FormEvent, ReactNode, useMemo } from 'react';
-import { Learner } from '../types';
-import { BookOpen, Mic, CheckCircle2, Search, Medal, Eye, EyeOff, LayoutDashboard, BarChart3 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { useState, FormEvent, ReactNode, useMemo, useEffect } from 'react';
+import { Learner, EditRequest } from '../types';
+import { BookOpen, Mic, CheckCircle2, Search, Medal, Eye, EyeOff, LayoutDashboard, BarChart3, Plus, X, Clock, Send } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { getLearnerBadges } from '../lib/badges';
+import { requestService } from '../services/requestService';
 import { 
   Radar, 
   RadarChart, 
@@ -35,6 +36,61 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
   const [success, setSuccess] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeLearner, setActiveLearner] = useState<Learner | null>(null);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
+  const [requestType, setRequestType] = useState<'book' | 'presentation' | 'task'>('book');
+  const [pendingRequests, setPendingRequests] = useState<EditRequest[]>([]);
+
+  // Form State
+  const [bookTitle, setBookTitle] = useState('');
+  const [completionDate, setCompletionDate] = useState('');
+  const [timeTaken, setTimeTaken] = useState('');
+  const [taskCount, setTaskCount] = useState(1);
+  const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (activeLearner) {
+      const unsubscribe = requestService.subscribeToRequests((allRequests) => {
+        const learnerRequests = allRequests.filter(r => r.learnerId === activeLearner.id && r.status === 'pending');
+        setPendingRequests(learnerRequests);
+      });
+      return () => unsubscribe();
+    }
+  }, [activeLearner]);
+
+  const handleSubmitRequest = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!activeLearner) return;
+
+    setIsSubmitting(true);
+    try {
+      await requestService.submitRequest({
+        learnerId: activeLearner.id,
+        learnerName: activeLearner.fullName,
+        type: requestType,
+        details: {
+          title: bookTitle,
+          completedAt: completionDate,
+          duration: timeTaken,
+          count: taskCount,
+          description: description
+        }
+      });
+      setSuccess("Your update request has been submitted for admin approval.");
+      setIsRequestModalOpen(false);
+      // Reset form
+      setBookTitle('');
+      setCompletionDate('');
+      setTimeTaken('');
+      setTaskCount(1);
+      setDescription('');
+    } catch (err) {
+      setError("Failed to submit request. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+      setTimeout(() => setSuccess(null), 5000);
+    }
+  };
 
   const matchedLearners = learners.filter(l => 
     searchTerm && l.isApproved && (l.id.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -310,13 +366,44 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
                 <span className="text-xs text-brand-brown-light font-medium bg-brand-bg-alt px-2 py-1 rounded border border-brand-border-light">Joined: {new Date(activeLearner.joinedAt).toLocaleDateString()}</span>
               </div>
             </div>
-            <button 
-              onClick={() => setActiveLearner(null)}
-              className="px-5 py-3 text-xs font-bold uppercase tracking-wider text-brand-brown border border-brand-border rounded-xl bg-brand-white shadow-sm hover:text-brand-brown-dark hover:bg-brand-offwhite transition-all w-full md:w-auto mt-4 md:mt-0"
-            >
-              Sign out
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3 mt-4 md:mt-0">
+              <button 
+                onClick={() => setIsRequestModalOpen(true)}
+                className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-brand-offwhite bg-brand-brown rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Submit Update
+              </button>
+              <button 
+                onClick={() => setActiveLearner(null)}
+                className="px-5 py-3 text-xs font-bold uppercase tracking-wider text-brand-brown border border-brand-border rounded-xl bg-brand-white shadow-sm hover:text-brand-brown-dark hover:bg-brand-offwhite transition-all"
+              >
+                Sign out
+              </button>
+            </div>
           </div>
+
+          {pendingRequests.length > 0 && (
+            <div className="bg-orange-50 border border-orange-200 p-6 rounded-2xl shadow-sm space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600">
+                  <Clock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-orange-950">Pending Approval</h4>
+                  <p className="text-orange-700/80 text-xs">Admin is reviewing your recent submissions.</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {pendingRequests.map(req => (
+                  <div key={req.id} className="bg-white/80 px-3 py-2 rounded-lg border border-orange-100 text-[10px] font-bold uppercase tracking-wider text-orange-800 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+                    {req.type === 'book' ? `Book: ${req.details.title}` : req.type === 'presentation' ? `Presentation: ${req.details.title}` : `${req.details.count} Tasks`}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <StatsCard 
@@ -403,6 +490,127 @@ export function LearnerDashboard({ learners, onRegister }: { learners: Learner[]
             <ListCard title="Actively Completed Books" items={activeLearner.booksCompleted} emptyText="No books completed yet." />
             <ListCard title="Presentations Given" items={activeLearner.presentationsGiven} emptyText="No presentations given yet." />
           </div>
+
+          <AnimatePresence>
+            {isRequestModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-brown/40 backdrop-blur-sm">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-brand-white w-full max-w-lg rounded-3xl shadow-2xl border border-brand-border overflow-hidden"
+                >
+                  <div className="px-6 py-4 bg-brand-beige border-b border-brand-border flex items-center justify-between">
+                    <h3 className="font-serif text-xl font-bold text-brand-text">Submit Completion</h3>
+                    <button onClick={() => setIsRequestModalOpen(false)} className="p-2 hover:bg-brand-border rounded-full transition-colors">
+                      <X className="w-5 h-5 text-brand-brown" />
+                    </button>
+                  </div>
+                  
+                  <form onSubmit={handleSubmitRequest} className="p-6 space-y-4">
+                    <div className="flex bg-brand-offwhite p-1 rounded-xl border border-brand-border">
+                      {(['book', 'presentation', 'task'] as const).map(type => (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() => setRequestType(type)}
+                          className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${requestType === type ? 'bg-brand-brown text-brand-offwhite shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                        >
+                          {type}
+                        </button>
+                      ))}
+                    </div>
+
+                    {requestType === 'book' || requestType === 'presentation' ? (
+                      <>
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">{requestType === 'book' ? 'Book Title' : 'Presentation Topic'}</label>
+                          <input
+                            type="text"
+                            required
+                            value={bookTitle}
+                            onChange={(e) => setBookTitle(e.target.value)}
+                            placeholder={requestType === 'book' ? "e.g. The Republic by Plato" : "e.g. Stoicism in Modern Life"}
+                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Completion Date</label>
+                            <input
+                              type="date"
+                              required
+                              value={completionDate}
+                              onChange={(e) => setCompletionDate(e.target.value)}
+                              className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Time Taken</label>
+                            <input
+                              type="text"
+                              required
+                              value={timeTaken}
+                              onChange={(e) => setTimeTaken(e.target.value)}
+                              placeholder="e.g. 2 weeks"
+                              className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                            />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Number of Tasks</label>
+                          <input
+                            type="number"
+                            required
+                            min="1"
+                            value={taskCount}
+                            onChange={(e) => setTaskCount(parseInt(e.target.value))}
+                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Activities Description</label>
+                          <textarea
+                            required
+                            value={description}
+                            onChange={(e) => setDescription(e.target.value)}
+                            placeholder="Briefly describe the tasks you've completed..."
+                            rows={3}
+                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown resize-none"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <div className="pt-4 flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setIsRequestModalOpen(false)}
+                        className="flex-1 px-6 py-3 border border-brand-border rounded-xl text-xs font-bold uppercase tracking-widest text-brand-brown hover:bg-brand-offwhite transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex-2 px-6 py-3 bg-brand-brown text-brand-offwhite rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {isSubmitting ? 'Submitting...' : (
+                          <>
+                            <Send className="w-4 h-4" />
+                            Submit Request
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
     </div>
