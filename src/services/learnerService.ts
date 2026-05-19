@@ -1,87 +1,66 @@
-import { 
-  collection, 
-  doc, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc, 
-  onSnapshot,
-  query,
-  where,
-  getDocFromServer
-} from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
 import { Learner } from '../types';
 
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
+const LEARNERS_KEY = 'wisdom_lounge_learners';
+
+function getLearners(): Learner[] {
+  const data = localStorage.getItem(LEARNERS_KEY);
+  return data ? JSON.parse(data) : [];
 }
 
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-  }
+function saveLearners(learners: Learner[]) {
+  localStorage.setItem(LEARNERS_KEY, JSON.stringify(learners));
 }
 
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
-
-const LEARNERS_COLLECTION = 'learners';
+// Simple event target to simulate real-time updates
+export const learnerEvents = new EventTarget();
 
 export const learnerService = {
   subscribeToLearners(callback: (learners: Learner[]) => void) {
-    const q = query(collection(db, LEARNERS_COLLECTION));
-    return onSnapshot(q, (snapshot) => {
-      const learners = snapshot.docs.map(doc => ({
-        ...doc.data(),
-        id: doc.id
-      })) as Learner[];
-      callback(learners);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, LEARNERS_COLLECTION);
-    });
+    // Initial call
+    callback(getLearners());
+    
+    // Listener for changes within the same tab
+    const listener = () => callback(getLearners());
+    learnerEvents.addEventListener('learners_changed', listener);
+    
+    // Listener for cross-tab changes
+    const storageListener = (e: StorageEvent) => {
+      if (e.key === LEARNERS_KEY) {
+        callback(getLearners());
+      }
+    };
+    window.addEventListener('storage', storageListener);
+    
+    return () => {
+      learnerEvents.removeEventListener('learners_changed', listener);
+      window.removeEventListener('storage', storageListener);
+    };
   },
 
   async addLearner(learner: Omit<Learner, 'joinedAt'>) {
-    const docRef = doc(db, LEARNERS_COLLECTION, learner.id);
-    const joinedAt = new Date().toISOString();
-    try {
-      await setDoc(docRef, { ...learner, joinedAt });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `${LEARNERS_COLLECTION}/${learner.id}`);
+    const learners = getLearners();
+    if (learners.find(l => l.id === learner.id)) {
+      throw new Error("Learner already exists");
     }
+    const newLearner: Learner = {
+      ...learner,
+      joinedAt: new Date().toISOString(),
+      moduleStats: {},
+      moduleItems: {}
+    };
+    learners.push(newLearner);
+    saveLearners(learners);
+    learnerEvents.dispatchEvent(new Event('learners_changed'));
   },
 
   async updateLearner(id: string, updates: Partial<Learner>) {
-    const docRef = doc(db, LEARNERS_COLLECTION, id);
-    try {
-      await updateDoc(docRef, updates);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `${LEARNERS_COLLECTION}/${id}`);
-    }
+    const learners = getLearners();
+    const index = learners.findIndex(l => l.id === id);
+    if (index === -1) throw new Error("Learner not found");
+    
+    learners[index] = { ...learners[index], ...updates };
+    saveLearners(learners);
+    learnerEvents.dispatchEvent(new Event('learners_changed'));
   },
 
   async approveLearner(id: string) {
@@ -89,31 +68,14 @@ export const learnerService = {
   },
 
   async deleteLearner(id: string) {
-    const docRef = doc(db, LEARNERS_COLLECTION, id);
-    try {
-      await deleteDoc(docRef);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `${LEARNERS_COLLECTION}/${id}`);
-    }
+    let learners = getLearners();
+    learners = learners.filter(l => l.id !== id);
+    saveLearners(learners);
+    learnerEvents.dispatchEvent(new Event('learners_changed'));
   },
-
+  
   async testConnection() {
-    try {
-      // Try to get a single document from learners instead of a blocked collection
-      const q = query(collection(db, LEARNERS_COLLECTION), where('isApproved', '==', true));
-      await getDocFromServer(doc(db, LEARNERS_COLLECTION, 'connection-test-id'));
-      console.log("Firebase connected successfully.");
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message.includes('the client is offline')) {
-          console.error("Firebase is offline. Check network or configuration.");
-        } else if (error.message.includes('permission-denied')) {
-          // This is actually a good sign that we reached the server
-          console.log("Firebase server reached (permission check passed).");
-        } else {
-          console.error("Firebase connection error:", error.message);
-        }
-      }
-    }
+    console.log("Local storage connected successfully.");
   }
 };
+

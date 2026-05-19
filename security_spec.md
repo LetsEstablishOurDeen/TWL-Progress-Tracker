@@ -1,36 +1,27 @@
 # Security Specification - The Wisdom Lounge
 
 ## Data Invariants
-1. A learner registration must have `isApproved: false` by default when coming from the public sign-up.
-2. Only an admin can set `isApproved: true`.
-3. Learners can only see their own private fields (if we split them) or we use the "password" logic which is currently client-side checked. (Note: Security rules can't check a plaintext password field securely without Auth, so for now we allow reading the collection but could restrict writing).
-4. `id` must be a valid string (phone number).
+1. A Learner document must be created with `isApproved: false` by default, unless created by an Admin.
+2. Only the owner of a Learner document (or an Admin) can read/write their own profile data.
+3. EditRequests can be created by any authenticated user (linking to their own learnerId).
+4. Only Admins can update the `status` of an EditRequest.
+5. Only Admins can read all EditRequests; individual learners can only read their own requests.
+6. Identity roles (Owner) are verified against `request.auth.uid`.
 
 ## The Dirty Dozen Payloads
-1. Create a learner with `isApproved: true` as a public user. -> DENIED
-2. Update another learner's `tasksCompleted` as a different learner. -> DENIED
-3. Delete a learner as a public user. -> DENIED
-4. Create a learner with a 1MB string in `fullName`. -> DENIED
-5. Update a learner's `isApproved` status without admin rights. -> DENIED
-6. Spoofing `joinedAt` to a past date. -> DENIED
-7. Injecting a "Ghost Field" `isVerified: true`. -> DENIED
-8. Deleting an admin record. -> DENIED
-9. Registering with an ID that already exists (handled by Firestore unique IDs).
-10. Reading all passwords as a public user (if we don't isolate them). -> SHOULD BE ISOLATED OR DENIED IF POSSIBLE.
-11. Changing `id` of an existing learner. -> DENIED
-12. Creating a learner without required fields. -> DENIED
 
-## Security Strategy
-We will use a "default deny" rule.
-- `allow read`: Currently learners need to find their own profile and see the leaderboard, so public read for most fields is needed, but we should protect the `password` field if we want real privacy.
-- `allow write`:
-    - `create`: Any sign-in/up can create with `isApproved: false`.
-    - `update`: Only via admin or if the user is verified (but we don't have proper Auth yet).
-    - `delete`: Only Admin.
+1. **Self-Approval Attack**: A learner attempts to update their own `isApproved` field to `true`.
+2. **Password Leak Attack**: A learner attempts to read another learner's document.
+3. **Identity Spoofing**: A learner submits an EditRequest with a different `learnerId` than their own.
+4. **Admin Privilege Escalation**: A learner attempts to write to the `admins` collection.
+5. **Request Hijacking**: A learner attempts to approve their own EditRequest by changing `status` to `approved`.
+6. **Orphaned Write**: A learner attempts to create an EditRequest for a non-existent learnerId.
+7. **Resource Exhaustion**: A learner attempts to write a 1MB string into a `fullName` field.
+8. **Shadow Field Injection**: A learner adds secret fields like `isAdmin: true` to their profile.
+9. **Terminal State Reversal**: A learner attempts to change a 'rejected' request back to 'pending'.
+10. **PII Blanket Read**: An authenticated user tries to list all learners and their personal details.
+11. **Spoofed Timestamp**: A learner submits a request with a future `requestedAt`.
+12. **ID Poisoning**: A learner uses a 1.5KB junk string as a document ID.
 
-Since the user asked for a "password system for privacy", storing passwords in Firestore that are readable by everyone defeats the purpose.
-However, without Firebase Auth, secure password checks are hard.
-For now, let's keep it simple as requested, but harden it as much as we can.
-Actually, the user IS the admin (araizhasan00@gmail.com).
-
-I should probably recommend Firebase Auth for real security, but I will implement rules that at least prevent unauthorized writes.
+## Test Strategy
+All payloads above must return `PERMISSION_DENIED` in the Firestore Security Rules.

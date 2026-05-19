@@ -7,6 +7,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { getLearnerBadges } from '../lib/badges';
 import { requestService } from '../services/requestService';
+import { authService } from '../lib/auth';
 import { MODULES, APP_DOMAINS } from '../constants';
 import { 
   Radar, 
@@ -172,30 +173,42 @@ export function LearnerDashboard({
                    l.fullName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleSignIn = (e: FormEvent) => {
+  const handleSignIn = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    setSuccess(null);
-    const found = learners.find(l => l.id.toLowerCase() === searchTerm.toLowerCase() || l.fullName.toLowerCase() === searchTerm.toLowerCase());
+    setIsSubmitting(true);
     
-    if (found) {
-      if (found.password === password) {
-        if (!found.isApproved) {
+    try {
+      const user = await authService.signIn(searchTerm, password);
+      const profile = learners.find(l => l.id === user.uid);
+      
+      if (profile) {
+        if (!profile.isApproved) {
           setError("Your account is pending admin approval. Please check back later.");
+          await authService.signOut();
           return;
         }
-        setActiveLearner(found);
+        setActiveLearner(profile);
         setSearchTerm('');
         setPassword('');
       } else {
-        setError("Incorrect password.");
+        setError("Profile not found in Firestore. Please contact admin.");
+        await authService.signOut();
       }
-    } else {
-      setError("Learner not found. Make sure you are registered and approved.");
+    } catch (err: any) {
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
+        setError("Invalid ID or password.");
+      } else if (err.code === 'auth/invalid-credential') {
+        setError("Invalid credentials.");
+      } else {
+        setError("An error occurred during sign in. Please try again.");
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleSignUp = (e: FormEvent) => {
+  const handleSignUp = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
@@ -205,32 +218,34 @@ export function LearnerDashboard({
       return;
     }
 
-    if (learners.find(l => l.id === regId)) {
-      setError("A learner with this Phone Number already exists.");
+    if (regPassword.length < 6) {
+      setError("Password must be at least 6 characters.");
       return;
     }
 
-    onRegister({
-      id: regId,
-      fullName: regName,
-      password: regPassword,
-      isApproved: false,
-      booksCompleted: [],
-      presentationsGiven: [],
-      tasksCompleted: 0
-    });
-
-    setSuccess("Registration successful! Your profile is pending admin approval.");
-    setRegName('');
-    setRegId('');
-    setRegPassword('');
-    setConfirmPassword('');
-    setShowRegPassword(false);
-    setShowConfirmPassword(false);
-    setTimeout(() => {
-      setAuthMode('signin');
-      setSuccess(null);
-    }, 3000);
+    setIsSubmitting(true);
+    try {
+      await authService.signUp(regId, regPassword, regName);
+      setSuccess("Registration successful! Your profile is pending admin approval.");
+      setRegName('');
+      setRegId('');
+      setRegPassword('');
+      setConfirmPassword('');
+      setShowRegPassword(false);
+      setShowConfirmPassword(false);
+      setTimeout(() => {
+        setAuthMode('signin');
+        setSuccess(null);
+      }, 3000);
+    } catch (err: any) {
+      if (err.code === 'auth/email-already-in-use') {
+        setError("This ID (Phone Number) is already registered.");
+      } else {
+        setError("Failed to register. Please try again.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const activeBadges = activeLearner ? getLearnerBadges(activeLearner) : [];
@@ -505,7 +520,7 @@ export function LearnerDashboard({
           {/* Stats Cards Section */}
           <div className="space-y-4">
             <h3 className="font-serif text-2xl font-bold text-brand-text mb-4 px-2">Core Domains</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8 pr-[45px]">
               {APP_DOMAINS.filter(d => ['book', 'presentation', 'task'].includes(d.type)).map((domain, idx) => {
                 const Icon = { BookOpen, Mic, CheckCircle2 }[domain.icon as any] as any || BookOpen;
                 return (

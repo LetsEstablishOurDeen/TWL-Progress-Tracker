@@ -5,8 +5,8 @@ import { Users, Library, Trophy, LogIn, LogOut } from 'lucide-react';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LearnerDashboard } from './components/LearnerDashboard';
 import { Leaderboard } from './components/Leaderboard';
-import { auth } from './lib/firebase';
-import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'firebase/auth';
+
+import { authService } from './lib/auth';
 
 type ViewMode = 'learner' | 'admin' | 'leaderboard';
 
@@ -25,44 +25,51 @@ export default function App() {
   const [activeLearner, setActiveLearner] = useState<Learner | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = authService.onAuthChange((u) => {
       setUser(u);
+      if (!u) {
+        setActiveLearner(null);
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  // Handle Learner persistence
+  // Handle Learner profile link
   useEffect(() => {
-    const savedLearnerId = localStorage.getItem('wisdom_lounge_learner_id');
-    if (savedLearnerId && learners.length > 0) {
-      const found = learners.find(l => l.id === savedLearnerId);
-      if (found && found.isApproved) {
-        setActiveLearner(found);
-      } else if (found && !found.isApproved) {
-        localStorage.removeItem('wisdom_lounge_learner_id');
-      }
+    // If Admin signed in via Google
+    if (user && user.email === ADMIN_EMAIL) {
+        // Just admin operations
+    } else {
+        const savedLearnerId = localStorage.getItem('wisdom_lounge_learner_id');
+        if (savedLearnerId && learners.length > 0) {
+            const profile = learners.find(l => l.id === savedLearnerId);
+            if (profile && profile.isApproved) {
+                setActiveLearner(profile);
+            } else if (profile && !profile.isApproved) {
+                localStorage.removeItem('wisdom_lounge_learner_id');
+            }
+        }
     }
-  }, [learners]);
+  }, [user, learners]);
 
   useEffect(() => {
     if (activeLearner) {
-      localStorage.setItem('wisdom_lounge_learner_id', activeLearner.id);
+        localStorage.setItem('wisdom_lounge_learner_id', activeLearner.id);
     } else {
-      localStorage.removeItem('wisdom_lounge_learner_id');
+        localStorage.removeItem('wisdom_lounge_learner_id');
     }
   }, [activeLearner]);
 
   const handleAdminSignIn = async () => {
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      await authService.adminSignIn();
     } catch (error) {
       console.error("Sign in failed:", error);
     }
   };
 
   const handleSignOut = async () => {
-    await signOut(auth);
+    await authService.signOut();
     if (viewMode === 'admin') setViewMode('learner');
   };
 
@@ -90,7 +97,19 @@ export default function App() {
               className="flex items-center space-x-3 cursor-pointer" 
               onClick={() => setViewMode('learner')}
             >
-              <div className="w-10 h-10 bg-brand-brown rounded-full flex items-center justify-center text-brand-offwhite font-serif text-xl italic"><Library className="w-5 h-5"/></div>
+              <div className="w-10 h-10 bg-brand-brown rounded-full flex items-center justify-center text-brand-offwhite">
+                <svg 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  strokeWidth="2.5" 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  className="w-5 h-5"
+                >
+                  <path d="M5 21V9C5 5.13401 8.13401 2 12 2C15.866 2 19 5.13401 19 9V21" />
+                </svg>
+              </div>
               <span className="font-serif text-2xl font-bold tracking-tight text-brand-text">The Wisdom Lounge</span>
             </div>
             {!isOnline && (
