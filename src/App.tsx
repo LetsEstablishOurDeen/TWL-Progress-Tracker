@@ -107,7 +107,9 @@ export default function App() {
                   strokeLinejoin="round" 
                   className="w-5 h-5"
                 >
-                  <path d="M5 21V9C5 5.13401 8.13401 2 12 2C15.866 2 19 5.13401 19 9V21" />
+                  <path d="M6 22V10c0-3.3137 2.6863-6 6-6s6 2.6863 6 6v12" />
+                  <path d="M3 22h18" />
+                  <path d="M15 14v.01" />
                 </svg>
               </div>
               <span className="font-serif text-2xl font-bold tracking-tight text-brand-text">The Wisdom Lounge</span>
