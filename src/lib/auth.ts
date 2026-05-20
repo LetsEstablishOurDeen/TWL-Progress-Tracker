@@ -54,20 +54,40 @@ export const authService = {
     try {
       const docRef = doc(db, LEARNERS_COLLECTION, id);
       const snap = await getDoc(docRef);
-      if (!snap.exists()) {
-        const error: any = new Error("User not found");
-        error.code = 'auth/user-not-found';
-        throw error;
-      }
       
-      const data = snap.data();
+      let data = null;
+      let finalId = id;
+      
+      if (!snap.exists()) {
+        // Fallback to name search if lookup by ID fails
+        const { collection, getDocs } = await import('firebase/firestore');
+        const querySnapshot = await getDocs(collection(db, LEARNERS_COLLECTION));
+        
+        const userInput = id.toLowerCase().trim();
+        const userDoc = querySnapshot.docs.find(d => {
+          const name = d.data().fullName;
+          return name && name.toLowerCase().trim() === userInput;
+        });
+        
+        if (!userDoc) {
+          const error: any = new Error("User not found");
+          error.code = 'auth/user-not-found';
+          throw error;
+        } else {
+          data = userDoc.data();
+          finalId = userDoc.id;
+        }
+      } else {
+        data = snap.data();
+      }
+
       if (data.password !== password) {
         const error: any = new Error("Wrong password");
         error.code = 'auth/wrong-password';
         throw error;
       }
 
-      const user = { uid: id, email: null };
+      const user = { uid: finalId, email: null };
       this.setCurrentLearnerUser(user);
       return user;
     } catch (error) {

@@ -341,10 +341,10 @@ export function LearnerDashboard({
                             setSearchTerm(l.id);
                             setShowSuggestions(false);
                           }}
-                          className="px-4 py-2 hover:bg-brand-bg-alt cursor-pointer border-b border-brand-border-light last:border-b-0 flex justify-between items-center"
+                          className="px-4 py-2 hover:bg-brand-bg-alt cursor-pointer border-b border-brand-border-light last:border-b-0 flex justify-between items-center overflow-hidden"
                         >
-                          <span className="font-medium text-brand-text">{l.fullName}</span>
-                          <span className="text-xs font-mono text-brand-brown-light">{l.id}</span>
+                          <span className="font-medium text-brand-text truncate flex-1 mr-2">{l.fullName}</span>
+                          <span className="text-xs font-mono text-brand-brown-light shrink-0">{l.id}</span>
                         </div>
                       ))}
                     </div>
