@@ -9,6 +9,7 @@ import { getLearnerBadges } from '../lib/badges';
 import { requestService } from '../services/requestService';
 import { authService } from '../lib/auth';
 import { MODULES, APP_DOMAINS } from '../constants';
+import { getOverallPoints, getDomainValue } from '../utils';
 import { 
   Radar, 
   RadarChart, 
@@ -23,19 +24,15 @@ import {
   Cell
 } from 'recharts';
 
-// Helpers to dynamically extract domain and module values
-const getDomainValue = (learner: any, type: string) => {
-  if (type === 'book') return learner.booksCompleted?.length || 0;
-  if (type === 'presentation') return learner.presentationsGiven?.length || 0;
-  if (type === 'task') return learner.tasksCompleted || 0;
-  
-  // Handle module-based domains
-  const domain = APP_DOMAINS.find(d => d.type === type);
-  if (domain) {
-    return getModuleValue(learner, domain);
+// Safely aggregates module items including sub-options
+const getModuleItems = (learner: any, mod: any) => {
+  let items = learner.moduleItems?.[mod.id] || [];
+  if ('subOptions' in mod && mod.subOptions) {
+    (mod.subOptions as any[]).forEach((sub: any) => {
+      items = [...items, ...(learner.moduleItems?.[sub.id] || [])];
+    });
   }
-  
-  return 0;
+  return items;
 };
 
 const getDomainItems = (learner: any, type: string) => {
@@ -49,35 +46,6 @@ const getDomainItems = (learner: any, type: string) => {
   }
   
   return []; 
-};
-
-// Safely aggregates module stats including sub-options
-const getModuleValue = (learner: any, mod: any) => {
-  let total = learner.moduleStats?.[mod.id] || 0;
-  if ('subOptions' in mod && mod.subOptions) {
-    (mod.subOptions as any[]).forEach((sub: any) => {
-      total += learner.moduleStats?.[sub.id] || 0;
-    });
-  }
-  return total;
-};
-
-// Safely aggregates module items including sub-options
-const getModuleItems = (learner: any, mod: any) => {
-  let items = learner.moduleItems?.[mod.id] || [];
-  if ('subOptions' in mod && mod.subOptions) {
-    (mod.subOptions as any[]).forEach((sub: any) => {
-      items = [...items, ...(learner.moduleItems?.[sub.id] || [])];
-    });
-  }
-  return items;
-};
-
-const getDomainMultiplier = (type: string) => {
-  if (type === 'book') return 5;
-  if (type === 'presentation') return 10;
-  if (type === 'task') return 1;
-  return 2;
 };
 
 export function LearnerDashboard({ 
@@ -252,12 +220,7 @@ export function LearnerDashboard({
 
   const wisdomPoints = useMemo(() => {
     if (!activeLearner) return 0;
-    let pts = 0;
-    // Points from Core Domains
-    APP_DOMAINS.forEach(d => {
-      pts += getDomainValue(activeLearner, d.type) * getDomainMultiplier(d.type);
-    });
-    return pts;
+    return getOverallPoints(activeLearner);
   }, [activeLearner]);
 
   const chartData = useMemo(() => {

@@ -5,6 +5,7 @@ import { ManageLearnerModal } from './ManageLearnerModal';
 import { requestService } from '../services/requestService';
 import { motion, AnimatePresence } from 'motion/react';
 import { APP_DOMAINS } from '../constants';
+import { getOverallPoints, getDomainValue } from '../utils';
 import { 
   BarChart, 
   Bar, 
@@ -118,47 +119,16 @@ export function AdminDashboard({
     const colors = ['#5A4633', '#8C7864', '#A69280', '#C4B4A4', '#DCCFC2', '#EBE5DB', '#E0D8C8'];
     
     const contribData = APP_DOMAINS.map((domain, index) => {
-      let value = 0;
-      if (domain.type === 'book') value = learners.reduce((acc, l) => acc + l.booksCompleted.length, 0);
-      else if (domain.type === 'presentation') value = learners.reduce((acc, l) => acc + l.presentationsGiven.length, 0);
-      else if (domain.type === 'task') value = learners.reduce((acc, l) => acc + l.tasksCompleted, 0);
-      else {
-        // Module-based domains
-        value = learners.reduce((acc, l) => {
-          let modVal = l.moduleStats?.[domain.id] || 0;
-          if ('subOptions' in domain && domain.subOptions) {
-            domain.subOptions.forEach((sub: any) => {
-              modVal += l.moduleStats?.[sub.id] || 0;
-            });
-          }
-          return acc + modVal;
-        }, 0);
-      }
-      
+      const value = learners.reduce((acc, l) => acc + getDomainValue(l, domain.type), 0);
       totalByDomain[domain.type] = value;
       return { name: domain.label, value, color: colors[index % colors.length] };
     });
 
     const topLearners = [...learners]
-      .map(l => {
-        let points = (l.booksCompleted.length * 5) + (l.presentationsGiven.length * 10) + l.tasksCompleted;
-        // Add points from other domains
-        APP_DOMAINS.forEach(domain => {
-          if (!['book', 'presentation', 'task'].includes(domain.type)) {
-            let modVal = l.moduleStats?.[domain.id] || 0;
-            if ('subOptions' in domain && domain.subOptions) {
-              domain.subOptions.forEach((sub: any) => {
-                modVal += l.moduleStats?.[sub.id] || 0;
-              });
-            }
-            points += modVal * 2; // Multiplier of 2 for modules
-          }
-        });
-        return {
-          name: l.fullName,
-          points: points
-        };
-      })
+      .map(l => ({
+        name: l.fullName,
+        points: getOverallPoints(l)
+      }))
       .sort((a, b) => b.points - a.points)
       .slice(0, 5);
 

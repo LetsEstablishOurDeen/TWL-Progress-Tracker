@@ -4,32 +4,23 @@ import { Trophy, Medal, Award, BookOpen, Mic, CheckCircle2, Info } from 'lucide-
 import { motion } from 'motion/react';
 import { MODULES, ISLAMIC_BOOKS, APP_DOMAINS } from '../constants';
 import { EditRequest } from '../types';
+import { getOverallPoints, getDomainValue } from '../utils';
 
 type Category = 'overall' | EditRequest['type'];
 
 export function Leaderboard({ learners }: { learners: Learner[] }) {
   const [activeCategory, setActiveCategory] = useState<Category>('overall');
 
-  const getMagnitudeScore = (learner: Learner) => {
-    return (learner.booksCompleted.length * 5) + (learner.presentationsGiven.length * 10) + learner.tasksCompleted;
-  };
-
   const sortedLearners = useMemo(() => {
     return [...learners].sort((a, b) => {
-      if (activeCategory === 'overall') return getMagnitudeScore(b) - getMagnitudeScore(a);
-      if (activeCategory === 'book') return b.booksCompleted.length - a.booksCompleted.length;
-      if (activeCategory === 'presentation') return b.presentationsGiven.length - a.presentationsGiven.length;
-      if (activeCategory === 'task') return b.tasksCompleted - a.tasksCompleted;
-      return 0;
+      if (activeCategory === 'overall') return getOverallPoints(b) - getOverallPoints(a);
+      return getDomainValue(b, activeCategory) - getDomainValue(a, activeCategory);
     }).slice(0, 10);
   }, [learners, activeCategory]);
 
   const getScore = (learner: Learner) => {
-    if (activeCategory === 'overall') return getMagnitudeScore(learner);
-    if (activeCategory === 'book') return learner.booksCompleted.length;
-    if (activeCategory === 'presentation') return learner.presentationsGiven.length;
-    if (activeCategory === 'task') return learner.tasksCompleted;
-    return 0;
+    if (activeCategory === 'overall') return getOverallPoints(learner);
+    return getDomainValue(learner, activeCategory);
   };
 
   const getCategoryLabel = () => {
