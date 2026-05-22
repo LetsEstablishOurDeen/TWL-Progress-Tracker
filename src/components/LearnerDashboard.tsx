@@ -10,19 +10,6 @@ import { requestService } from '../services/requestService';
 import { authService } from '../lib/auth';
 import { MODULES, APP_DOMAINS } from '../constants';
 import { getOverallPoints, getDomainValue } from '../utils';
-import { 
-  Radar, 
-  RadarChart, 
-  PolarGrid, 
-  PolarAngleAxis, 
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  Cell
-} from 'recharts';
 
 // Safely aggregates module items including sub-options
 const getModuleItems = (learner: any, mod: any) => {
@@ -221,30 +208,6 @@ export function LearnerDashboard({
   const wisdomPoints = useMemo(() => {
     if (!activeLearner) return 0;
     return getOverallPoints(activeLearner);
-  }, [activeLearner]);
-
-  const chartData = useMemo(() => {
-    if (!activeLearner) return [];
-    const data = APP_DOMAINS.map(domain => {
-      const fullMark = domain.type === 'task' ? 50 : 15;
-      return { subject: domain.label, A: getDomainValue(activeLearner, domain.type), fullMark };
-    });
-    return data;
-  }, [activeLearner]);
-
-  const activityData = useMemo(() => {
-    if (!activeLearner) return [];
-    const colors = ['#5A4633', '#8C7864', '#A69280', '#C4B4A4', '#DCCFC2', '#EBE5DB', '#E0D8C8'];
-    const data: {name: string, value: number, color: string}[] = [];
-    
-    APP_DOMAINS.forEach((domain, index) => {
-      data.push({
-        name: domain.label,
-        value: getDomainValue(activeLearner, domain.type),
-        color: colors[index % colors.length]
-      });
-    });
-    return data;
   }, [activeLearner]);
 
   return (
@@ -499,63 +462,54 @@ export function LearnerDashboard({
             </div>
           </div>
 
-          {/* Charts Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-brand-white p-8 rounded-[2.5rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-brand-border group transition-all hover:shadow-[0_20px_60px_-20px_rgba(0,0,0,0.1)]">
-              <div className="flex items-center gap-4 mb-8 pb-5 border-b border-brand-border-light">
-                <div className="w-12 h-12 bg-brand-beige rounded-2xl flex items-center justify-center text-brand-brown shadow-sm group-hover:scale-110 transition-transform duration-500">
-                  <LayoutDashboard className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-serif text-2xl font-bold text-brand-text">Wisdom Balance</h3>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">Domains & Modules overview</p>
-                </div>
+          {/* Journey Section */}
+          <div className="bg-brand-white p-8 sm:p-12 rounded-[2.5rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-brand-border">
+            <div className="flex items-center gap-4 mb-12 pb-5 border-b border-brand-border-light">
+              <div className="w-12 h-12 bg-brand-beige rounded-2xl flex items-center justify-center text-brand-brown shadow-sm">
+                <LayoutDashboard className="w-6 h-6" />
               </div>
-              <div className="h-[320px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="75%" data={chartData}>
-                    <PolarGrid stroke="#EBE5DB" strokeDasharray="3 3" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#5A4633', fontSize: 10, fontWeight: 800, letterSpacing: '0.05em' }} />
-                    <Radar
-                      name={activeLearner.fullName}
-                      dataKey="A"
-                      stroke="#5A4633"
-                      strokeWidth={2}
-                      fill="#5A4633"
-                      fillOpacity={0.5}
-                    />
-                  </RadarChart>
-                </ResponsiveContainer>
+              <div>
+                <h3 className="font-serif text-2xl font-bold text-brand-text">Your Learning Journey</h3>
+                <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">Path of Wisdom</p>
               </div>
             </div>
+            
+            <div className="relative pl-4 sm:pl-8 space-y-12 before:absolute before:inset-0 before:ml-6 sm:before:ml-10 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-brand-brown/5 before:via-brand-brown/20 before:to-brand-brown/5">
+              {APP_DOMAINS.map((domain, index) => {
+                const value = getDomainValue(activeLearner, domain.type);
+                const fullMark = domain.type === 'task' ? 50 : 15;
+                const progress = Math.min(100, Math.max(0, (value / fullMark) * 100));
+                const Icon = { BookOpen, Mic, CheckCircle2 }[domain.icon as any] as any || BookOpen;
+                // Alternate left/right for medium+ screens
+                const isEven = index % 2 === 0;
 
-            <div className="bg-brand-white p-8 rounded-[2.5rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-brand-border group transition-all hover:shadow-[0_20px_60px_-20px_rgba(0,0,0,0.1)]">
-              <div className="flex items-center gap-4 mb-8 pb-5 border-b border-brand-border-light">
-                <div className="w-12 h-12 bg-brand-beige rounded-2xl flex items-center justify-center text-brand-brown shadow-sm group-hover:scale-110 transition-transform duration-500">
-                  <BarChart3 className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-serif text-2xl font-bold text-brand-text">Activity Distribution</h3>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">Contribution breakdown</p>
-                </div>
-              </div>
-              <div className="h-[320px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={activityData} layout="vertical" margin={{ left: 20, right: 30 }}>
-                    <XAxis type="number" hide />
-                    <YAxis dataKey="name" type="category" tick={{ fill: '#5A4633', fontSize: 11, fontWeight: 600 }} width={120} axisLine={false} tickLine={false} />
-                    <Tooltip 
-                      cursor={{ fill: 'rgba(235, 229, 219, 0.4)', radius: 12 }} 
-                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -10px rgba(0,0,0,0.1)', fontFamily: 'serif', padding: '12px 16px' }} 
-                    />
-                    <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={25}>
-                      {activityData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+                return (
+                  <div key={domain.type} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group border-none">
+                    {/* Node/Circle */}
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-brand-white bg-brand-beige shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 absolute left-[-16px] sm:left-[-8px] md:left-1/2 md:-translate-x-1/2 z-10 transition-transform duration-500 group-hover:scale-110">
+                      <Icon className="w-4 h-4 text-brand-brown" />
+                    </div>
+
+                    {/* Content Card */}
+                    <div className="w-full pl-8 md:pl-0 md:w-5/12 ml-6 md:ml-0">
+                      <div className={`bg-brand-bg-alt p-5 sm:p-6 rounded-2xl border border-brand-border-light shadow-sm transition-all duration-300 group-hover:shadow-md group-hover:bg-brand-white ${isEven ? 'md:text-right' : ''}`}>
+                        <h4 className="font-serif text-lg font-bold text-brand-text mb-1">{domain.label}</h4>
+                        <p className="text-xs text-brand-brown-light font-medium mb-4">{value} / {fullMark} Completed</p>
+                        
+                        {/* Progress Bar */}
+                        <div className="h-2 w-full bg-brand-border rounded-full overflow-hidden flex">
+                          <motion.div 
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progress}%` }}
+                            transition={{ duration: 1, ease: 'easeOut' }}
+                            className="bg-brand-brown h-full rounded-full"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
