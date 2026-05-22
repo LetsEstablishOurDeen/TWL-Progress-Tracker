@@ -16,7 +16,9 @@ import {
   ResponsiveContainer, 
   Cell,
   PieChart,
-  Pie
+  Pie,
+  LineChart,
+  Line
 } from 'recharts';
 
 export function AdminDashboard({ 
@@ -132,7 +134,31 @@ export function AdminDashboard({
       .sort((a, b) => b.points - a.points)
       .slice(0, 5);
 
-    return { contribData, topLearners, totalByDomain };
+    const growthMap: Record<string, { label: string; count: number, timestamp: number }> = {};
+    
+    learners.forEach(l => {
+      if (!l.joinedAt) return;
+      const d = new Date(l.joinedAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
+      if (!growthMap[key]) {
+        growthMap[key] = { label: d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }), count: 0, timestamp: new Date(d.getFullYear(), d.getMonth(), 1).getTime() };
+      }
+      growthMap[key].count += 1;
+    });
+
+    let runningTotal = 0;
+    const growthData = Object.values(growthMap)
+      .sort((a, b) => a.timestamp - b.timestamp)
+      .map(entry => {
+        runningTotal += entry.count;
+        return {
+          date: entry.label,
+          total: runningTotal,
+          newSigns: entry.count
+        };
+      });
+
+    return { contribData, topLearners, totalByDomain, growthData };
   }, [learners]);
 
   const handleEdit = (learner: Learner) => {
@@ -287,6 +313,26 @@ export function AdminDashboard({
                     <p className="text-sm text-brand-brown-light italic">No activity data yet.</p>
                   )}
                 </div>
+              </div>
+            </div>
+
+            <div className="bg-brand-white p-6 rounded-xl border border-brand-border shadow-sm mt-6">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-brand-brown mb-6 flex items-center gap-2">
+                <UsersIcon className="w-4 h-4" />
+                Community Growth Over Time
+              </h3>
+              <div className="h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={reportingData.growthData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#EBE5DB" />
+                    <XAxis dataKey="date" tick={{ fill: '#5A4633', fontSize: 12 }} />
+                    <YAxis tick={{ fill: '#5A4633', fontSize: 12 }} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '12px', border: '1px solid #EBE5DB' }}
+                    />
+                    <Line type="monotone" dataKey="total" name="Total Members" stroke="#5A4633" strokeWidth={3} dot={{ fill: '#5A4633', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             </div>
           </div>
