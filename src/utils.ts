@@ -11,7 +11,7 @@ export const getDomainValue = (learner: Learner, type: string) => {
   if (domain) {
     let total = learner.moduleStats?.[domain.id] || 0;
     if ('subOptions' in domain && domain.subOptions) {
-      (domain.subOptions as any[]).forEach((sub: any) => {
+      (domain.subOptions as unknown as any[]).forEach((sub: any) => {
         total += learner.moduleStats?.[sub.id] || 0;
       });
     }
@@ -33,5 +33,11 @@ export const getOverallPoints = (learner: Learner) => {
   APP_DOMAINS.forEach(d => {
     pts += getDomainValue(learner, d.type) * getDomainMultiplier(d.type);
   });
+  
+  if (learner.currentFocuses) {
+    // 2 points per active focus for initiative
+    pts += learner.currentFocuses.length * 2;
+  }
+  
   return pts;
 };

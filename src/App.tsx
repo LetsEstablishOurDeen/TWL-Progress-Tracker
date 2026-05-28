@@ -36,18 +36,13 @@ export default function App() {
 
   // Handle Learner profile link
   useEffect(() => {
-    // If Admin signed in via Google
-    if (user && user.email === ADMIN_EMAIL) {
-        // Just admin operations
-    } else {
-        const savedLearnerId = localStorage.getItem('wisdom_lounge_learner_id');
-        if (savedLearnerId && learners.length > 0) {
-            const profile = learners.find(l => l.id === savedLearnerId);
-            if (profile && profile.isApproved) {
-                setActiveLearner(profile);
-            } else if (profile && !profile.isApproved) {
-                localStorage.removeItem('wisdom_lounge_learner_id');
-            }
+    const savedLearnerId = activeLearner?.id || localStorage.getItem('wisdom_lounge_learner_id');
+    if (savedLearnerId && learners.length > 0) {
+        const profile = learners.find(l => l.id === savedLearnerId);
+        if (profile && profile.isApproved) {
+            setActiveLearner(profile);
+        } else if (profile && !profile.isApproved) {
+            localStorage.removeItem('wisdom_lounge_learner_id');
         }
     }
   }, [user, learners]);

@@ -10,6 +10,19 @@ import { requestService } from '../services/requestService';
 import { authService } from '../lib/auth';
 import { MODULES, APP_DOMAINS } from '../constants';
 import { getOverallPoints, getDomainValue } from '../utils';
+import { 
+  Radar, 
+  RadarChart, 
+  PolarGrid, 
+  PolarAngleAxis, 
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  Cell
+} from 'recharts';
 
 // Safely aggregates module items including sub-options
 const getModuleItems = (learner: any, mod: any) => {
@@ -152,7 +165,7 @@ export function LearnerDashboard({
       }
     } catch (err: any) {
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password') {
-        setError("Invalid ID or password.");
+        setError("Invalid Wisdom Code or password.");
       } else if (err.code === 'auth/invalid-credential') {
         setError("Invalid credentials.");
       } else {
@@ -194,7 +207,7 @@ export function LearnerDashboard({
       }, 3000);
     } catch (err: any) {
       if (err.code === 'auth/email-already-in-use') {
-        setError("This ID (Phone Number) is already registered.");
+        setError("This Wisdom Code is already registered.");
       } else {
         setError("Failed to register. Please try again.");
       }
@@ -203,11 +216,66 @@ export function LearnerDashboard({
     }
   };
 
+  const [isFocusSubmitting, setIsFocusSubmitting] = useState(false);
+  const [isFocusModalOpen, setIsFocusModalOpen] = useState(false);
+  const [focusDomain, setFocusDomain] = useState<string>(APP_DOMAINS[0]?.type || 'book');
+  const [focusTitle, setFocusTitle] = useState('');
+
+  const handleUpdateFocus = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!activeLearner) return;
+
+    setIsFocusSubmitting(true);
+    try {
+      await requestService.submitRequest({
+        learnerId: activeLearner.id,
+        learnerName: activeLearner.fullName,
+        type: focusDomain,
+        isFocus: true,
+        details: {
+          title: focusTitle,
+        }
+      });
+      setIsFocusModalOpen(false);
+      setFocusTitle('');
+      setSuccess("Focus approval request submitted!");
+    } catch (err) {
+      setError("Failed to submit focus request.");
+    } finally {
+      setIsFocusSubmitting(false);
+      setTimeout(() => setSuccess(null), 5000);
+    }
+  };
+
   const activeBadges = activeLearner ? getLearnerBadges(activeLearner) : [];
 
   const wisdomPoints = useMemo(() => {
     if (!activeLearner) return 0;
     return getOverallPoints(activeLearner);
+  }, [activeLearner]);
+
+  const chartData = useMemo(() => {
+    if (!activeLearner) return [];
+    const data = APP_DOMAINS.map(domain => {
+      const fullMark = domain.type === 'task' ? 50 : 15;
+      return { subject: domain.label, A: getDomainValue(activeLearner, domain.type), fullMark };
+    });
+    return data;
+  }, [activeLearner]);
+
+  const activityData = useMemo(() => {
+    if (!activeLearner) return [];
+    const colors = ['#5A4633', '#8C7864', '#A69280', '#C4B4A4', '#DCCFC2', '#EBE5DB', '#E0D8C8'];
+    const data: {name: string, value: number, color: string}[] = [];
+    
+    APP_DOMAINS.forEach((domain, index) => {
+      data.push({
+        name: domain.label,
+        value: getDomainValue(activeLearner, domain.type),
+        color: colors[index % colors.length]
+      });
+    });
+    return data;
   }, [activeLearner]);
 
   return (
@@ -242,7 +310,7 @@ export function LearnerDashboard({
           {authMode === 'signin' ? (
             <form onSubmit={handleSignIn} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-brand-brown mb-1">Name or ID</label>
+                <label className="block text-sm font-medium text-brand-brown mb-1">Name or Wisdom Code</label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-brown-light w-4 h-4" />
                   <input 
@@ -314,16 +382,21 @@ export function LearnerDashboard({
                   required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-brand-brown mb-1">Phone Number (ID)</label>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-brand-brown mb-1">Wisdom Code</label>
                 <input 
                   type="text" 
                   value={regId}
                   onChange={(e) => setRegId(e.target.value)}
-                  placeholder="e.g. 555-0101"
+                  placeholder="Create a unique secret code"
                   className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown shadow-sm"
                   required
                 />
+                <p className="text-[10px] text-brand-brown-light leading-relaxed mt-2 bg-brand-beige/50 p-3 rounded-md border border-brand-border/50">
+                  <span className="font-bold text-brand-brown uppercase tracking-widest block mb-1">Important:</span>
+                  This Wisdom Code will be used as your unique identifier across the Wisdom Lounge. 
+                  It must be kept completely secret and private. Do not share it with anyone else.
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-brand-brown mb-1">Create Password</label>
@@ -393,7 +466,7 @@ export function LearnerDashboard({
               </p>
               <h1 className="font-serif text-4xl sm:text-5xl font-bold text-brand-text mb-2">{activeLearner.fullName}</h1>
               <div className="flex items-center gap-3">
-                <span className="bg-brand-offwhite px-3 py-1 rounded-md text-sm font-mono text-brand-brown border border-brand-border-light shadow-sm">ID: {activeLearner.id}</span>
+                <span className="bg-brand-offwhite px-3 py-1 rounded-md text-sm font-mono text-brand-brown border border-brand-border-light shadow-sm">Wisdom Code: {activeLearner.id}</span>
                 <span className="text-xs text-brand-brown-light font-medium bg-brand-bg-alt px-2 py-1 rounded border border-brand-border-light">Joined: {new Date(activeLearner.joinedAt).toLocaleDateString()}</span>
               </div>
             </div>
@@ -411,6 +484,76 @@ export function LearnerDashboard({
               >
                 Sign out
               </button>
+            </div>
+          </div>
+
+          {/* Current Focus Banner */}
+          <div className="bg-brand-brown p-6 sm:p-8 rounded-3xl shadow-sm border border-brand-brown overflow-hidden relative group">
+            <div className="absolute -right-6 -top-6 opacity-5 sm:opacity-10 pointer-events-none transition-transform duration-700 group-hover:scale-110">
+               <BookOpen className="w-48 h-48 text-brand-beige" />
+            </div>
+            <div className="relative z-10 flex flex-col md:flex-row md:items-start justify-between gap-6">
+              <div className="flex-1 w-full space-y-6">
+                <div className="flex justify-between items-center w-full">
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-beige/50">Active Focuses</h3>
+                  <button 
+                    onClick={() => {
+                      setFocusDomain(APP_DOMAINS[0]?.type);
+                      setFocusTitle('');
+                      setIsFocusModalOpen(true);
+                    }}
+                    className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-brand-brown bg-brand-white rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all text-center"
+                  >
+                    Add Focus
+                  </button>
+                </div>
+                
+                {activeLearner.currentFocuses && activeLearner.currentFocuses.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {activeLearner.currentFocuses.map((focus) => (
+                      <div key={focus.id || focus.title} className="bg-brand-brown-dark/30 p-5 rounded-2xl border border-brand-beige/10 flex flex-col justify-between">
+                        <div>
+                          <h4 className="font-serif text-xl sm:text-2xl font-bold text-brand-offwhite mb-2 leading-tight">
+                            {focus.title}
+                          </h4>
+                          <p className="text-[10px] font-medium text-brand-beige/80 bg-brand-beige/10 inline-block px-2 py-1 rounded-md border border-brand-beige/20 uppercase tracking-wider mb-4">
+                            {APP_DOMAINS.find(d => d.type === focus.domain)?.label || focus.domain}
+                          </p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2 mt-4">
+                          <button 
+                            onClick={async () => {
+                              const remaining = activeLearner.currentFocuses?.filter(f => f.id !== focus.id) || [];
+                              const { learnerService } = await import('../services/learnerService');
+                              await learnerService.updateLearner(activeLearner.id, { currentFocuses: remaining });
+                            }}
+                            className="w-full sm:w-auto px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-brand-brown-light bg-brand-white rounded-lg shadow hover:bg-brand-offwhite hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all flex justify-center items-center gap-1 border border-brand-border"
+                          >
+                            Abandon
+                          </button>
+                          <button 
+                            onClick={() => {
+                              setRequestType(focus.domain);
+                              setItemTitle(focus.title);
+                              setCompletionDate(new Date().toISOString().split('T')[0]);
+                              setIsRequestModalOpen(true);
+                            }}
+                            className="w-full px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-brand-white bg-green-700/80 rounded-lg shadow hover:bg-green-700 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all border border-green-600 flex justify-center items-center gap-1 flex-1"
+                          >
+                            Mark Complete
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="py-2">
+                    <h4 className="font-serif text-2xl text-brand-beige border-b border-brand-beige/20 border-dashed pb-1 inline-block">
+                      No active focuses. Establish your path!
+                    </h4>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -462,54 +605,63 @@ export function LearnerDashboard({
             </div>
           </div>
 
-          {/* Journey Section */}
-          <div className="bg-brand-white p-8 sm:p-12 rounded-[2.5rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-brand-border">
-            <div className="flex items-center gap-4 mb-12 pb-5 border-b border-brand-border-light">
-              <div className="w-12 h-12 bg-brand-beige rounded-2xl flex items-center justify-center text-brand-brown shadow-sm">
-                <LayoutDashboard className="w-6 h-6" />
+          {/* Charts Section */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-brand-white p-8 rounded-[2.5rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-brand-border group transition-all hover:shadow-[0_20px_60px_-20px_rgba(0,0,0,0.1)]">
+              <div className="flex items-center gap-4 mb-8 pb-5 border-b border-brand-border-light">
+                <div className="w-12 h-12 bg-brand-beige rounded-2xl flex items-center justify-center text-brand-brown shadow-sm group-hover:scale-110 transition-transform duration-500">
+                  <LayoutDashboard className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-2xl font-bold text-brand-text">Wisdom Balance</h3>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">Domains & Modules overview</p>
+                </div>
               </div>
-              <div>
-                <h3 className="font-serif text-2xl font-bold text-brand-text">Your Learning Journey</h3>
-                <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">Path of Wisdom</p>
+              <div className="h-[320px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart cx="50%" cy="50%" outerRadius="75%" data={chartData}>
+                    <PolarGrid stroke="#EBE5DB" strokeDasharray="3 3" />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#5A4633', fontSize: 10, fontWeight: 800, letterSpacing: '0.05em' }} />
+                    <Radar
+                      name={activeLearner.fullName}
+                      dataKey="A"
+                      stroke="#5A4633"
+                      strokeWidth={2}
+                      fill="#5A4633"
+                      fillOpacity={0.5}
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
               </div>
             </div>
-            
-            <div className="relative pl-4 sm:pl-8 space-y-12 before:absolute before:inset-0 before:ml-6 sm:before:ml-10 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-brand-brown/5 before:via-brand-brown/20 before:to-brand-brown/5">
-              {APP_DOMAINS.map((domain, index) => {
-                const value = getDomainValue(activeLearner, domain.type);
-                const fullMark = domain.type === 'task' ? 50 : 15;
-                const progress = Math.min(100, Math.max(0, (value / fullMark) * 100));
-                const Icon = { BookOpen, Mic, CheckCircle2 }[domain.icon as any] as any || BookOpen;
-                // Alternate left/right for medium+ screens
-                const isEven = index % 2 === 0;
 
-                return (
-                  <div key={domain.type} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group border-none">
-                    {/* Node/Circle */}
-                    <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-brand-white bg-brand-beige shadow-sm shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 absolute left-[-16px] sm:left-[-8px] md:left-1/2 md:-translate-x-1/2 z-10 transition-transform duration-500 group-hover:scale-110">
-                      <Icon className="w-4 h-4 text-brand-brown" />
-                    </div>
-
-                    {/* Content Card */}
-                    <div className="w-full pl-8 md:pl-0 md:w-5/12 ml-6 md:ml-0">
-                      <div className={`bg-brand-bg-alt p-5 sm:p-6 rounded-2xl border border-brand-border-light shadow-sm transition-all duration-300 group-hover:shadow-md group-hover:bg-brand-white ${isEven ? 'md:text-right' : ''}`}>
-                        <h4 className="font-serif text-lg font-bold text-brand-text mb-1">{domain.label}</h4>
-                        <p className="text-xs text-brand-brown-light font-medium mb-4">{value} / {fullMark} Completed</p>
-                        
-                        {/* Progress Bar */}
-                        <div className="h-2 w-full bg-brand-border rounded-full overflow-hidden flex">
-                          <motion.div 
-                            initial={{ width: 0 }}
-                            animate={{ width: `${progress}%` }}
-                            transition={{ duration: 1, ease: 'easeOut' }}
-                            className="bg-brand-brown h-full rounded-full"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            <div className="bg-brand-white p-8 rounded-[2.5rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-brand-border group transition-all hover:shadow-[0_20px_60px_-20px_rgba(0,0,0,0.1)]">
+              <div className="flex items-center gap-4 mb-8 pb-5 border-b border-brand-border-light">
+                <div className="w-12 h-12 bg-brand-beige rounded-2xl flex items-center justify-center text-brand-brown shadow-sm group-hover:scale-110 transition-transform duration-500">
+                  <BarChart3 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-2xl font-bold text-brand-text">Activity Distribution</h3>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">Contribution breakdown</p>
+                </div>
+              </div>
+              <div className="h-[320px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={activityData} layout="vertical" margin={{ left: 20, right: 30 }}>
+                    <XAxis type="number" hide />
+                    <YAxis dataKey="name" type="category" tick={{ fill: '#5A4633', fontSize: 11, fontWeight: 600 }} width={120} axisLine={false} tickLine={false} />
+                    <Tooltip 
+                      cursor={{ fill: 'rgba(235, 229, 219, 0.4)', radius: 12 }} 
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -10px rgba(0,0,0,0.1)', fontFamily: 'serif', padding: '12px 16px' }} 
+                    />
+                    <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={25}>
+                      {activityData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
 
@@ -704,6 +856,131 @@ export function LearnerDashboard({
                           <>
                             <Send className="w-4 h-4" />
                             Submit Request
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
+
+          {/* Current Focus Modal */}
+          <AnimatePresence>
+            {isFocusModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-brown/40 backdrop-blur-sm">
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  className="bg-brand-white w-full max-w-lg rounded-3xl shadow-2xl border border-brand-border overflow-hidden"
+                >
+                  <div className="px-6 py-4 bg-brand-beige border-b border-brand-border flex items-center justify-between">
+                    <h3 className="font-serif text-xl font-bold text-brand-text">Set Learning Focus</h3>
+                    <button onClick={() => setIsFocusModalOpen(false)} className="p-2 hover:bg-brand-border rounded-full transition-colors">
+                      <X className="w-5 h-5 text-brand-brown" />
+                    </button>
+                  </div>
+                  
+                  <form onSubmit={handleUpdateFocus} className="p-6 space-y-5">
+                    
+                    {/* Domain Selection */}
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Category (Domain)</label>
+                      <div className="flex bg-brand-offwhite p-1 rounded-xl border border-brand-border relative overflow-x-auto no-scrollbar w-full">
+                        <div className="flex min-w-max md:w-full">
+                          {APP_DOMAINS.map(domain => (
+                            <button
+                              key={domain.type}
+                              type="button"
+                              onClick={() => setFocusDomain(domain.type)}
+                              className={`relative flex-1 py-2 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 active:scale-95 whitespace-nowrap ${focusDomain === domain.type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                            >
+                              {focusDomain === domain.type && (
+                                <motion.div
+                                  layoutId="focus-segmented-control-bg"
+                                  className="absolute inset-0 bg-brand-brown rounded-lg shadow-md"
+                                  transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
+                                />
+                              )}
+                              <span className="relative z-10">{domain.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dynamic Fields based on Domain */}
+                    {['tafsir', 'seerah'].includes(focusDomain) ? (
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Batch Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={focusTitle}
+                          onChange={(e) => setFocusTitle(e.target.value)}
+                          placeholder="e.g. Batch 2024"
+                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                        />
+                      </div>
+                    ) : focusDomain === 'dowra' ? (
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Year of Dowra Quran</label>
+                        <input
+                          type="text"
+                          required
+                          value={focusTitle}
+                          onChange={(e) => setFocusTitle(e.target.value)}
+                          placeholder="e.g. 2023"
+                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                        />
+                      </div>
+                    ) : focusDomain === 'task' ? (
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Current Task Focus / Description</label>
+                        <input
+                          type="text"
+                          required
+                          value={focusTitle}
+                          onChange={(e) => setFocusTitle(e.target.value)}
+                          placeholder="e.g. Helping with Event Logistics"
+                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                          Specific Title or Subject
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={focusTitle}
+                          onChange={(e) => setFocusTitle(e.target.value)}
+                          placeholder={`e.g. ${APP_DOMAINS.find(d => d.type === focusDomain)?.label === 'Books' ? 'The Clear Quran' : 'Focus Topic'}`}
+                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                        />
+                      </div>
+                    )}
+
+                    <div className="pt-4 flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setIsFocusModalOpen(false)}
+                        className="flex-1 px-6 py-3 border border-brand-border rounded-xl text-xs font-bold uppercase tracking-widest text-brand-brown hover:bg-brand-offwhite active:scale-95 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={isFocusSubmitting}
+                        className="flex-2 px-6 py-3 bg-brand-brown text-brand-offwhite rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {isFocusSubmitting ? 'Updating...' : (
+                          <>
+                            <Send className="w-4 h-4" />
+                            Update Focus
                           </>
                         )}
                       </button>

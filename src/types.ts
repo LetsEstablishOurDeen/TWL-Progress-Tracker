@@ -10,6 +10,12 @@ export interface Learner {
   enrolledModules?: string[];
   moduleStats?: Record<string, number>;
   moduleItems?: Record<string, string[]>;
+  currentFocuses?: {
+    id: string;
+    domain: string;
+    title: string;
+    createdAt: string;
+  }[];
 }
 
 export interface EditRequest {
@@ -17,6 +23,7 @@ export interface EditRequest {
   learnerId: string;
   learnerName: string;
   type: string;
+  isFocus?: boolean;
   moduleId?: string;
   details: {
     title?: string;

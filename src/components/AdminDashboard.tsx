@@ -70,7 +70,20 @@ export function AdminDashboard({
 
     let updates: Partial<Learner> = {};
 
-    if (request.type === 'book') {
+    if (request.isFocus) {
+      const currentFocuses = learner.currentFocuses || [];
+      updates = {
+        currentFocuses: [
+          ...currentFocuses,
+          {
+            id: request.id,
+            domain: request.type,
+            title: request.details.title || 'Untitled Focus',
+            createdAt: new Date().toISOString()
+          }
+        ]
+      };
+    } else if (request.type === 'book') {
       updates = { 
         booksCompleted: [...learner.booksCompleted, `${request.details.title} (${request.details.duration})`] 
       };
@@ -97,6 +110,16 @@ export function AdminDashboard({
           [request.type]: [...(currentItems[request.type] || []), request.details.title]
         }
       };
+    }
+    
+    // Always check if this completion matches an active focus and remove it
+    if (!request.isFocus && learner.currentFocuses) {
+      const remainingFocuses = learner.currentFocuses.filter(
+        f => f.title !== request.details.title || f.domain !== request.type
+      );
+      if (remainingFocuses.length !== learner.currentFocuses.length) {
+        updates.currentFocuses = remainingFocuses;
+      }
     }
 
     try {
@@ -244,7 +267,7 @@ export function AdminDashboard({
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-brown-light w-4 h-4" />
                 <input 
                   type="text" 
-                  placeholder="Search by ID or Name..."
+                  placeholder="Search by Wisdom Code or Name..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 bg-brand-offwhite border border-brand-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown shadow-sm"
@@ -365,13 +388,14 @@ export function AdminDashboard({
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className="font-serif font-bold text-brand-text">{req.learnerName}</h4>
-                            <span className="text-[10px] font-mono text-brand-brown-light">ID: {req.learnerId}</span>
+                            <span className="text-[10px] font-mono text-brand-brown-light">Wisdom Code: {req.learnerId}</span>
                           </div>
                           <p className="text-sm text-brand-brown">
-                            Requested to add: <span className="font-bold">{req.type === 'task' ? `${req.details.count} Completion(s)` : req.details.title}</span>
+                            {req.isFocus ? 'Requested to start focusing on: ' : 'Requested to add: '}
+                            <span className="font-bold">{req.type === 'task' && !req.isFocus ? `${req.details.count} Completion(s)` : req.details.title}</span>
                           </p>
                           <div className="flex items-center gap-2 mt-1">
-                            {req.type !== 'task' && (
+                            {!req.isFocus && req.type !== 'task' && (
                               <p className="text-xs text-brand-brown-light flex items-center gap-2">
                                 <span>Completed: {req.details.completedAt}</span>
                                 <span className="w-1 h-1 bg-brand-border rounded-full"></span>
@@ -411,7 +435,7 @@ export function AdminDashboard({
             <thead>
               <tr className="text-[11px] uppercase tracking-wider text-brand-brown-light border-b border-brand-border-light bg-brand-white">
                 <th className="px-6 py-4 font-bold">Status</th>
-                <th className="px-6 py-4 font-bold">Learner ID</th>
+                <th className="px-6 py-4 font-bold">Wisdom Code</th>
                 <th className="px-6 py-4 font-bold">Full Name</th>
                 <th className="px-6 py-4 font-bold text-center">Books</th>
                 <th className="px-6 py-4 font-bold text-center">Tasks</th>

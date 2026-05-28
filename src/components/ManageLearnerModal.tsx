@@ -72,7 +72,7 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
               />
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1">Phone Number (ID)</label>
+              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1">Wisdom Code</label>
               <input
                 type="text"
                 required
