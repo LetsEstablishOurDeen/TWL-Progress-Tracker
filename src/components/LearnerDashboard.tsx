@@ -394,8 +394,11 @@ export function LearnerDashboard({
                 />
                 <p className="text-[10px] text-brand-brown-light leading-relaxed mt-2 bg-brand-beige/50 p-3 rounded-md border border-brand-border/50">
                   <span className="font-bold text-brand-brown uppercase tracking-widest block mb-1">Important:</span>
-                  This Wisdom Code will be used as your unique identifier across the Wisdom Lounge. 
+                  This Wisdom Code will be used as your unique identifier across The Wisdom Lounge. 
                   It must be kept completely secret and private. Do not share it with anyone else.
+                  <span className="block mt-1 text-red-400 font-bold tracking-wide uppercase">
+                  IT CANNOT BE CHANGED IN THE FUTURE.
+                  </span>
                 </p>
               </div>
               <div>
