@@ -328,7 +328,7 @@ export function LearnerDashboard({
                     }}
                     onFocus={() => setShowSuggestions(true)}
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                    placeholder="e.g. Alex or 555-0101"
+                    placeholder="e.g. Alex"
                     className="w-full pl-10 pr-4 py-3 bg-brand-offwhite border border-brand-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown shadow-sm"
                     required
                   />
@@ -338,13 +338,12 @@ export function LearnerDashboard({
                         <div 
                           key={l.id}
                           onClick={() => {
-                            setSearchTerm(l.id);
+                            setSearchTerm(l.fullName);
                             setShowSuggestions(false);
                           }}
                           className="px-4 py-2 hover:bg-brand-bg-alt cursor-pointer border-b border-brand-border-light last:border-b-0 flex justify-between items-center overflow-hidden"
                         >
-                          <span className="font-medium text-brand-text truncate flex-1 mr-2">{l.fullName}</span>
-                          <span className="text-xs font-mono text-brand-brown-light shrink-0">{l.id}</span>
+                          <span className="font-medium text-brand-text truncate flex-1">{l.fullName}</span>
                         </div>
                       ))}
                     </div>
