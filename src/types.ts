@@ -15,7 +15,12 @@ export interface Learner {
     domain: string;
     title: string;
     createdAt: string;
+    estimatedDuration?: string;
+    location?: 'lounge' | 'personal';
   }[];
+  completedTafsirModule?: boolean;
+  completedSeerahModule?: boolean;
+  completedDawraEQuran?: boolean;
 }
 
 export interface EditRequest {
@@ -31,6 +36,8 @@ export interface EditRequest {
     duration?: string;
     count?: number;
     description?: string;
+    estimatedDuration?: string;
+    location?: 'lounge' | 'personal';
   };
   status: 'pending' | 'approved' | 'rejected';
   requestedAt: string;

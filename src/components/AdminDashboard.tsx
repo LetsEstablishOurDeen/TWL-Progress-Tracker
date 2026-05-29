@@ -79,7 +79,9 @@ export function AdminDashboard({
             id: request.id,
             domain: request.type,
             title: request.details.title || 'Untitled Focus',
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            estimatedDuration: request.details.estimatedDuration,
+            location: request.details.location
           }
         ]
       };
@@ -400,6 +402,13 @@ export function AdminDashboard({
                                 <span>Completed: {req.details.completedAt}</span>
                                 <span className="w-1 h-1 bg-brand-border rounded-full"></span>
                                 <span>Duration: {req.details.duration}</span>
+                              </p>
+                            )}
+                            {req.isFocus && (
+                              <p className="text-xs text-brand-brown-light flex items-center gap-2">
+                                <span>Target: {req.details.estimatedDuration ? new Date(req.details.estimatedDuration).toLocaleDateString() : 'unknown'}</span>
+                                <span className="w-1 h-1 bg-brand-border rounded-full"></span>
+                                <span>Location: {req.details.location === 'personal' ? 'Personal (Outside)' : 'Inside Lounge'}</span>
                               </p>
                             )}
                           </div>

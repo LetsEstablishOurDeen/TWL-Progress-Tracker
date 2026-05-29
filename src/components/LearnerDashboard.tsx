@@ -220,6 +220,8 @@ export function LearnerDashboard({
   const [isFocusModalOpen, setIsFocusModalOpen] = useState(false);
   const [focusDomain, setFocusDomain] = useState<string>(APP_DOMAINS[0]?.type || 'book');
   const [focusTitle, setFocusTitle] = useState('');
+  const [focusEstimatedDuration, setFocusEstimatedDuration] = useState('');
+  const [focusLocation, setFocusLocation] = useState<'lounge' | 'personal'>('lounge');
 
   const handleUpdateFocus = async (e: FormEvent) => {
     e.preventDefault();
@@ -234,10 +236,14 @@ export function LearnerDashboard({
         isFocus: true,
         details: {
           title: focusTitle,
+          estimatedDuration: focusEstimatedDuration,
+          location: focusLocation
         }
       });
       setIsFocusModalOpen(false);
       setFocusTitle('');
+      setFocusEstimatedDuration('');
+      setFocusLocation('lounge');
       setSuccess("Focus approval request submitted!");
     } catch (err) {
       setError("Failed to submit focus request.");
@@ -519,9 +525,21 @@ export function LearnerDashboard({
                           <h4 className="font-serif text-xl sm:text-2xl font-bold text-brand-offwhite mb-2 leading-tight">
                             {focus.title}
                           </h4>
-                          <p className="text-[10px] font-medium text-brand-beige/80 bg-brand-beige/10 inline-block px-2 py-1 rounded-md border border-brand-beige/20 uppercase tracking-wider mb-4">
-                            {APP_DOMAINS.find(d => d.type === focus.domain)?.label || focus.domain}
-                          </p>
+                          <div className="flex flex-wrap items-center gap-2 mb-4">
+                            <p className="text-[10px] font-medium text-brand-beige/80 bg-brand-beige/10 inline-block px-2 py-1 rounded-md border border-brand-beige/20 uppercase tracking-wider">
+                              {APP_DOMAINS.find(d => d.type === focus.domain)?.label || focus.domain}
+                            </p>
+                            {focus.estimatedDuration && (
+                              <p className="text-[10px] font-medium text-brand-beige/80 bg-brand-beige/10 inline-block px-2 py-1 rounded-md border border-brand-beige/20 tracking-wider">
+                                Target: {new Date(focus.estimatedDuration).toLocaleDateString()}
+                              </p>
+                            )}
+                            {focus.location === 'personal' && (
+                              <p className="text-[10px] font-medium text-amber-200/90 bg-amber-500/20 inline-block px-2 py-1 rounded-md border border-amber-500/30 tracking-wider">
+                                Personal (Needs overview)
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-2 mt-4">
                           <button 
@@ -965,6 +983,108 @@ export function LearnerDashboard({
                           className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
                         />
                       </div>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                        Target completion date
+                      </label>
+                      <input
+                        type="date"
+                        required
+                        value={focusEstimatedDuration}
+                        onChange={(e) => setFocusEstimatedDuration(e.target.value)}
+                        className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Location</label>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="focusLocation"
+                            value="lounge"
+                            checked={focusLocation === 'lounge'}
+                            onChange={() => setFocusLocation('lounge')}
+                            className="text-brand-brown focus:ring-brand-brown"
+                          />
+                          <span className="text-sm text-brand-brown font-medium">Inside the Lounge</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="focusLocation"
+                            value="personal"
+                            checked={focusLocation === 'personal'}
+                            onChange={() => setFocusLocation('personal')}
+                            className="text-brand-brown focus:ring-brand-brown"
+                          />
+                          <span className="text-sm text-brand-brown font-medium">Personal (Outside)</span>
+                        </label>
+                      </div>
+                    </div>
+
+                    {focusLocation === 'personal' && (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        className="bg-brand-beige border border-brand-border rounded-xl p-4 text-sm text-brand-brown"
+                      >
+                        <p className="font-bold uppercase tracking-wider text-[10px] mb-2 text-brand-brown-light">Requirement for Personal Study</p>
+                        <div className="leading-relaxed space-y-3">
+                          {focusDomain === 'book' && (
+                            <>
+                              <p>Since this goal is being pursued independently, you will be required to share a meaningful overview of the book after completion. The purpose of this is to encourage sincerity, reflection, and genuine understanding rather than passive reading.</p>
+                              <p>You may fulfill this by either:</p>
+                              <ul className="list-disc pl-5 space-y-1">
+                                <li>Conducting a community session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
+                                <li>Submitting a detailed written reflection or summary document.</li>
+                              </ul>
+                              <p>Your overview should ideally include key lessons, reflections, important insights, and practical takeaways from the book.</p>
+                            </>
+                          )}
+                          {focusDomain === 'presentation' && (
+                            <>
+                              <p>Since this goal is being pursued independently, you will be expected to share your completed presentation within the lounge community. This may be done through:</p>
+                              <ul className="list-disc pl-5 space-y-1">
+                                <li>A live community presentation/session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
+                                <li>A well-structured written document or presentation file.</li>
+                              </ul>
+                              <p>The objective is to encourage beneficial knowledge-sharing and meaningful contribution to the learning environment.</p>
+                            </>
+                          )}
+                          {focusDomain === 'task' && (
+                            <>
+                              <p>Since this goal is being pursued independently, you will be required to submit a clear and detailed overview of the completed task or project.</p>
+                              <p>You may fulfill this by either:</p>
+                              <ul className="list-disc pl-5 space-y-1">
+                                <li>Conducting a brief community session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
+                                <li>Submitting a detailed written overview.</li>
+                              </ul>
+                              <p>Your submission should briefly explain:</p>
+                              <ul className="list-disc pl-5 space-y-1">
+                                <li>What was completed</li>
+                                <li>The process or effort involved</li>
+                                <li>Key outcomes, reflections, or lessons learned</li>
+                              </ul>
+                              <p>This helps maintain accountability, consistency, and purposeful progress.</p>
+                            </>
+                          )}
+                          {['dowra', 'tafsir', 'seerah'].includes(focusDomain) && (
+                            <>
+                              <p>Since these goals are being pursued independently, you will be expected to share your learnings with the lounge after completion or throughout your progress.</p>
+                              <p>This may be done through:</p>
+                              <ul className="list-disc pl-5 space-y-1">
+                                <li>A community session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
+                                <li>A written reflection, notes document, or learning summary.</li>
+                              </ul>
+                              <p>The aim is to strengthen understanding, reflection, and beneficial sharing of knowledge within the community.</p>
+                            </>
+                          )}
+                        </div>
+                      </motion.div>
                     )}
 
                     <div className="pt-4 flex gap-3">
