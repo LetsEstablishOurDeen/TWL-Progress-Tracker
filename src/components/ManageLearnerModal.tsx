@@ -18,6 +18,10 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
   const [booksCompleted, setBooksCompleted] = useState<string[]>(learner?.booksCompleted || []);
   const [presentationsGiven, setPresentationsGiven] = useState<string[]>(learner?.presentationsGiven || []);
   const [tasksCompleted, setTasksCompleted] = useState(learner?.tasksCompleted || 0);
+
+  const [completedTafsirModule, setCompletedTafsirModule] = useState(learner?.completedTafsirModule || false);
+  const [completedSeerahModule, setCompletedSeerahModule] = useState(learner?.completedSeerahModule || false);
+  const [completedDawraEQuran, setCompletedDawraEQuran] = useState(learner?.completedDawraEQuran || false);
   
   const [newBook, setNewBook] = useState('');
   const [newPresentation, setNewPresentation] = useState('');
@@ -32,6 +36,9 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
       booksCompleted,
       presentationsGiven,
       tasksCompleted,
+      completedTafsirModule,
+      completedSeerahModule,
+      completedDawraEQuran,
       ...(learner ? {} : { joinedAt: new Date().toISOString() })
     };
     onSave(data);
@@ -187,6 +194,40 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
                 onChange={(e) => setTasksCompleted(parseInt(e.target.value) || 0)}
                 className="w-full px-4 py-2 bg-brand-offwhite border border-brand-border rounded-xl text-sm"
               />
+            </div>
+
+            {/* Special Modules */}
+            <div>
+              <h4 className="text-sm font-bold uppercase tracking-wider text-brand-brown mt-6 mb-4">Special Modules</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className="flex items-center gap-3 p-3 border border-brand-border rounded-xl cursor-pointer hover:bg-brand-offwhite transition-colors bg-brand-white">
+                  <input
+                    type="checkbox"
+                    checked={completedTafsirModule}
+                    onChange={(e) => setCompletedTafsirModule(e.target.checked)}
+                    className="w-4 h-4 text-brand-brown border-brand-border-light rounded focus:ring-brand-brown"
+                  />
+                  <span className="text-sm font-bold text-brand-text">Tafsir Module Completed</span>
+                </label>
+                <label className="flex items-center gap-3 p-3 border border-brand-border rounded-xl cursor-pointer hover:bg-brand-offwhite transition-colors bg-brand-white">
+                  <input
+                    type="checkbox"
+                    checked={completedSeerahModule}
+                    onChange={(e) => setCompletedSeerahModule(e.target.checked)}
+                    className="w-4 h-4 text-brand-brown border-brand-border-light rounded focus:ring-brand-brown"
+                  />
+                  <span className="text-sm font-bold text-brand-text">Seerah Module Completed</span>
+                </label>
+                <label className="flex items-center gap-3 p-3 border border-brand-border rounded-xl cursor-pointer hover:bg-brand-offwhite transition-colors bg-brand-white md:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={completedDawraEQuran}
+                    onChange={(e) => setCompletedDawraEQuran(e.target.checked)}
+                    className="w-4 h-4 text-brand-brown border-brand-border-light rounded focus:ring-brand-brown"
+                  />
+                  <span className="text-sm font-bold text-brand-text">Dowra e Quran Completed (Highest Rank)</span>
+                </label>
+              </div>
             </div>
           </div>
 

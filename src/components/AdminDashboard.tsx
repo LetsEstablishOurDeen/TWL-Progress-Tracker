@@ -112,6 +112,10 @@ export function AdminDashboard({
           [request.type]: [...(currentItems[request.type] || []), request.details.title]
         }
       };
+
+      if (request.type === 'dowra') updates.completedDawraEQuran = true;
+      if (request.type === 'tafsir') updates.completedTafsirModule = true;
+      if (request.type === 'seerah') updates.completedSeerahModule = true;
     }
     
     // Always check if this completion matches an active focus and remove it

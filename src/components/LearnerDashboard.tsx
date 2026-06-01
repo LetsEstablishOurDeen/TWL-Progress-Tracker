@@ -28,6 +28,11 @@ import {
 // Safely aggregates module items including sub-options
 const getModuleItems = (learner: any, mod: any) => {
   let items = learner.moduleItems?.[mod.id] || [];
+  
+  if (mod.type === 'dowra' && learner.completedDawraEQuran && items.length === 0) items = ['Dowra e Quran (Completed)'];
+  if (mod.type === 'tafsir' && learner.completedTafsirModule && items.length === 0) items = ['Tafsir Module (Completed)'];
+  if (mod.type === 'seerah' && learner.completedSeerahModule && items.length === 0) items = ['Seerah Module (Completed)'];
+
   if ('subOptions' in mod && mod.subOptions) {
     (mod.subOptions as any[]).forEach((sub: any) => {
       items = [...items, ...(learner.moduleItems?.[sub.id] || [])];
@@ -849,26 +854,24 @@ export function LearnerDashboard({
                     {/* Domain Selection */}
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Category (Domain)</label>
-                      <div className="flex bg-brand-offwhite p-1 rounded-xl border border-brand-border relative overflow-x-auto no-scrollbar w-full">
-                        <div className="flex min-w-max md:w-full">
-                          {APP_DOMAINS.map(domain => (
-                            <button
-                              key={domain.type}
-                              type="button"
-                              onClick={() => setRequestType(domain.type)}
-                              className={`relative flex-1 py-2 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 active:scale-95 whitespace-nowrap ${requestType === domain.type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
-                            >
-                              {requestType === domain.type && (
-                                <motion.div
-                                  layoutId="segmented-control-bg"
-                                  className="absolute inset-0 bg-brand-brown rounded-lg shadow-md"
-                                  transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
-                                />
-                              )}
-                              <span className="relative z-10">{domain.label}</span>
-                            </button>
-                          ))}
-                        </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-brand-offwhite p-2 rounded-xl border border-brand-border">
+                        {APP_DOMAINS.map(domain => (
+                          <button
+                            key={domain.type}
+                            type="button"
+                            onClick={() => setRequestType(domain.type)}
+                            className={`relative w-full py-2.5 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 active:scale-95 ${requestType === domain.type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                          >
+                            {requestType === domain.type && (
+                              <motion.div
+                                layoutId="segmented-control-bg"
+                                className="absolute inset-0 bg-brand-brown rounded-lg shadow-md"
+                                transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
+                              />
+                            )}
+                            <span className="relative z-10 block truncate">{domain.label}</span>
+                          </button>
+                        ))}
                       </div>
                     </div>
 
@@ -1012,26 +1015,24 @@ export function LearnerDashboard({
                     {/* Domain Selection */}
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Category (Domain)</label>
-                      <div className="flex bg-brand-offwhite p-1 rounded-xl border border-brand-border relative overflow-x-auto no-scrollbar w-full">
-                        <div className="flex min-w-max md:w-full">
-                          {APP_DOMAINS.map(domain => (
-                            <button
-                              key={domain.type}
-                              type="button"
-                              onClick={() => setFocusDomain(domain.type)}
-                              className={`relative flex-1 py-2 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 active:scale-95 whitespace-nowrap ${focusDomain === domain.type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
-                            >
-                              {focusDomain === domain.type && (
-                                <motion.div
-                                  layoutId="focus-segmented-control-bg"
-                                  className="absolute inset-0 bg-brand-brown rounded-lg shadow-md"
-                                  transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
-                                />
-                              )}
-                              <span className="relative z-10">{domain.label}</span>
-                            </button>
-                          ))}
-                        </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-brand-offwhite p-2 rounded-xl border border-brand-border">
+                        {APP_DOMAINS.map(domain => (
+                          <button
+                            key={domain.type}
+                            type="button"
+                            onClick={() => setFocusDomain(domain.type)}
+                            className={`relative w-full py-2.5 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 active:scale-95 ${focusDomain === domain.type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                          >
+                            {focusDomain === domain.type && (
+                              <motion.div
+                                layoutId="focus-segmented-control-bg"
+                                className="absolute inset-0 bg-brand-brown rounded-lg shadow-md"
+                                transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
+                              />
+                            )}
+                            <span className="relative z-10 block truncate">{domain.label}</span>
+                          </button>
+                        ))}
                       </div>
                     </div>
 

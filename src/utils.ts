@@ -10,6 +10,11 @@ export const getDomainValue = (learner: Learner, type: string) => {
   const domain = APP_DOMAINS.find(d => d.type === type);
   if (domain) {
     let total = learner.moduleStats?.[domain.id] || 0;
+    
+    if (type === 'dowra' && learner.completedDawraEQuran && total === 0) total = 1;
+    if (type === 'tafsir' && learner.completedTafsirModule && total === 0) total = 1;
+    if (type === 'seerah' && learner.completedSeerahModule && total === 0) total = 1;
+    
     if ('subOptions' in domain && domain.subOptions) {
       (domain.subOptions as unknown as any[]).forEach((sub: any) => {
         total += learner.moduleStats?.[sub.id] || 0;
