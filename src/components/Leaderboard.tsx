@@ -5,6 +5,8 @@ import { motion } from 'motion/react';
 import { MODULES, ISLAMIC_BOOKS, APP_DOMAINS } from '../constants';
 import { EditRequest } from '../types';
 import { getOverallPoints, getDomainValue } from '../utils';
+import { getLearnerBadges } from '../lib/badges';
+import { getLearnerStatus, STATUS_TIERS } from '../lib/status';
 
 type Category = 'overall' | EditRequest['type'];
 
@@ -111,7 +113,10 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
                   <div>
                     <div className="font-serif text-lg font-bold text-brand-text flex items-center gap-3">
                       {learner.fullName}
-                      {index === 0 && <span className="text-[10px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-yellow-200">Champion</span>}
+                      <span className="text-[9px] bg-brand-brown/10 text-brand-brown px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-brand-brown/20">
+                        {getLearnerStatus(getLearnerBadges(learner).length).name}
+                      </span>
+                      {index === 0 && <span className="text-[9px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-yellow-200">Champion</span>}
                     </div>
                     {learner.enrolledModules && learner.enrolledModules.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
@@ -145,7 +150,56 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
           </div>
         )}
       </div>
-    </div>
+
+      <div className="mt-8 sm:mt-12 bg-transparent">
+        <div className="mb-6">
+            <h2 className="font-serif text-2xl font-bold text-brand-text flex items-center gap-2">
+               Status Progression Path
+            </h2>
+            <p className="text-sm font-medium text-brand-brown-light mt-1">
+              Explore the 10 tiers of wisdom and their exclusive perks. Unlocked by collecting badges.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left bg-brand-white border border-brand-border rounded-xl overflow-hidden shadow-sm">
+              <thead className="bg-brand-beige border-b border-brand-border">
+                <tr>
+                  <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-brand-brown w-1/3">Status Tier</th>
+                  <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-brand-brown w-32 border-x border-brand-border text-center">Requirement</th>
+                  <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-brand-brown">Unlocked Perks</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-border text-sm">
+                {STATUS_TIERS.map((tier) => (
+                  <tr key={tier.id} className="hover:bg-brand-offwhite transition-colors">
+                    <td className="px-4 py-3 font-serif font-bold text-brand-text whitespace-nowrap hidden sm:table-cell">
+                      {tier.name}
+                    </td>
+                    <td className="px-4 py-3 font-serif font-bold text-brand-text sm:hidden">
+                      {tier.name} <span className="block text-[10px] font-sans font-black uppercase tracking-widest text-brand-brown-light mt-1">{tier.requiredBadges} Badge{tier.requiredBadges !== 1 ? 's' : ''}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center border-x border-brand-border hidden sm:table-cell">
+                      <span className="inline-flex items-center justify-center bg-brand-brown/[0.08] text-brand-brown px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest border border-brand-brown/10">
+                         {tier.requiredBadges} Badge{tier.requiredBadges !== 1 ? 's' : ''}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <ul className="space-y-1">
+                        {tier.perks.map((perk, idx) => (
+                           <li key={idx} className="flex items-start gap-2 text-brand-brown/80 font-medium text-xs sm:text-sm">
+                              <span className="w-1.5 h-1.5 rounded-full bg-brand-brown/40 shrink-0 mt-1.5" />
+                              <span className="leading-snug">{perk}</span>
+                           </li>
+                        ))}
+                      </ul>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
   );
 }
 

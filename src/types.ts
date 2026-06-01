@@ -23,6 +23,13 @@ export interface Learner {
   completedDawraEQuran?: boolean;
 }
 
+export interface StatusTier {
+  id: string;
+  name: string;
+  requiredBadges: number;
+  perks: string[];
+}
+
 export interface EditRequest {
   id: string;
   learnerId: string;

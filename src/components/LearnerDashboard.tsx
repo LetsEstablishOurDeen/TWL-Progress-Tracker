@@ -2,10 +2,11 @@ import { useState, FormEvent, ReactNode, useMemo, useEffect } from 'react';
 import { Learner, EditRequest } from '../types';
 import { 
   BookOpen, Mic, CheckCircle2, Search, Medal, Eye, EyeOff, 
-  LayoutDashboard, BarChart3, Plus, X, Clock, Send
+  LayoutDashboard, BarChart3, Plus, X, Clock, Send, Info, Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { getLearnerBadges } from '../lib/badges';
+import { getLearnerBadges, ALL_BADGES } from '../lib/badges';
+import { getLearnerStatus, getStatusProgress } from '../lib/status';
 import { requestService } from '../services/requestService';
 import { authService } from '../lib/auth';
 import { MODULES, APP_DOMAINS } from '../constants';
@@ -260,6 +261,9 @@ export function LearnerDashboard({
     return getOverallPoints(activeLearner);
   }, [activeLearner]);
 
+  const statusProgress = useMemo(() => getStatusProgress(activeBadges.length), [activeBadges.length]);
+  const currentStatus = statusProgress.current;
+
   const chartData = useMemo(() => {
     if (!activeLearner) return [];
     const data = APP_DOMAINS.map(domain => {
@@ -328,7 +332,7 @@ export function LearnerDashboard({
                     }}
                     onFocus={() => setShowSuggestions(true)}
                     onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
-                    placeholder="e.g. Alex"
+                    placeholder="e.g. Fatima"
                     className="w-full pl-10 pr-4 py-3 bg-brand-offwhite border border-brand-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown shadow-sm"
                     required
                   />
@@ -382,7 +386,7 @@ export function LearnerDashboard({
                   type="text" 
                   value={regName}
                   onChange={(e) => setRegName(e.target.value)}
-                  placeholder="e.g. Alex Miller"
+                  placeholder="e.g. Muhammad Ali"
                   className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown shadow-sm"
                   required
                 />
@@ -466,32 +470,104 @@ export function LearnerDashboard({
           className="max-w-6xl mx-auto space-y-8"
         >
           {/* Header Stats */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 bg-brand-beige p-6 sm:p-8 rounded-3xl border border-brand-border shrink-0 shadow-sm">
-            <div>
-              <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-brown-light mb-2 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                Wisdom Points: {wisdomPoints}
-              </p>
-              <h1 className="font-serif text-4xl sm:text-5xl font-bold text-brand-text mb-2">{activeLearner.fullName}</h1>
-              <div className="flex items-center gap-3">
-                <span className="bg-brand-offwhite px-3 py-1 rounded-md text-sm font-mono text-brand-brown border border-brand-border-light shadow-sm">Wisdom Code: {activeLearner.id}</span>
-                <span className="text-xs text-brand-brown-light font-medium bg-brand-bg-alt px-2 py-1 rounded border border-brand-border-light">Joined: {new Date(activeLearner.joinedAt).toLocaleDateString()}</span>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 bg-brand-beige p-6 sm:p-8 rounded-3xl border border-brand-border shrink-0 shadow-sm relative overflow-hidden">
+            <div className="absolute -right-10 -top-10 opacity-5 pointer-events-none">
+              <Medal className="w-64 h-64 text-brand-brown" />
+            </div>
+            <div className="relative z-10 w-full flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div>
+                <div className="flex items-center gap-3 mb-3 flex-wrap">
+                  <p className="text-sm font-bold uppercase tracking-[0.2em] text-brand-brown-light flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    Wisdom Score: {wisdomPoints}
+                  </p>
+                  <span className="bg-brand-brown text-brand-beige text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-sm border border-brand-brown-light/20">
+                    {currentStatus.name}
+                  </span>
+                </div>
+                <h1 className="font-serif text-4xl sm:text-5xl font-bold text-brand-text mb-2">{activeLearner.fullName}</h1>
+                <div className="flex items-center gap-3">
+                  <span className="bg-brand-offwhite px-3 py-1 rounded-md text-sm font-mono text-brand-brown border border-brand-border-light shadow-sm">Wisdom Code: {activeLearner.id}</span>
+                  <span className="text-xs text-brand-brown-light font-medium bg-brand-bg-alt px-2 py-1 rounded border border-brand-border-light">Joined: {new Date(activeLearner.joinedAt).toLocaleDateString()}</span>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <button 
+                  onClick={() => setIsRequestModalOpen(true)}
+                  className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-brand-offwhite bg-brand-brown rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Submit Update
+                </button>
+                <button 
+                  onClick={() => setActiveLearner(null)}
+                  className="px-5 py-3 text-xs font-bold uppercase tracking-wider text-brand-brown border border-brand-border rounded-xl bg-brand-white shadow-sm hover:text-brand-brown-dark hover:bg-brand-offwhite active:scale-95 transition-all"
+                >
+                  Sign out
+                </button>
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3 mt-4 md:mt-0">
-              <button 
-                onClick={() => setIsRequestModalOpen(true)}
-                className="px-6 py-3 text-xs font-bold uppercase tracking-wider text-brand-offwhite bg-brand-brown rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all flex items-center justify-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Submit Update
-              </button>
-              <button 
-                onClick={() => setActiveLearner(null)}
-                className="px-5 py-3 text-xs font-bold uppercase tracking-wider text-brand-brown border border-brand-border rounded-xl bg-brand-white shadow-sm hover:text-brand-brown-dark hover:bg-brand-offwhite active:scale-95 transition-all"
-              >
-                Sign out
-              </button>
+          </div>
+
+          {/* Next Tier Progress */}
+          {statusProgress.next && (
+            <div className="bg-brand-white border border-brand-border rounded-3xl p-6 mb-4 shadow-sm flex flex-col md:flex-row items-center gap-6">
+              <div className="flex-1 w-full">
+                <div className="flex justify-between items-end mb-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-brand-brown-light mb-1">Next Tier Unlocks</p>
+                    <h4 className="font-serif text-xl font-bold text-brand-text">{statusProgress.next.name}</h4>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-bold text-brand-brown">{statusProgress.badgesNeeded} Badge{statusProgress.badgesNeeded !== 1 ? 's' : ''} Needed</p>
+                  </div>
+                </div>
+                <div className="h-3 bg-brand-beige border border-brand-border rounded-full overflow-hidden w-full relative">
+                  <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${statusProgress.progressPercent}%` }}
+                    transition={{ duration: 1, ease: 'easeOut' }}
+                    className="h-full bg-brand-brown"
+                  />
+                </div>
+              </div>
+              <div className="hidden md:block w-px h-16 bg-brand-border shrink-0" />
+              <div className="shrink-0 w-full md:w-auto">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-brand-brown-light mb-2">Upcoming Perks</p>
+                <ul className="space-y-1">
+                  {statusProgress.next.perks.map((perk, idx) => (
+                    <li key={idx} className="text-xs font-medium text-brand-brown/70 flex items-center gap-2">
+                       <span className="w-1 h-1 rounded-full bg-brand-brown/40 shrink-0" />
+                       {perk}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Status/Perk Banner */}
+          <div className="bg-brand-white border border-brand-border rounded-2xl p-4 sm:p-6 mb-8 flex flex-col sm:flex-row items-center gap-4 sm:gap-6 shadow-sm">
+            <div className="w-12 h-12 bg-brand-beige rounded-full flex items-center justify-center shrink-0 border border-brand-border text-brand-brown">
+              <Medal className="w-6 h-6" />
+            </div>
+            <div className="flex-1">
+              <h4 className="font-serif text-lg font-bold text-brand-text">Status Perks Unlocked</h4>
+              <ul className="mt-2 space-y-1">
+                {currentStatus.perks.map((perk, idx) => (
+                  <li key={idx} className="text-sm font-medium text-brand-brown-light flex items-center gap-2 group/perk">
+                    <span className="w-1.5 h-1.5 rounded-full bg-brand-brown shrink-0" />
+                    {perk}
+                    <div className="cursor-help text-brand-brown/40 hover:text-brand-brown transition-colors relative flex items-center">
+                        <Info className="w-3.5 h-3.5" />
+                        <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 bg-brand-text text-brand-beige text-xs px-2 py-1 rounded opacity-0 group-hover/perk:opacity-100 pointer-events-none whitespace-nowrap z-10 transition-opacity">
+                            Requires {currentStatus.requiredBadges} Badges
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-spacing-0 border-4 border-transparent border-t-brand-text" />
+                        </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 
@@ -686,23 +762,51 @@ export function LearnerDashboard({
           </div>
 
           {/* Badges */}
-          {activeBadges.length > 0 && (
-            <div className="bg-brand-white p-6 rounded-2xl shadow-sm border border-brand-border">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-brand-border-light">
+          <div className="bg-brand-white p-6 rounded-2xl shadow-sm border border-brand-border mt-8">
+            <div className="flex items-center gap-3 mb-6 pb-4 border-b border-brand-border-light justify-between">
+              <div className="flex items-center gap-3">
                 <Medal className="text-brand-brown w-6 h-6" />
-                <h3 className="font-serif text-xl font-bold text-brand-text">Earned Badges</h3>
+                <h3 className="font-serif text-xl font-bold text-brand-text">Wisdom Badges Directory</h3>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                {activeBadges.map(badge => (
-                  <div key={badge.id} className="flex flex-col items-center bg-brand-bg-alt p-4 rounded-xl border border-brand-border-light text-center transition-transform hover:-translate-y-1 hover:shadow-md">
-                    <span className="text-4xl mb-3 drop-shadow-sm">{badge.icon}</span>
-                    <span className="font-bold text-brand-brown text-sm">{badge.name}</span>
-                    <span className="text-xs text-brand-brown-light mt-1">{badge.description}</span>
-                  </div>
-                ))}
-              </div>
+              <span className="text-sm font-bold text-brand-brown-light bg-brand-bg-alt px-3 py-1 rounded-full border border-brand-border-light">
+                {activeBadges.length} / {ALL_BADGES.length} Unlocked
+              </span>
             </div>
-          )}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+              {ALL_BADGES.map((badge) => {
+                const isEarned = activeBadges.some((b) => b.id === badge.id);
+                return (
+                  <div 
+                    key={badge.id} 
+                    className={`flex flex-col items-center bg-brand-bg-alt p-4 rounded-xl border text-center transition-all group relative ${
+                      isEarned 
+                        ? 'border-brand-brown/20 shadow-sm hover:-translate-y-1 hover:shadow-md' 
+                        : 'border-brand-border-light/50 opacity-60 hover:opacity-100 grayscale hover:grayscale-0 cursor-help'
+                    }`}
+                  >
+                    <span className={`text-4xl mb-3 drop-shadow-sm ${!isEarned && 'opacity-50'}`}>{badge.icon}</span>
+                    <span className="font-bold text-brand-brown text-sm">{badge.name}</span>
+                    <span className="text-xs text-brand-brown-light mt-1 mb-2 line-clamp-2">{badge.description}</span>
+                    
+                    {!isEarned && (
+                      <div className="mt-auto pt-2 border-t border-brand-border-light/50 w-full flex items-center justify-center gap-1 text-[9px] uppercase tracking-wider font-black text-brand-brown/50">
+                        <Lock className="w-3 h-3" />
+                        Locked
+                      </div>
+                    )}
+                    
+                    {!isEarned && (
+                      <div className="absolute left-1/2 -translate-x-1/2 bottom-[105%] mb-2 bg-brand-text text-brand-beige text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none w-[150%] max-w-[200px] z-10 transition-opacity shadow-xl">
+                        <p className="font-bold text-[10px] uppercase tracking-widest text-brand-brown-light mb-1">Requirement</p>
+                        <p>{badge.requirement}</p>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-spacing-0 border-4 border-transparent border-t-brand-text" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Detailed Lists */}
           <div className="space-y-4 mt-8">

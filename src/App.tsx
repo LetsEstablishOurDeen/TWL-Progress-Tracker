@@ -107,7 +107,10 @@ export default function App() {
                   <path d="M15 14v.01" />
                 </svg>
               </div>
-              <span className="font-serif text-2xl font-bold tracking-tight text-brand-text">The Wisdom Lounge</span>
+              <div className="flex flex-col">
+                <span className="font-serif text-2xl font-bold tracking-tight text-brand-text leading-none">The Wisdom Profile</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider text-brand-brown-light mt-0.5">By The Wisdom Lounge</span>
+              </div>
             </div>
             {!isOnline && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-red-200 animate-pulse">
