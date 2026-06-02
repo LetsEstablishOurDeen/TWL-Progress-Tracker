@@ -32,6 +32,7 @@ const getModuleItems = (learner: any, mod: any) => {
   if (mod.type === 'dowra' && learner.completedDawraEQuran && items.length === 0) items = ['Dowra e Quran (Completed)'];
   if (mod.type === 'tafsir' && learner.completedTafsirModule && items.length === 0) items = ['Tafsir Module (Completed)'];
   if (mod.type === 'seerah' && learner.completedSeerahModule && items.length === 0) items = ['Seerah Module (Completed)'];
+  if (mod.type === 'articles' && learner.completedArticlesModule && items.length === 0) items = ['Articles (Completed)'];
 
   if ('subOptions' in mod && mod.subOptions) {
     (mod.subOptions as any[]).forEach((sub: any) => {
@@ -73,6 +74,7 @@ export function LearnerDashboard({
   // Registration specific state
   const [regName, setRegName] = useState('');
   const [regId, setRegId] = useState('');
+  const [regPhone, setRegPhone] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showRegPassword, setShowRegPassword] = useState(false);
@@ -197,12 +199,18 @@ export function LearnerDashboard({
       return;
     }
 
+    if (!regPhone.trim()) {
+      setError("Phone number is required.");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await authService.signUp(regId, regPassword, regName);
+      await authService.signUp(regId, regPassword, regName, regPhone);
       setSuccess("Registration successful! Your profile is pending admin approval.");
       setRegName('');
       setRegId('');
+      setRegPhone('');
       setRegPassword('');
       setConfirmPassword('');
       setShowRegPassword(false);
@@ -396,6 +404,17 @@ export function LearnerDashboard({
                   required
                 />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-brand-brown mb-1">Phone Number (registered with TWL)</label>
+                <input 
+                  type="tel" 
+                  value={regPhone}
+                  onChange={(e) => setRegPhone(e.target.value)}
+                  placeholder="e.g. +92 300 1234567"
+                  className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown shadow-sm"
+                  required
+                />
+              </div>
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-brand-brown mb-1">Wisdom Code</label>
                 <input 
@@ -491,8 +510,11 @@ export function LearnerDashboard({
                   </span>
                 </div>
                 <h1 className="font-serif text-4xl sm:text-5xl font-bold text-brand-text mb-2">{activeLearner.fullName}</h1>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-3">
                   <span className="bg-brand-offwhite px-3 py-1 rounded-md text-sm font-mono text-brand-brown border border-brand-border-light shadow-sm">Wisdom Code: {activeLearner.id}</span>
+                  {activeLearner.phoneNumber && (
+                    <span className="bg-brand-offwhite px-3 py-1 rounded-md text-sm font-mono text-brand-brown border border-brand-border-light shadow-sm">Phone: {activeLearner.phoneNumber}</span>
+                  )}
                   <span className="text-xs text-brand-brown-light font-medium bg-brand-bg-alt px-2 py-1 rounded border border-brand-border-light">Joined: {new Date(activeLearner.joinedAt).toLocaleDateString()}</span>
                 </div>
               </div>
@@ -876,15 +898,17 @@ export function LearnerDashboard({
                     </div>
 
                     {/* Dynamic Fields based on Domain */}
-                    {['tafsir', 'seerah'].includes(requestType) ? (
+                    {['tafsir', 'seerah', 'articles'].includes(requestType) ? (
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Batch Name</label>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                          {requestType === 'articles' ? 'Article Title / Topic' : 'Batch Name'}
+                        </label>
                         <input
                           type="text"
                           required
                           value={itemTitle}
                           onChange={(e) => setItemTitle(e.target.value)}
-                          placeholder="e.g. Batch 2024"
+                          placeholder={requestType === 'articles' ? "e.g. History of Fiqh" : "e.g. Batch 2024"}
                           className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
                         />
                       </div>
@@ -1037,15 +1061,17 @@ export function LearnerDashboard({
                     </div>
 
                     {/* Dynamic Fields based on Domain */}
-                    {['tafsir', 'seerah'].includes(focusDomain) ? (
+                    {['tafsir', 'seerah', 'articles'].includes(focusDomain) ? (
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Batch Name</label>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                          {focusDomain === 'articles' ? 'Article Title / Topic' : 'Batch Name'}
+                        </label>
                         <input
                           type="text"
                           required
                           value={focusTitle}
                           onChange={(e) => setFocusTitle(e.target.value)}
-                          placeholder="e.g. Batch 2024"
+                          placeholder={focusDomain === 'articles' ? "e.g. History of Fiqh" : "e.g. Batch 2024"}
                           className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
                         />
                       </div>
@@ -1176,7 +1202,7 @@ export function LearnerDashboard({
                               <p>This helps maintain accountability, consistency, and purposeful progress.</p>
                             </>
                           )}
-                          {['dowra', 'tafsir', 'seerah'].includes(focusDomain) && (
+                          {['dowra', 'tafsir', 'seerah', 'articles'].includes(focusDomain) && (
                             <>
                               <p>Since these goals are being pursued independently, you will be expected to share your learnings with the lounge after completion or throughout your progress.</p>
                               <p>This may be done through:</p>

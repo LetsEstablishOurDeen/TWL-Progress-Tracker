@@ -94,36 +94,36 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="flex items-center justify-between p-6 hover:bg-brand-bg-alt transition-colors"
+                className="flex items-center justify-between p-4 sm:p-6 hover:bg-brand-bg-alt transition-colors"
                 title={
                   activeCategory === 'books' ? learner.booksCompleted.join('\n') :
                   activeCategory === 'presentations' ? learner.presentationsGiven.join('\n') :
                   activeCategory === 'overall' ? `Books: ${learner.booksCompleted.length}\nPresentations: ${learner.presentationsGiven.length}\nTasks: ${learner.tasksCompleted}` : undefined
                 }
               >
-                <div className="flex items-center gap-6">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-bold font-serif text-xl shadow-sm border-2 ${
+                <div className="flex items-center gap-3 sm:gap-6 min-w-0">
+                  <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center font-bold font-serif text-base sm:text-xl shadow-sm border-2 shrink-0 ${
                     index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white border-yellow-700' : 
                     index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-500 text-white border-slate-400' : 
                     index === 2 ? 'bg-gradient-to-br from-orange-400 to-orange-700 text-white border-orange-800' : 
                     'bg-brand-beige text-brand-text border-brand-border'
                   }`}>
-                    {index === 0 ? <Trophy className="w-6 h-6" /> : index === 1 ? <Medal className="w-6 h-6" /> : index === 2 ? <Award className="w-6 h-6" /> : index + 1}
+                    {index === 0 ? <Trophy className="w-5 h-5 sm:w-6 sm:h-6" /> : index === 1 ? <Medal className="w-5 h-5 sm:w-6 sm:h-6" /> : index === 2 ? <Award className="w-5 h-5 sm:w-6 sm:h-6" /> : index + 1}
                   </div>
-                  <div>
-                    <div className="font-serif text-lg font-bold text-brand-text flex items-center gap-3">
-                      {learner.fullName}
-                      <span className="text-[9px] bg-brand-brown/10 text-brand-brown px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-brand-brown/20">
+                  <div className="min-w-0">
+                    <div className="font-serif text-sm sm:text-lg font-bold text-brand-text flex flex-wrap items-center gap-1.5 sm:gap-3">
+                      <span className="truncate max-w-[120px] sm:max-w-[240px]">{learner.fullName}</span>
+                      <span className="text-[8px] sm:text-[9px] bg-brand-brown/10 text-brand-brown px-1.5 sm:px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-brand-brown/20 shrink-0">
                         {getLearnerStatus(getLearnerBadges(learner).length).name}
                       </span>
-                      {index === 0 && <span className="text-[9px] bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-yellow-200">Champion</span>}
+                      {index === 0 && <span className="text-[8px] sm:text-[9px] bg-yellow-100 text-yellow-700 px-1.5 sm:px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-yellow-200 shrink-0">Champion</span>}
                     </div>
                     {learner.enrolledModules && learner.enrolledModules.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      <div className="flex flex-wrap gap-1 mt-1">
                         {learner.enrolledModules.slice(0, 2).map(mid => {
                           const mod = MODULES.find(m => m.id === mid) || MODULES.flatMap(m => 'subOptions' in m ? m.subOptions || [] : []).find(s => s.id === mid);
                           return (
-                            <span key={mid} className="text-[8px] font-black uppercase tracking-tighter text-brand-brown-light bg-brand-offwhite px-1.5 py-0.5 rounded border border-brand-border-light">
+                            <span key={mid} className="text-[8px] font-black uppercase tracking-tight text-brand-brown-light bg-brand-offwhite px-1.5 py-0.5 rounded border border-brand-border-light">
                               {mod?.label || mid}
                             </span>
                           );
@@ -133,16 +133,16 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-3 bg-brand-beige/30 px-5 py-3 rounded-2xl border border-brand-border-light group cursor-help transition-all hover:bg-brand-white hover:shadow-md">
+                <div className="flex items-center gap-2 sm:gap-3 bg-brand-beige/30 px-3 sm:px-5 py-2 sm:py-3 rounded-xl sm:rounded-2xl border border-brand-border-light group cursor-help transition-all hover:bg-brand-white hover:shadow-md shrink-0 ml-2">
                   <div className="text-right">
-                    <p className="text-2xl font-serif font-black text-brand-brown leading-none">{getScore(learner)}</p>
-                    <p className="text-[8px] font-black uppercase tracking-widest text-brand-brown-light mt-1">{getCategoryLabel()}</p>
+                    <p className="text-base sm:text-2xl font-serif font-black text-brand-brown leading-none">{getScore(learner)}</p>
+                    <p className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-brand-brown-light mt-1">{getCategoryLabel()}</p>
                   </div>
                   {(() => {
-                    if (activeCategory === 'overall') return <Award className="w-5 h-5 text-brand-brown-light opacity-40 group-hover:opacity-100 transition-opacity" />;
+                    if (activeCategory === 'overall') return <Award className="w-4 h-4 sm:w-5 sm:h-5 text-brand-brown-light opacity-40 group-hover:opacity-100 transition-opacity" />;
                     const domain = APP_DOMAINS.find(d => d.type === activeCategory);
                     const Icon = { BookOpen, Mic, CheckCircle2 }[domain?.icon as any] as any || BookOpen;
-                    return <Icon className="w-5 h-5 text-brand-brown-light opacity-40 group-hover:opacity-100 transition-opacity" />;
+                    return <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-brand-brown-light opacity-40 group-hover:opacity-100 transition-opacity" />;
                   })()}
                 </div>
               </motion.div>
@@ -160,35 +160,35 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
               Explore the 10 tiers of wisdom and their exclusive perks. Unlocked by collecting badges.
             </p>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left bg-brand-white border border-brand-border rounded-xl overflow-hidden shadow-sm">
+          <div className="overflow-x-auto rounded-xl border border-brand-border shadow-sm">
+            <table className="w-full text-left bg-brand-white overflow-hidden table-fixed sm:table-auto">
               <thead className="bg-brand-beige border-b border-brand-border">
                 <tr>
-                  <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-brand-brown w-1/3">Status Tier</th>
-                  <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-brand-brown w-32 border-x border-brand-border text-center">Requirement</th>
-                  <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-brand-brown">Unlocked Perks</th>
+                  <th className="px-3 sm:px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest text-brand-brown w-[30%] sm:w-1/3">Status Tier</th>
+                  <th className="px-3 sm:px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest text-brand-brown w-[25%] sm:w-32 border-x border-brand-border text-center">
+                    <span className="hidden sm:inline">Requirement</span>
+                    <span className="sm:hidden">Req.</span>
+                  </th>
+                  <th className="px-3 sm:px-4 py-3 text-[10px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest text-brand-brown w-[45%] sm:auto">Unlocked Perks</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-brand-border text-sm">
+              <tbody className="divide-y divide-brand-border text-[11px] sm:text-sm">
                 {STATUS_TIERS.map((tier) => (
                   <tr key={tier.id} className="hover:bg-brand-offwhite transition-colors">
-                    <td className="px-4 py-3 font-serif font-bold text-brand-text whitespace-nowrap hidden sm:table-cell">
+                    <td className="px-3 sm:px-4 py-3 font-serif font-bold text-brand-text sm:whitespace-nowrap break-words">
                       {tier.name}
                     </td>
-                    <td className="px-4 py-3 font-serif font-bold text-brand-text sm:hidden">
-                      {tier.name} <span className="block text-[10px] font-sans font-black uppercase tracking-widest text-brand-brown-light mt-1">{tier.requiredBadges} Badge{tier.requiredBadges !== 1 ? 's' : ''}</span>
-                    </td>
-                    <td className="px-4 py-3 text-center border-x border-brand-border hidden sm:table-cell">
-                      <span className="inline-flex items-center justify-center bg-brand-brown/[0.08] text-brand-brown px-3 py-1 rounded-full text-xs font-black uppercase tracking-widest border border-brand-brown/10">
-                         {tier.requiredBadges} Badge{tier.requiredBadges !== 1 ? 's' : ''}
+                    <td className="px-3 sm:px-4 py-3 text-center border-x border-brand-border">
+                      <span className="inline-flex items-center justify-center bg-brand-brown/[0.08] text-brand-brown px-2 sm:px-3 py-1 rounded-full text-[9px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest border border-brand-brown/10">
+                        {tier.requiredBadges} Badge{tier.requiredBadges !== 1 ? 's' : ''}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-3 sm:px-4 py-3">
                       <ul className="space-y-1">
                         {tier.perks.map((perk, idx) => (
-                           <li key={idx} className="flex items-start gap-2 text-brand-brown/80 font-medium text-xs sm:text-sm">
-                              <span className="w-1.5 h-1.5 rounded-full bg-brand-brown/40 shrink-0 mt-1.5" />
-                              <span className="leading-snug">{perk}</span>
+                           <li key={idx} className="flex items-start gap-1 sm:gap-2 text-brand-brown/80 font-medium text-[10px] sm:text-sm leading-snug">
+                              <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-brand-brown/40 shrink-0 mt-1.5 sm:mt-2" />
+                              <span>{perk}</span>
                            </li>
                         ))}
                       </ul>

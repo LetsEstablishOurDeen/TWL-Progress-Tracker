@@ -29,6 +29,12 @@ export const APP_DOMAINS = [
     label: 'Seerah',
     type: 'seerah',
     icon: 'BookOpen'
+  },
+  { 
+    id: 'articles', 
+    label: 'Articles',
+    type: 'articles',
+    icon: 'BookOpen'
   }
 ] as const;
 

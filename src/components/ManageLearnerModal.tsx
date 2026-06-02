@@ -12,6 +12,7 @@ interface ManageLearnerModalProps {
 export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerModalProps) {
   const [fullName, setFullName] = useState(learner?.fullName || '');
   const [phoneNumber, setPhoneNumber] = useState(learner?.id || '');
+  const [realPhoneNumber, setRealPhoneNumber] = useState(learner?.phoneNumber || '');
   const [password, setPassword] = useState(learner?.password || '');
   const [isApproved, setIsApproved] = useState(learner?.isApproved ?? true);
   
@@ -19,26 +20,55 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
   const [presentationsGiven, setPresentationsGiven] = useState<string[]>(learner?.presentationsGiven || []);
   const [tasksCompleted, setTasksCompleted] = useState(learner?.tasksCompleted || 0);
 
-  const [completedTafsirModule, setCompletedTafsirModule] = useState(learner?.completedTafsirModule || false);
-  const [completedSeerahModule, setCompletedSeerahModule] = useState(learner?.completedSeerahModule || false);
-  const [completedDawraEQuran, setCompletedDawraEQuran] = useState(learner?.completedDawraEQuran || false);
+  const [tafsirCompletedItems, setTafsirCompletedItems] = useState<string[]>(
+    learner?.moduleItems?.tafsir || (learner?.completedTafsirModule ? ['Tafsir Module Completed'] : [])
+  );
+  const [seerahCompletedItems, setSeerahCompletedItems] = useState<string[]>(
+    learner?.moduleItems?.seerah || (learner?.completedSeerahModule ? ['Seerah Module Completed'] : [])
+  );
+  const [dowraCompletedItems, setDowraCompletedItems] = useState<string[]>(
+    learner?.moduleItems?.dowra || (learner?.completedDawraEQuran ? ['Dowra e Quran Completed'] : [])
+  );
+  const [articlesCompletedItems, setArticlesCompletedItems] = useState<string[]>(
+    learner?.moduleItems?.articles || (learner?.completedArticlesModule ? ['Articles Completed'] : [])
+  );
   
   const [newBook, setNewBook] = useState('');
   const [newPresentation, setNewPresentation] = useState('');
+  const [newTafsir, setNewTafsir] = useState('');
+  const [newSeerah, setNewSeerah] = useState('');
+  const [newDowra, setNewDowra] = useState('');
+  const [newArticles, setNewArticles] = useState('');
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const data = {
       fullName,
       id: phoneNumber,
+      phoneNumber: realPhoneNumber,
       password,
       isApproved,
       booksCompleted,
       presentationsGiven,
       tasksCompleted,
-      completedTafsirModule,
-      completedSeerahModule,
-      completedDawraEQuran,
+      moduleItems: {
+        ...(learner?.moduleItems || {}),
+        tafsir: tafsirCompletedItems,
+        seerah: seerahCompletedItems,
+        dowra: dowraCompletedItems,
+        articles: articlesCompletedItems,
+      },
+      moduleStats: {
+        ...(learner?.moduleStats || {}),
+        tafsir: tafsirCompletedItems.length,
+        seerah: seerahCompletedItems.length,
+        dowra: dowraCompletedItems.length,
+        articles: articlesCompletedItems.length,
+      },
+      completedTafsirModule: tafsirCompletedItems.length > 0,
+      completedSeerahModule: seerahCompletedItems.length > 0,
+      completedDawraEQuran: dowraCompletedItems.length > 0,
+      completedArticlesModule: articlesCompletedItems.length > 0,
       ...(learner ? {} : { joinedAt: new Date().toISOString() })
     };
     onSave(data);
@@ -112,6 +142,16 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
                 <option value="true">Authorized</option>
                 <option value="false">Pending Approval</option>
               </select>
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1">Phone Number (registered with TWL)</label>
+              <input
+                type="text"
+                value={realPhoneNumber}
+                onChange={(e) => setRealPhoneNumber(e.target.value)}
+                placeholder="e.g. +92 300 1234567"
+                className="w-full px-4 py-2 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown text-brand-text font-medium"
+              />
             </div>
           </div>
 
@@ -196,37 +236,132 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
               />
             </div>
 
-            {/* Special Modules */}
-            <div>
-              <h4 className="text-sm font-bold uppercase tracking-wider text-brand-brown mt-6 mb-4">Special Modules</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className="flex items-center gap-3 p-3 border border-brand-border rounded-xl cursor-pointer hover:bg-brand-offwhite transition-colors bg-brand-white">
+            {/* Academic & Study Modules */}
+            <div className="space-y-4 pt-4 border-t border-brand-border-light">
+              <h4 className="text-sm font-bold uppercase tracking-wider text-brand-brown">Islamic Modules</h4>
+              
+              {/* Tafsir */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">Tafsir Modules</label>
+                <div className="flex gap-2">
                   <input
-                    type="checkbox"
-                    checked={completedTafsirModule}
-                    onChange={(e) => setCompletedTafsirModule(e.target.checked)}
-                    className="w-4 h-4 text-brand-brown border-brand-border-light rounded focus:ring-brand-brown"
+                    type="text"
+                    value={newTafsir}
+                    onChange={(e) => setNewTafsir(e.target.value)}
+                    placeholder="e.g. Surah Nisaa, Surah Al-Baqarah..."
+                    className="flex-1 px-4 py-2 bg-brand-offwhite border border-brand-border rounded-xl text-sm"
                   />
-                  <span className="text-sm font-bold text-brand-text">Tafsir Module Completed</span>
-                </label>
-                <label className="flex items-center gap-3 p-3 border border-brand-border rounded-xl cursor-pointer hover:bg-brand-offwhite transition-colors bg-brand-white">
+                  <button
+                    type="button"
+                    onClick={() => addField(tafsirCompletedItems, setTafsirCompletedItems, newTafsir, setNewTafsir)}
+                    className="p-2 bg-brand-beige text-brand-brown rounded-xl hover:bg-brand-border transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {tafsirCompletedItems.map((item, i) => (
+                    <span key={i} className="flex items-center gap-2 bg-brand-bg-alt px-3 py-1.5 rounded-lg border border-brand-border-light text-xs font-medium text-brand-brown">
+                      {item}
+                      <button type="button" onClick={() => removeField(tafsirCompletedItems, setTafsirCompletedItems, i)} className="hover:text-red-500">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Seerah */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">Seerah Modules</label>
+                <div className="flex gap-2">
                   <input
-                    type="checkbox"
-                    checked={completedSeerahModule}
-                    onChange={(e) => setCompletedSeerahModule(e.target.checked)}
-                    className="w-4 h-4 text-brand-brown border-brand-border-light rounded focus:ring-brand-brown"
+                    type="text"
+                    value={newSeerah}
+                    onChange={(e) => setNewSeerah(e.target.value)}
+                    placeholder="e.g. Prophetic Character, Makkan Period..."
+                    className="flex-1 px-4 py-2 bg-brand-offwhite border border-brand-border rounded-xl text-sm"
                   />
-                  <span className="text-sm font-bold text-brand-text">Seerah Module Completed</span>
-                </label>
-                <label className="flex items-center gap-3 p-3 border border-brand-border rounded-xl cursor-pointer hover:bg-brand-offwhite transition-colors bg-brand-white md:col-span-2">
+                  <button
+                    type="button"
+                    onClick={() => addField(seerahCompletedItems, setSeerahCompletedItems, newSeerah, setNewSeerah)}
+                    className="p-2 bg-brand-beige text-brand-brown rounded-xl hover:bg-brand-border transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {seerahCompletedItems.map((item, i) => (
+                    <span key={i} className="flex items-center gap-2 bg-brand-bg-alt px-3 py-1.5 rounded-lg border border-brand-border-light text-xs font-medium text-brand-brown">
+                      {item}
+                      <button type="button" onClick={() => removeField(seerahCompletedItems, setSeerahCompletedItems, i)} className="hover:text-red-500">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Dowra e Quran */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">Dowra e Quran</label>
+                <div className="flex gap-2">
                   <input
-                    type="checkbox"
-                    checked={completedDawraEQuran}
-                    onChange={(e) => setCompletedDawraEQuran(e.target.checked)}
-                    className="w-4 h-4 text-brand-brown border-brand-border-light rounded focus:ring-brand-brown"
+                    type="text"
+                    value={newDowra}
+                    onChange={(e) => setNewDowra(e.target.value)}
+                    placeholder="e.g. Islamic Year 2025-26, Ramadhan Reflection..."
+                    className="flex-1 px-4 py-2 bg-brand-offwhite border border-brand-border rounded-xl text-sm"
                   />
-                  <span className="text-sm font-bold text-brand-text">Dowra e Quran Completed (Highest Rank)</span>
-                </label>
+                  <button
+                    type="button"
+                    onClick={() => addField(dowraCompletedItems, setDowraCompletedItems, newDowra, setNewDowra)}
+                    className="p-2 bg-brand-beige text-brand-brown rounded-xl hover:bg-brand-border transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {dowraCompletedItems.map((item, i) => (
+                    <span key={i} className="flex items-center gap-2 bg-brand-bg-alt px-3 py-1.5 rounded-lg border border-brand-border-light text-xs font-medium text-brand-brown">
+                      {item}
+                      <button type="button" onClick={() => removeField(dowraCompletedItems, setDowraCompletedItems, i)} className="hover:text-red-500">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Articles */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">Articles Completed</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newArticles}
+                    onChange={(e) => setNewArticles(e.target.value)}
+                    placeholder="e.g. Contemporary Ethics, Historical Methodology..."
+                    className="flex-1 px-4 py-2 bg-brand-offwhite border border-brand-border rounded-xl text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => addField(articlesCompletedItems, setArticlesCompletedItems, newArticles, setNewArticles)}
+                    className="p-2 bg-brand-beige text-brand-brown rounded-xl hover:bg-brand-border transition-colors"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {articlesCompletedItems.map((item, i) => (
+                    <span key={i} className="flex items-center gap-2 bg-brand-bg-alt px-3 py-1.5 rounded-lg border border-brand-border-light text-xs font-medium text-brand-brown">
+                      {item}
+                      <button type="button" onClick={() => removeField(articlesCompletedItems, setArticlesCompletedItems, i)} className="hover:text-red-500">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

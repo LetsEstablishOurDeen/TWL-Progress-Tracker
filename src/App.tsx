@@ -108,7 +108,7 @@ export default function App() {
                 </svg>
               </div>
               <div className="flex flex-col">
-                <span className="font-serif text-2xl font-bold tracking-tight text-brand-text leading-none">The Wisdom Profile</span>
+                <span className="font-serif text-2xl font-bold tracking-tight text-brand-text leading-none">Wisdom Profile</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-brand-brown-light mt-0.5">By The Wisdom Lounge</span>
               </div>
             </div>

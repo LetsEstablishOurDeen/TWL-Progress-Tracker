@@ -1,6 +1,7 @@
 export interface Learner {
   id: string; // Phone number
   fullName: string;
+  phoneNumber?: string; // Phone number registered with TWL
   password?: string;
   isApproved: boolean;
   booksCompleted: string[];
@@ -21,6 +22,7 @@ export interface Learner {
   completedTafsirModule?: boolean;
   completedSeerahModule?: boolean;
   completedDawraEQuran?: boolean;
+  completedArticlesModule?: boolean;
 }
 
 export interface StatusTier {

@@ -116,6 +116,7 @@ export function AdminDashboard({
       if (request.type === 'dowra') updates.completedDawraEQuran = true;
       if (request.type === 'tafsir') updates.completedTafsirModule = true;
       if (request.type === 'seerah') updates.completedSeerahModule = true;
+      if (request.type === 'articles') updates.completedArticlesModule = true;
     }
     
     // Always check if this completion matches an active focus and remove it
@@ -482,8 +483,11 @@ export function AdminDashboard({
                     </td>
                     <td className="px-6 py-4 font-mono text-brand-brown text-sm font-semibold">{learner.id}</td>
                     <td className="px-6 py-4 font-medium text-brand-text">
-                      {learner.fullName}
-                      {!learner.isApproved && <span className="ml-2 bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm">New Request</span>}
+                      <div>{learner.fullName}</div>
+                      {learner.phoneNumber && (
+                        <div className="text-xs text-brand-brown-light font-mono mt-0.5">{learner.phoneNumber}</div>
+                      )}
+                      {!learner.isApproved && <span className="mt-1 inline-block bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm">New Request</span>}
                     </td>
                     <td className="px-6 py-4 text-center">
                         <span className="bg-brand-beige px-3 py-1 rounded-full font-serif text-brand-text inline-block min-w-[32px]">{learner.booksCompleted.length}</span>

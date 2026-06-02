@@ -6,8 +6,7 @@ export const STATUS_TIERS: StatusTier[] = [
     name: 'Lounge Guest',
     requiredBadges: 0,
     perks: [
-      'Access to all public lounge domains',
-      'Access to The Wisdom Library',
+      'Officially A TWL Learner',
       'Eligibility to earn badges and progress through the ranks'
     ],
   },
@@ -37,7 +36,7 @@ export const STATUS_TIERS: StatusTier[] = [
     requiredBadges: 6,
     perks: [
       '10% discount on paid modules',
-      'Eligible to assist and guide new members',
+      'Eligible to submit draft Articles for community review',
       'Access to additional research resources'
     ],
   },
@@ -47,7 +46,7 @@ export const STATUS_TIERS: StatusTier[] = [
     requiredBadges: 10,
     perks: [
       '15% discount on paid modules',
-      'Priority placement in limited-seat programs',
+      'Priority publishing slots in the Lounge Knowledge Base',
       'Recognition as a trusted contributor'
     ],
   },
@@ -57,8 +56,8 @@ export const STATUS_TIERS: StatusTier[] = [
     requiredBadges: 15,
     perks: [
       '20% discount on paid modules',
-      'Early access to newly released modules',
-      'Eligibility for selected leadership opportunities'
+      'Special recognition in online sessions',
+      'Access to exclusive academic article discussions and webinars'
     ],
   },
   {
@@ -77,7 +76,7 @@ export const STATUS_TIERS: StatusTier[] = [
     requiredBadges: 25,
     perks: [
       '40% discount on paid modules',
-      'Eligibility to co-host official sessions',
+      'Invited to write featured opinion articles on contemporary Islamic issues',
       'Priority access to limited-enrollment initiatives'
     ],
   },
@@ -87,7 +86,7 @@ export const STATUS_TIERS: StatusTier[] = [
     requiredBadges: 28,
     perks: [
       '50% discount on paid modules',
-      'Eligibility for module sponsorship consideration',
+      'Exclusive access to lounge speakers',
       'Invitation to advisory discussions when needed'
     ],
   },
@@ -98,7 +97,7 @@ export const STATUS_TIERS: StatusTier[] = [
     perks: [
       'Free access to all standard paid modules',
       'Permanent Elder recognition',
-      'Direct contribution to long-term community development'
+      'Direct editorial and review access to the Lounge Article repository'
     ],
   },
 ];

@@ -28,11 +28,12 @@ export const authService = {
     authEvents.dispatchEvent(new Event('auth_changed'));
   },
 
-  async signUp(id: string, password: string, fullName: string) {
+  async signUp(id: string, password: string, fullName: string, phoneNumber?: string) {
     try {
       await learnerService.addLearner({
         id: id,
         fullName,
+        phoneNumber,
         isApproved: false,
         booksCompleted: [],
         presentationsGiven: [],
