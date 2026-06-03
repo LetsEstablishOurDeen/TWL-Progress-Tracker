@@ -1,8 +1,9 @@
 import { useState, useMemo, ReactNode, useEffect } from 'react';
-import { Learner, EditRequest } from '../types';
-import { Plus, Edit2, Trash2, Search, CheckCircle2, BarChart3, Users as UsersIcon, BookOpen, Mic, Bell, Check, X } from 'lucide-react';
+import { Learner, EditRequest, FocusReminder } from '../types';
+import { Plus, Edit2, Trash2, Search, CheckCircle2, BarChart3, Users as UsersIcon, BookOpen, Mic, Bell, Check, X, Calendar, AlertTriangle, MessageSquare } from 'lucide-react';
 import { ManageLearnerModal } from './ManageLearnerModal';
 import { requestService } from '../services/requestService';
+import { reminderService } from '../services/reminderService';
 import { motion, AnimatePresence } from 'motion/react';
 import { APP_DOMAINS } from '../constants';
 import { getOverallPoints, getDomainValue } from '../utils';
@@ -35,13 +36,21 @@ export function AdminDashboard({
   onUpdate: (id: string, l: Partial<Learner>) => void
 }) {
   const pendingCount = learners.filter(l => !l.isApproved).length;
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'reports' | 'updates'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'reports' | 'updates' | 'reminders'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [requests, setRequests] = useState<EditRequest[]>([]);
+  const [reminders, setReminders] = useState<FocusReminder[]>([]);
 
   useEffect(() => {
     const unsubscribe = requestService.subscribeToRequests((allRequests) => {
       setRequests(allRequests.filter(r => r.status === 'pending'));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = reminderService.subscribeToAllReminders((allReminders) => {
+      setReminders(allReminders);
     });
     return () => unsubscribe();
   }, []);
@@ -201,6 +210,10 @@ export function AdminDashboard({
     setIsModalOpen(true);
   };
 
+  const activeRemindersCount = useMemo(() => {
+    return reminders.filter(r => (r.status === 'answered' && !r.adminRead) || (r.type === 'deadline' && r.status === 'pending')).length;
+  }, [reminders]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -241,32 +254,39 @@ export function AdminDashboard({
 
       <div className="bg-brand-white rounded-2xl shadow-sm border border-brand-border overflow-hidden flex flex-col">
         <div className="p-4 border-b border-brand-border bg-brand-bg-header flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex bg-brand-beige p-1 rounded-xl border border-brand-border h-10">
+            <div className="flex flex-wrap bg-brand-beige p-1 rounded-xl border border-brand-border h-auto min-h-10 gap-1 sm:gap-0">
               <button 
                 onClick={() => setActiveTab('all')}
-                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 ${activeTab === 'all' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 ${activeTab === 'all' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 All Learners
               </button>
               <button 
                 onClick={() => setActiveTab('pending')}
-                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'pending' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'pending' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 Pending
                 {pendingCount > 0 && <span className="bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">{pendingCount}</span>}
               </button>
               <button 
                 onClick={() => setActiveTab('reports')}
-                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'reports' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'reports' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 Reports
               </button>
               <button 
                 onClick={() => setActiveTab('updates')}
-                className={`px-4 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'updates' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'updates' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 Updates
                 {requests.length > 0 && <span className="bg-brand-brown text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center">{requests.length}</span>}
+              </button>
+              <button 
+                onClick={() => setActiveTab('reminders')}
+                className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'reminders' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+              >
+                Focus Alerts
+                {activeRemindersCount > 0 && <span className="bg-amber-600 text-white text-[10px] px-1.5 py-0.5 rounded-full flex items-center justify-center font-black animate-pulse">{activeRemindersCount}</span>}
               </button>
             </div>
             {activeTab !== 'reports' && activeTab !== 'updates' && (
@@ -440,6 +460,136 @@ export function AdminDashboard({
                      </div>
                    </motion.div>
                  ))}
+               </div>
+             )}
+          </div>
+        ) : activeTab === 'reminders' ? (
+          <div className="p-6 space-y-6 bg-brand-bg-alt min-h-[400px]">
+             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-brand-border pb-4">
+               <div>
+                 <h3 className="font-serif text-2xl font-bold text-brand-brown">Learning Focus Alerts</h3>
+                 <p className="text-sm text-brand-brown-light">Track approaching completion dates, periodic progress checkpoints, and individual member assistance requests.</p>
+               </div>
+               <button
+                 onClick={async () => {
+                   // Mark all answered alerts as read
+                   const unreadAnswered = reminders.filter(r => r.status === 'answered' && !r.adminRead);
+                   for (const r of unreadAnswered) {
+                     await reminderService.markAsRead(r.id, 'admin');
+                   }
+                 }}
+                 className="px-4 py-2 bg-brand-brown text-brand-offwhite rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-brand-brown-dark transition-colors shrink-0 shadow-sm"
+               >
+                 Mark All Answered as Read
+               </button>
+             </div>
+
+             {reminders.length === 0 ? (
+               <div className="flex flex-col items-center justify-center py-20 text-brand-brown-light">
+                 <Bell className="w-12 h-12 mb-4 opacity-25" />
+                 <p className="font-medium italic text-base">No focus alerts or reminders recorded yet.</p>
+                 <p className="text-xs text-brand-brown-light/65 mt-1">Reminders generate automatically as learners progress.</p>
+               </div>
+             ) : (
+               <div className="space-y-4">
+                 {reminders
+                   .sort((a, b) => b.updatedAt - a.updatedAt)
+                   .map(reminder => {
+                     const isAnswered = reminder.status === 'answered';
+                     const isRead = reminder.adminRead;
+                     const responseType = reminder.responseType;
+                     
+                     let statusBg = "bg-gray-150 border-gray-300 text-gray-700";
+                     let statusText = "Pending Learner Response";
+                     if (isAnswered) {
+                       if (responseType === 'struggling') {
+                         statusBg = "bg-red-50 text-red-700 border-red-200 text-[10px]";
+                         statusText = "🚨 Struggling / Needs Support";
+                       } else if (responseType === 'completed') {
+                         statusBg = "bg-green-50 text-green-700 border-green-200 text-[10px]";
+                         statusText = "🎉 Finished Focus";
+                       } else if (responseType === 'rescheduled') {
+                         statusBg = "bg-blue-50 text-blue-700 border-blue-200 text-[10px]";
+                         statusText = "📅 Adjusted Expected Date";
+                       } else {
+                         statusBg = "bg-amber-50 text-amber-805 border-amber-200 text-[10px]";
+                         statusText = "👍 On Track";
+                       }
+                     } else if (reminder.type === 'deadline') {
+                       statusBg = "bg-orange-50 text-orange-700 border-orange-200 text-[10px]";
+                       statusText = "⚠️ Expected Completion Date Near";
+                     }
+
+                     return (
+                       <div 
+                         key={reminder.id}
+                         className={`p-5 rounded-2xl border ${isAnswered && !isRead ? 'bg-amber-50/20 border-amber-300 shadow-md' : 'bg-brand-white border-brand-border shadow-sm'} flex flex-col md:flex-row md:items-start justify-between gap-6 transition-all`}
+                       >
+                         <div className="flex items-start gap-4 flex-1">
+                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${reminder.type === 'deadline' ? 'bg-orange-100 text-orange-600' : 'bg-brand-beige text-brand-brown'}`}>
+                             {reminder.type === 'deadline' ? <Calendar className="w-5 h-5" /> : <MessageSquare className="w-5 h-5" />}
+                           </div>
+                           <div className="space-y-2 flex-1">
+                             <div className="flex flex-wrap items-center gap-2">
+                               <h4 className="font-bold text-brand-text text-base leading-snug">{reminder.learnerName}</h4>
+                               <span className="text-[10px] font-mono text-brand-brown-light px-2 py-0.5 bg-brand-bg-alt border border-brand-border-light rounded">Code: {reminder.learnerId}</span>
+                               <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${statusBg}`}>
+                                 {statusText}
+                               </span>
+                             </div>
+
+                             <div className="text-sm text-brand-brown">
+                               <p className="font-semibold text-xs text-brand-brown-light uppercase tracking-wider mb-1">
+                                 Learning Focus Reference
+                               </p>
+                               <p className="font-medium text-brand-text">
+                                 [{reminder.focusDomain.toUpperCase()}] <span className="font-bold">{reminder.focusTitle}</span>
+                               </p>
+                             </div>
+
+                             <div className="text-sm bg-brand-bg-alt/50 border border-brand-border-light p-3 rounded-xl">
+                               <p className="text-xs text-brand-brown-light/80 italic font-mono mb-1">Question sent to learner:</p>
+                               <p className="text-brand-brown font-serif italic text-sm">"{reminder.questionText}"</p>
+                             </div>
+
+                             {isAnswered && (
+                               <div className="text-sm bg-brand-beige/25 border border-brand-border/40 p-3 rounded-xl">
+                                 <p className="text-xs text-brand-brown-light/85 font-semibold mb-1">Learner Response:</p>
+                                 <p className="text-brand-brown font-medium italic text-sm">
+                                   "{reminder.responseText}"
+                                 </p>
+                                 {reminder.newTargetDate && (
+                                   <p className="text-xs text-blue-700 font-semibold mt-2">
+                                      Rescheduled expected completion: {new Date(reminder.newTargetDate).toLocaleDateString()}
+                                   </p>
+                                 )}
+                               </div>
+                             )}
+                           </div>
+                         </div>
+
+                         <div className="flex flex-row md:flex-col items-end justify-between md:justify-start gap-3 shrink-0 w-full md:w-auto border-t md:border-t-0 border-brand-border-light pt-3 md:pt-0">
+                           <span className="text-[10px] font-mono text-brand-brown-light">
+                             Sent: {new Date(reminder.createdAt).toLocaleDateString()}
+                           </span>
+                           {isAnswered && !isRead && (
+                             <button
+                               onClick={() => reminderService.markAsRead(reminder.id, 'admin')}
+                               className="px-4 py-2 bg-brand-white hover:bg-green-50 border border-brand-border hover:border-green-300 text-brand-brown hover:text-green-700 text-xs font-bold uppercase tracking-wider rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
+                             >
+                               <Check className="w-3.5 h-3.5" />
+                               Acknowledge
+                             </button>
+                           )}
+                           {isAnswered && isRead && (
+                             <span className="text-[10px] font-bold uppercase tracking-wider text-green-600 flex items-center gap-1 bg-green-50 border border-green-100 px-2 py-0.5 rounded">
+                               <Check className="w-3 h-3" /> Acknowledged
+                             </span>
+                           )}
+                         </div>
+                       </div>
+                     );
+                   })}
                </div>
              )}
           </div>

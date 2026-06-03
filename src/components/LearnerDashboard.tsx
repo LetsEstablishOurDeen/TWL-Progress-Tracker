@@ -1,13 +1,15 @@
 import { useState, FormEvent, ReactNode, useMemo, useEffect } from 'react';
-import { Learner, EditRequest } from '../types';
+import { Learner, EditRequest, FocusReminder } from '../types';
 import { 
   BookOpen, Mic, CheckCircle2, Search, Medal, Eye, EyeOff, 
-  LayoutDashboard, BarChart3, Plus, X, Clock, Send, Info, Lock
+  LayoutDashboard, BarChart3, Plus, X, Clock, Send, Info, Lock,
+  Bell, Calendar, HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getLearnerBadges, ALL_BADGES } from '../lib/badges';
 import { getLearnerStatus, getStatusProgress } from '../lib/status';
 import { requestService } from '../services/requestService';
+import { reminderService } from '../services/reminderService';
 import { authService } from '../lib/auth';
 import { MODULES, APP_DOMAINS } from '../constants';
 import { getOverallPoints, getDomainValue } from '../utils';
@@ -88,6 +90,67 @@ export function LearnerDashboard({
   const [requestType, setRequestType] = useState<EditRequest['type']>(APP_DOMAINS[0]?.type || 'book');
   
   const [pendingRequests, setPendingRequests] = useState<EditRequest[]>([]);
+  const [reminders, setReminders] = useState<FocusReminder[]>([]);
+
+  // Reminder Response State
+  const [activeReplyReminderId, setActiveReplyReminderId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replyDate, setReplyDate] = useState('');
+  const [replyType, setReplyType] = useState<'text' | 'date' | null>(null);
+  const [isReminderSubmitting, setIsReminderSubmitting] = useState(false);
+
+  const handleReminderResponse = async (
+    reminder: FocusReminder, 
+    type: 'on_track' | 'completed' | 'rescheduled' | 'struggling',
+    customText?: string,
+    newDate?: string
+  ) => {
+    if (!activeLearner) return;
+    setIsReminderSubmitting(true);
+    try {
+      let text = '';
+      if (type === 'on_track') {
+        text = 'Alhamdulillah, I am fully on track with this learning focus!';
+      } else if (type === 'completed') {
+        text = 'I have successfully finished this focus, submitting for approval.';
+        setRequestType(reminder.focusDomain);
+        setItemTitle(reminder.focusTitle);
+        setCompletionDate(new Date().toISOString().split('T')[0]);
+        setIsRequestModalOpen(true);
+      } else if (type === 'rescheduled') {
+        if (!newDate) {
+          setError("Please choose a valid reschedule date.");
+          return;
+        }
+        text = `Need to adjust target date. Requested to reschedule target completion to ${newDate}.`;
+        if (activeLearner.currentFocuses) {
+          const updatedFocuses = activeLearner.currentFocuses.map(f => {
+            if (f.id === reminder.focusId || (f.title === reminder.focusTitle && f.domain === reminder.focusDomain)) {
+              return { ...f, estimatedDuration: newDate };
+            }
+            return f;
+          });
+          const { learnerService } = await import('../services/learnerService');
+          await learnerService.updateLearner(activeLearner.id, { currentFocuses: updatedFocuses });
+        }
+      } else if (type === 'struggling') {
+        text = customText || 'I am struggling on a few aspects and would appreciate advice/assistance.';
+      }
+
+      await reminderService.respondToReminder(reminder.id, type, text, newDate);
+      setSuccess("Your response has been saved. Admin is notified!");
+      
+      setActiveReplyReminderId(null);
+      setReplyText('');
+      setReplyDate('');
+      setReplyType(null);
+    } catch (err) {
+      setError("Failed to submit response.");
+    } finally {
+      setIsReminderSubmitting(false);
+      setTimeout(() => setSuccess(null), 5000);
+    }
+  };
 
   // Form State
   const [itemTitle, setItemTitle] = useState('');
@@ -109,6 +172,21 @@ export function LearnerDashboard({
       return () => unsubscribe();
     }
   }, [activeLearner]);
+
+  useEffect(() => {
+    if (activeLearner) {
+      reminderService.checkAndGenerateReminders(
+        activeLearner.id,
+        activeLearner.fullName,
+        activeLearner.currentFocuses || []
+      );
+
+      const unsubscribe = reminderService.subscribeToLearnerReminders(activeLearner.id, (allReminders) => {
+        setReminders(allReminders);
+      });
+      return () => unsubscribe();
+    }
+  }, [activeLearner, activeLearner?.currentFocuses]);
 
   const handleSubmitRequest = async (e: FormEvent) => {
     e.preventDefault();
@@ -616,10 +694,141 @@ export function LearnerDashboard({
                     className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-brand-brown bg-brand-white rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all text-center"
                   >
                     Add Focus
-                  </button>
+                </button>
+              </div>
+
+              {/* Dynamic Focus Reminders & Checkpoints */}
+              {reminders.filter(r => r.status === 'pending').length > 0 && (
+                <div className="bg-amber-50/10 border border-amber-500/30 rounded-2xl p-5 mb-6 text-brand-offwhite space-y-4">
+                  <div className="flex items-center gap-2 text-amber-300">
+                    <Bell className="w-5 h-5 animate-bounce" />
+                    <h4 className="font-serif text-lg font-bold">Progress Checks & Gentle Alerts</h4>
+                  </div>
+                  <div className="space-y-4 divide-y divide-brand-beige/10">
+                    {reminders.filter(r => r.status === 'pending').map((reminder) => (
+                      <div key={reminder.id} className="pt-4 first:pt-0 space-y-3">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-1">
+                            <span className="inline-block bg-amber-500/20 text-yellow-250 text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border border-amber-500/20">
+                              {reminder.type === 'deadline' ? 'Expected Completion Date Approaching' : 'Gentle Progress Check-In'}
+                            </span>
+                            <p className="text-sm font-medium leading-relaxed font-serif text-brand-beige/95 italic">
+                              "{reminder.questionText}"
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-mono text-brand-beige/50 shrink-0">
+                            {new Date(reminder.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        {/* Quick Actions */}
+                        {activeReplyReminderId !== reminder.id ? (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            <button
+                              onClick={() => handleReminderResponse(reminder, 'on_track')}
+                              className="px-3 py-1.5 bg-brand-white text-brand-brown hover:bg-brand-offwhite text-[10px] font-black uppercase tracking-wider rounded-lg shadow transition-all active:scale-95"
+                            >
+                              👍 On Track
+                            </button>
+                            <button
+                              onClick={() => handleReminderResponse(reminder, 'completed')}
+                              className="px-3 py-1.5 bg-green-700 hover:bg-green-800 text-white text-[10px] font-black uppercase tracking-wider rounded-lg shadow border border-green-600 transition-all active:scale-95"
+                            >
+                              🎉 I Finished!
+                            </button>
+                            <button
+                              onClick={() => {
+                                setActiveReplyReminderId(reminder.id);
+                                setReplyType('date');
+                                setReplyDate(reminder.targetDate);
+                              }}
+                              className="px-3 py-1.5 bg-amber-600/50 hover:bg-amber-600 text-white text-[10px] font-black uppercase tracking-wider rounded-lg shadow border border-amber-500 transition-all active:scale-95"
+                            >
+                              📅 Adjust Date
+                            </button>
+                            <button
+                              onClick={() => {
+                                setActiveReplyReminderId(reminder.id);
+                                setReplyType('text');
+                              }}
+                              className="px-3 py-1.5 bg-red-600/40 hover:bg-red-705 border border-red-500 text-white text-[10px] font-black uppercase tracking-wider rounded-lg shadow transition-all active:scale-95"
+                            >
+                              🤝 Struggling / Need Support
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="bg-brand-brown-dark/50 p-4 rounded-xl border border-brand-beige/15 space-y-3">
+                            {replyType === 'date' ? (
+                              <div className="space-y-2">
+                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-beige/70">
+                                  Choose New Target Completion Date
+                                </label>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="date"
+                                    value={replyDate}
+                                    onChange={(e) => setReplyDate(e.target.value)}
+                                    className="px-3 py-2 bg-brand-brown text-brand-offwhite border border-brand-border rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-brand-beige"
+                                  />
+                                  <button
+                                    disabled={isReminderSubmitting}
+                                    onClick={() => handleReminderResponse(reminder, 'rescheduled', undefined, replyDate)}
+                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold uppercase tracking-wider rounded-md transition-all active:scale-95"
+                                  >
+                                    {isReminderSubmitting ? 'Saving...' : 'Confirm Date'}
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setActiveReplyReminderId(null);
+                                      setReplyType(null);
+                                    }}
+                                    className="px-3 py-2 bg-brand-beige/10 hover:bg-brand-beige/25 text-brand-beige text-xs font-bold uppercase tracking-wider rounded-md transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-beige/70">
+                                  What are you struggling with? Let us know in detail:
+                                </label>
+                                <textarea
+                                  value={replyText}
+                                  onChange={(e) => setReplyText(e.target.value)}
+                                  placeholder="e.g. Finding the concepts tricky, would love a practice session or some articles..."
+                                  className="w-full h-20 p-3 bg-brand-brown text-brand-offwhite border border-brand-beige/20 rounded-lg text-xs font-medium focus:outline-none focus:ring-1 focus:ring-brand-beige resize-none text-brand-offwhite"
+                                />
+                                <div className="flex gap-2 justify-end">
+                                  <button
+                                    onClick={() => {
+                                      setActiveReplyReminderId(null);
+                                      setReplyType(null);
+                                      setReplyText('');
+                                    }}
+                                    className="px-3 py-2 bg-brand-beige/10 hover:bg-brand-beige/25 text-brand-beige text-xs font-bold uppercase tracking-wider rounded-md transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    disabled={isReminderSubmitting || !replyText.trim()}
+                                    onClick={() => handleReminderResponse(reminder, 'struggling', replyText)}
+                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-xs font-bold uppercase tracking-wider rounded-md transition-all active:scale-95 disabled:opacity-40"
+                                  >
+                                    {isReminderSubmitting ? 'Sending...' : 'Send Message to Admin'}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                
-                {activeLearner.currentFocuses && activeLearner.currentFocuses.length > 0 ? (
+              )}
+
+              {activeLearner.currentFocuses && activeLearner.currentFocuses.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {activeLearner.currentFocuses.map((focus) => (
                       <div key={focus.id || focus.title} className="bg-brand-brown-dark/30 p-5 rounded-2xl border border-brand-beige/10 flex flex-col justify-between">
@@ -862,16 +1071,16 @@ export function LearnerDashboard({
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-brand-white w-full max-w-lg rounded-3xl shadow-2xl border border-brand-border overflow-hidden"
+                  className="bg-brand-white w-full max-w-lg max-h-[90vh] rounded-3xl shadow-2xl border border-brand-border overflow-hidden flex flex-col"
                 >
-                  <div className="px-6 py-4 bg-brand-beige border-b border-brand-border flex items-center justify-between">
+                  <div className="px-6 py-4 bg-brand-beige border-b border-brand-border flex items-center justify-between shrink-0">
                     <h3 className="font-serif text-xl font-bold text-brand-text">Submit Learning Update</h3>
                     <button onClick={() => setIsRequestModalOpen(false)} className="p-2 hover:bg-brand-border rounded-full transition-colors">
                       <X className="w-5 h-5 text-brand-brown" />
                     </button>
                   </div>
                   
-                  <form onSubmit={handleSubmitRequest} className="p-6 space-y-5">
+                  <form onSubmit={handleSubmitRequest} className="p-6 space-y-5 overflow-y-auto flex-1">
                     
                     {/* Domain Selection */}
                     <div>
@@ -1025,16 +1234,16 @@ export function LearnerDashboard({
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="bg-brand-white w-full max-w-lg rounded-3xl shadow-2xl border border-brand-border overflow-hidden"
+                  className="bg-brand-white w-full max-w-lg max-h-[90vh] rounded-3xl shadow-2xl border border-brand-border overflow-hidden flex flex-col"
                 >
-                  <div className="px-6 py-4 bg-brand-beige border-b border-brand-border flex items-center justify-between">
+                  <div className="px-6 py-4 bg-brand-beige border-b border-brand-border flex items-center justify-between shrink-0">
                     <h3 className="font-serif text-xl font-bold text-brand-text">Set Learning Focus</h3>
                     <button onClick={() => setIsFocusModalOpen(false)} className="p-2 hover:bg-brand-border rounded-full transition-colors">
                       <X className="w-5 h-5 text-brand-brown" />
                     </button>
                   </div>
                   
-                  <form onSubmit={handleUpdateFocus} className="p-6 space-y-5">
+                  <form onSubmit={handleUpdateFocus} className="p-6 space-y-5 overflow-y-auto flex-1">
                     
                     {/* Domain Selection */}
                     <div>

@@ -51,3 +51,23 @@ export interface EditRequest {
   status: 'pending' | 'approved' | 'rejected';
   requestedAt: string;
 }
+
+export interface FocusReminder {
+  id: string;
+  learnerId: string;
+  learnerName: string;
+  focusId: string;
+  focusTitle: string;
+  focusDomain: string;
+  targetDate: string;
+  createdAt: string;
+  type: 'deadline' | 'progress';
+  status: 'pending' | 'answered';
+  questionText: string;
+  responseText?: string;
+  responseType?: 'on_track' | 'completed' | 'rescheduled' | 'struggling';
+  newTargetDate?: string;
+  respondedAt?: string;
+  adminRead: boolean;
+  learnerRead: boolean;
+}
