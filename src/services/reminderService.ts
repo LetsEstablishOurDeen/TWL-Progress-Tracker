@@ -15,6 +15,8 @@ import { FocusReminder } from '../types';
 
 export const REMINDERS_COLLECTION = 'focus_reminders';
 
+const checkLocks = new Map<string, Promise<void>>();
+
 function handleFirestoreError(error: unknown, operation: string, path: string) {
   console.error(`Firestore Error during ${operation} at ${path}:`, error);
   throw error;
@@ -61,6 +63,20 @@ export const reminderService = {
   // Add a new reminder
   async addReminder(reminder: Omit<FocusReminder, 'id'>) {
     try {
+      // Direct prevent duplicate safety check
+      const q = query(
+        collection(db, REMINDERS_COLLECTION),
+        where('learnerId', '==', reminder.learnerId),
+        where('focusId', '==', reminder.focusId),
+        where('type', '==', reminder.type),
+        where('status', '==', 'pending')
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        console.log("Blocking duplicate reminder generation for focus:", reminder.focusId, "and type:", reminder.type);
+        return null;
+      }
+
       const colRef = collection(db, REMINDERS_COLLECTION);
       return await addDoc(colRef, reminder);
     } catch (error) {
@@ -115,9 +131,45 @@ export const reminderService = {
     }
   },
 
+  // Delete reminders by focusId
+  async deleteRemindersByFocusId(focusId: string) {
+    try {
+      const q = query(
+        collection(db, REMINDERS_COLLECTION),
+        where('focusId', '==', focusId)
+      );
+      const snapshot = await getDocs(q);
+      const promises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(promises);
+    } catch (error) {
+      handleFirestoreError(error, 'deleteRemindersByFocusId', REMINDERS_COLLECTION);
+    }
+  },
+
+  // Delete reminders by learnerId
+  async deleteRemindersByLearnerId(learnerId: string) {
+    try {
+      const q = query(
+        collection(db, REMINDERS_COLLECTION),
+        where('learnerId', '==', learnerId)
+      );
+      const snapshot = await getDocs(q);
+      const promises = snapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(promises);
+    } catch (error) {
+      handleFirestoreError(error, 'deleteRemindersByLearnerId', REMINDERS_COLLECTION);
+    }
+  },
+
   // Dynamic automatic engine: triggers reminders/questions for a learner's active focuses
   async checkAndGenerateReminders(learnerId: string, learnerName: string, activeFocuses: any[]) {
     if (!activeFocuses || activeFocuses.length === 0) return;
+
+    // Set-based concurrency guard: Check if already performing checking/writing for this learner
+    if (checkLocks.has(learnerId)) {
+      return;
+    }
+    checkLocks.set(learnerId, Promise.resolve()); // store dummy resolved promise or use as simple cache flag
 
     try {
       // 1. Fetch existing reminders for this learner to avoid duplicates
@@ -133,6 +185,7 @@ export const reminderService = {
 
       const now = new Date();
       const todayString = now.toISOString().split('T')[0];
+
 
       for (const focus of activeFocuses) {
         if (!focus.estimatedDuration) continue;
@@ -175,42 +228,48 @@ export const reminderService = {
               learnerRead: false
             });
           }
-        }
+        } else {
+          // 2b. Check if created > 7 days ago -> Trigger periodic gentle progress question (if no reminders in last 7 days)
+          // Since it's in the else block, we only trigger a progress reminder if the expected deadline is NOT close.
+          const focusCreatedAt = new Date(focus.createdAt || now.toISOString());
+          const focusAgeDays = Math.ceil((now.getTime() - focusCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
 
-        // 2b. Check if created > 7 days ago -> Trigger periodic gentle progress question (if no reminders in last 7 days)
-        const focusCreatedAt = new Date(focus.createdAt || now.toISOString());
-        const focusAgeDays = Math.ceil((now.getTime() - focusCreatedAt.getTime()) / (1000 * 60 * 60 * 24));
+          if (focusAgeDays >= 7) {
+            // Check if any reminder (deadline or progress) has been sent for this focus in the last 7 days
+            const hasRecentReminder = existingReminders.some(r => 
+              r.focusId === focus.id && 
+              (now.getTime() - new Date(r.createdAt).getTime()) < 1000 * 60 * 60 * 24 * 7
+            );
 
-        if (focusAgeDays >= 7) {
-          // Check if any reminder (deadline or progress) has been sent for this focus in the last 7 days
-          const hasRecentReminder = existingReminders.some(r => 
-            r.focusId === focus.id && 
-            (now.getTime() - new Date(r.createdAt).getTime()) < 1000 * 60 * 60 * 24 * 7
-          );
+            if (!hasRecentReminder) {
+              let domainLabel = (focus.domain || 'focus').toUpperCase();
+              let promptQuestion = `Dear Learner, you have been focused on "${focus.title}" (${domainLabel}) for over a week now. How has your experience been so far? Are you learning valuable insights? Tell us about your current status!`;
 
-          if (!hasRecentReminder) {
-            let domainLabel = (focus.domain || 'focus').toUpperCase();
-            let promptQuestion = `Dear Learner, you have been focused on "${focus.title}" (${domainLabel}) for over a week now. How has your experience been so far? Are you learning valuable insights? Tell us about your current status!`;
-
-            await this.addReminder({
-              learnerId,
-              learnerName,
-              focusId: focus.id,
-              focusTitle: focus.title,
-              focusDomain: focus.domain,
-              targetDate: targetDateStr,
-              createdAt: now.toISOString(),
-              type: 'progress',
-              status: 'pending',
-              questionText: promptQuestion,
-              adminRead: false,
-              learnerRead: false
-            });
+              await this.addReminder({
+                learnerId,
+                learnerName,
+                focusId: focus.id,
+                focusTitle: focus.title,
+                focusDomain: focus.domain,
+                targetDate: targetDateStr,
+                createdAt: now.toISOString(),
+                type: 'progress',
+                status: 'pending',
+                questionText: promptQuestion,
+                adminRead: false,
+                learnerRead: false
+              });
+            }
           }
         }
       }
     } catch (error) {
       console.error("Failed to check and generate reminders:", error);
+    } finally {
+      // Cool-down time of 5 seconds to absorb concurrent React 18 mounts/effects
+      setTimeout(() => {
+        checkLocks.delete(learnerId);
+      }, 5000);
     }
   }
 };

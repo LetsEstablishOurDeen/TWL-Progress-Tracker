@@ -1,9 +1,10 @@
 import { useState, useMemo, ReactNode, useEffect } from 'react';
 import { Learner, EditRequest, FocusReminder } from '../types';
-import { Plus, Edit2, Trash2, Search, CheckCircle2, BarChart3, Users as UsersIcon, BookOpen, Mic, Bell, Check, X, Calendar, AlertTriangle, MessageSquare } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, CheckCircle2, BarChart3, Users as UsersIcon, BookOpen, Mic, Bell, Check, X, Calendar, AlertTriangle, MessageSquare, Database, RefreshCw } from 'lucide-react';
 import { ManageLearnerModal } from './ManageLearnerModal';
 import { requestService } from '../services/requestService';
 import { reminderService } from '../services/reminderService';
+import { learnerService } from '../services/learnerService';
 import { motion, AnimatePresence } from 'motion/react';
 import { APP_DOMAINS } from '../constants';
 import { getOverallPoints, getDomainValue } from '../utils';
@@ -27,19 +28,37 @@ export function AdminDashboard({
   onAdd, 
   onApprove,
   onRemove, 
-  onUpdate 
+  onUpdate,
+  onViewProfile
 }: { 
   learners: Learner[], 
   onAdd: (l: Omit<Learner, 'joinedAt'>) => void,
   onApprove: (id: string) => void,
   onRemove: (id: string) => void,
-  onUpdate: (id: string, l: Partial<Learner>) => void
+  onUpdate: (id: string, l: Partial<Learner>) => void,
+  onViewProfile: (id: string) => void
 }) {
   const pendingCount = learners.filter(l => !l.isApproved).length;
   const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'reports' | 'updates' | 'reminders'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [requests, setRequests] = useState<EditRequest[]>([]);
   const [reminders, setReminders] = useState<FocusReminder[]>([]);
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [seedSuccess, setSeedSuccess] = useState(false);
+
+  const handleSeedDatabase = async () => {
+    setIsSeeding(true);
+    setSeedSuccess(false);
+    try {
+      await learnerService.seedDefaultLearners();
+      setSeedSuccess(true);
+      setTimeout(() => setSeedSuccess(false), 5000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = requestService.subscribeToRequests((allRequests) => {
@@ -78,6 +97,7 @@ export function AdminDashboard({
     if (!learner) return;
 
     let updates: Partial<Learner> = {};
+    const reqType = request.type.endsWith('s') ? request.type.slice(0, -1) : request.type;
 
     if (request.isFocus) {
       const currentFocuses = learner.currentFocuses || [];
@@ -86,55 +106,78 @@ export function AdminDashboard({
           ...currentFocuses,
           {
             id: request.id,
-            domain: request.type,
+            domain: reqType,
             title: request.details.title || 'Untitled Focus',
+            author: request.details.author,
             createdAt: new Date().toISOString(),
             estimatedDuration: request.details.estimatedDuration,
             location: request.details.location
           }
         ]
       };
-    } else if (request.type === 'book') {
+    } else if (reqType === 'book') {
+      const displayTitle = request.details.author ? `${request.details.title} by ${request.details.author}` : request.details.title;
       updates = { 
-        booksCompleted: [...learner.booksCompleted, `${request.details.title} (${request.details.duration})`] 
+        booksCompleted: [...(learner.booksCompleted || []), `${displayTitle} (${request.details.duration || 'Completed'})`] 
       };
-    } else if (request.type === 'presentation') {
+    } else if (reqType === 'presentation') {
       updates = { 
-        presentationsGiven: [...learner.presentationsGiven, `${request.details.title} (${request.details.completedAt})`] 
+        presentationsGiven: [...(learner.presentationsGiven || []), `${request.details.title} (${request.details.completedAt || new Date().toISOString().split('T')[0]})`] 
       };
-    } else if (request.type === 'task') {
+    } else if (reqType === 'task') {
       updates = { 
-        tasksCompleted: (learner.tasksCompleted || 0) + (request.details.count || 0) 
+        tasksCompleted: (learner.tasksCompleted || 0) + (request.details.count || 1) 
       };
     } else {
       // Handle module-based domains
       const currentStats = learner.moduleStats || {};
       const currentItems = learner.moduleItems || {};
+      const displayTitle = request.details.author ? `${request.details.title} by ${request.details.author}` : request.details.title;
       
       updates = {
         moduleStats: {
           ...currentStats,
-          [request.type]: (currentStats[request.type] || 0) + (request.details.count || 1)
+          [reqType]: (currentStats[reqType] || 0) + (request.details.count || 1)
         },
         moduleItems: {
           ...currentItems,
-          [request.type]: [...(currentItems[request.type] || []), request.details.title]
+          [reqType]: [...(currentItems[reqType] || []), displayTitle || 'Completed Module Item']
         }
       };
 
-      if (request.type === 'dowra') updates.completedDawraEQuran = true;
-      if (request.type === 'tafsir') updates.completedTafsirModule = true;
-      if (request.type === 'seerah') updates.completedSeerahModule = true;
-      if (request.type === 'articles') updates.completedArticlesModule = true;
+      if (reqType === 'dowra') updates.completedDawraEQuran = true;
+      if (reqType === 'tafsir') updates.completedTafsirModule = true;
+      if (reqType === 'seerah') updates.completedSeerahModule = true;
+      if (reqType === 'articles') updates.completedArticlesModule = true;
     }
     
     // Always check if this completion matches an active focus and remove it
     if (!request.isFocus && learner.currentFocuses) {
+      const removedFocuses: any[] = [];
       const remainingFocuses = learner.currentFocuses.filter(
-        f => f.title !== request.details.title || f.domain !== request.type
+        f => {
+          const fNorm = f.domain.endsWith('s') ? f.domain.slice(0, -1) : f.domain;
+          const rNorm = request.type.endsWith('s') ? request.type.slice(0, -1) : request.type;
+          const isMatch = f.title.toLowerCase().trim() === request.details.title?.toLowerCase().trim() && fNorm === rNorm;
+          if (isMatch) {
+            removedFocuses.push(f);
+          }
+          return !isMatch;
+        }
       );
       if (remainingFocuses.length !== learner.currentFocuses.length) {
         updates.currentFocuses = remainingFocuses;
+        // Clean up completed focus from edit_requests and reminders
+        for (const focus of removedFocuses) {
+          if (focus.id) {
+            try {
+              await requestService.deleteRequest(focus.id);
+              await reminderService.deleteRemindersByFocusId(focus.id);
+            } catch (err) {
+              console.error("Failed to delete completed focus from database:", err);
+            }
+          }
+        }
       }
     }
 
@@ -220,7 +263,7 @@ export function AdminDashboard({
         <div>
           <h1 className="font-serif text-3xl font-bold text-brand-text">Admin Center</h1>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-brown-light mt-1">
-            Community Management ({learners.length} learners)
+            Lounge Management ({learners.length} learners)
           </p>
         </div>
         <button 
@@ -231,6 +274,61 @@ export function AdminDashboard({
           <span>Enroll New Learner</span>
         </button>
       </div>
+
+      {learners.length === 0 && (
+        <div className="bg-amber-50/50 border border-amber-200/85 p-6 sm:p-8 rounded-3xl shadow-sm space-y-6 max-w-3xl mx-auto my-8 animate-in fade-in zoom-in-95 duration-300">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center text-amber-700 shrink-0 border border-amber-200 shadow-sm">
+              <Database className="w-6 h-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-serif text-2xl font-bold text-brand-text leading-tight">Database Recovery Mode</h3>
+              <p className="text-sm text-brand-brown-light leading-relaxed">
+                It looks like the <strong>learners</strong> collection in your Firestore database is currently empty (or has been recently deleted). 
+                To quickly restore your application data and populated workspaces, you can seed the database with standard demonstration profiles.
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-brand-white p-5 rounded-2xl shadow-inner border border-brand-border-light space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-brand-brown">This will automatically recreate:</h4>
+            <ul className="text-xs text-brand-brown-light leading-relaxed space-y-2 list-disc list-inside">
+              <li>Three authorized/unauthorized sample Learners with realistic stats, completed books, and progress logs.</li>
+              <li>Pre-approved test submission accomplishments in the Momentum feed tracker.</li>
+              <li>A study focus reminder showing active study status metrics and deadlines.</li>
+            </ul>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3 justify-end pt-2">
+            <button
+              onClick={handleSeedDatabase}
+              disabled={isSeeding}
+              className={`w-full sm:w-auto px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-xs shadow-md transition-all flex items-center justify-center space-x-2 border ${
+                seedSuccess 
+                  ? 'bg-green-600 border-green-500 text-white hover:bg-green-700' 
+                  : 'bg-amber-600 border-amber-500 hover:bg-amber-700 text-brand-offwhite'
+              } disabled:opacity-50`}
+            >
+              {isSeeding ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Seeding Records...</span>
+                </>
+              ) : seedSuccess ? (
+                <>
+                  <CheckCircle2 className="w-4 h-4 text-white" />
+                  <span>Seeded Successfully!</span>
+                </>
+              ) : (
+                <>
+                  <Database className="w-4 h-4" />
+                  <span>Restore & Seed Database</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {pendingCount > 0 && (
         <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 p-6 rounded-2xl shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4 duration-500">
@@ -325,7 +423,7 @@ export function AdminDashboard({
               <div className="bg-brand-white p-6 rounded-xl border border-brand-border shadow-sm">
                 <h3 className="text-sm font-bold uppercase tracking-wider text-brand-brown mb-6 flex items-center gap-2">
                   <BarChart3 className="w-4 h-4" />
-                  Community Activity
+                  Lounge Activity
                 </h3>
                 <div className="h-[300px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -369,7 +467,7 @@ export function AdminDashboard({
             <div className="bg-brand-white p-6 rounded-xl border border-brand-border shadow-sm mt-6">
               <h3 className="text-sm font-bold uppercase tracking-wider text-brand-brown mb-6 flex items-center gap-2">
                 <UsersIcon className="w-4 h-4" />
-                Community Growth Over Time
+                Lounge Growth Over Time
               </h3>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -419,7 +517,12 @@ export function AdminDashboard({
                           </div>
                           <p className="text-sm text-brand-brown">
                             {req.isFocus ? 'Requested to start focusing on: ' : 'Requested to add: '}
-                            <span className="font-bold">{req.type === 'task' && !req.isFocus ? `${req.details.count} Completion(s)` : req.details.title}</span>
+                            <span className="font-bold">
+                              {req.type === 'task' && !req.isFocus 
+                                ? `${req.details.count} Completion(s)` 
+                                : req.details.title}
+                              {req.details.author && <span className="text-brand-brown-light font-normal italic"> by {req.details.author}</span>}
+                            </span>
                           </p>
                           <div className="flex items-center gap-2 mt-1">
                             {!req.isFocus && req.type !== 'task' && (
@@ -601,15 +704,13 @@ export function AdminDashboard({
                 <th className="px-6 py-4 font-bold">Status</th>
                 <th className="px-6 py-4 font-bold">Wisdom Code</th>
                 <th className="px-6 py-4 font-bold">Full Name</th>
-                <th className="px-6 py-4 font-bold text-center">Books</th>
-                <th className="px-6 py-4 font-bold text-center">Tasks</th>
                 <th className="px-6 py-4 font-bold text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="text-sm">
               {filteredLearners.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center">
+                  <td colSpan={4} className="p-12 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <Search className="w-10 h-10 text-brand-border" />
                       <p className="text-brand-brown-light italic font-medium">No matching learners found.</p>
@@ -639,12 +740,6 @@ export function AdminDashboard({
                       )}
                       {!learner.isApproved && <span className="mt-1 inline-block bg-red-600 text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm">New Request</span>}
                     </td>
-                    <td className="px-6 py-4 text-center">
-                        <span className="bg-brand-beige px-3 py-1 rounded-full font-serif text-brand-text inline-block min-w-[32px]">{learner.booksCompleted.length}</span>
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                        <span className="bg-brand-brown text-white px-3 py-1 rounded-full font-serif inline-block min-w-[32px]">{learner.tasksCompleted}</span>
-                    </td>
                     <td className="px-6 py-4 text-right space-x-3 whitespace-nowrap">
                       {!learner.isApproved && (
                         <button 
@@ -654,6 +749,13 @@ export function AdminDashboard({
                           Approve
                         </button>
                       )}
+                      <button 
+                        onClick={() => onViewProfile(learner.id)}
+                        className="text-brand-brown hover:text-brand-text transition-colors p-2 rounded-full hover:bg-brand-beige inline-flex items-center"
+                        title="View Profile"
+                      >
+                        <BarChart3 className="w-4 h-4" />
+                      </button>
                       <button 
                         onClick={() => handleEdit(learner)}
                         className="text-brand-brown-light font-bold text-xs uppercase hover:text-brand-brown transition-colors tracking-wider"
@@ -702,9 +804,27 @@ export function AdminDashboard({
         <ManageLearnerModal 
           learner={editingLearner}
           onClose={() => setIsModalOpen(false)}
-          onSave={(data) => {
+          onSave={async (data) => {
             if (editingLearner) {
+              const oldFocuses = editingLearner.currentFocuses || [];
+              const newFocuses = data.currentFocuses || [];
+              const removedFocuses = oldFocuses.filter(
+                (oldF) => !newFocuses.some((newF: any) => newF.id === oldF.id)
+              );
+
               onUpdate(editingLearner.id, data);
+
+              // Process focus deletion from database
+              for (const focus of removedFocuses) {
+                if (focus.id) {
+                  try {
+                    await requestService.deleteRequest(focus.id);
+                    await reminderService.deleteRemindersByFocusId(focus.id);
+                  } catch (err) {
+                    console.error("Failed to delete focus from admin edit:", err);
+                  }
+                }
+              }
             } else {
               onAdd(data as Omit<Learner, 'joinedAt'>);
             }

@@ -5,10 +5,11 @@ import { Users, Library, Trophy, LogIn, LogOut } from 'lucide-react';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LearnerDashboard } from './components/LearnerDashboard';
 import { Leaderboard } from './components/Leaderboard';
+import { LoungeUpdates } from './components/LoungeUpdates';
 
 import { authService } from './lib/auth';
 
-type ViewMode = 'learner' | 'admin' | 'leaderboard';
+type ViewMode = 'learner' | 'admin' | 'leaderboard' | 'updates';
 
 const ADMIN_EMAIL = 'araizhasan00@gmail.com';
 
@@ -18,11 +19,20 @@ export default function App() {
   });
   const { learners, addLearner, approveLearner, removeLearner, updateLearner } = useLearners();
 
+  const [user, setUser] = useState<any>(null);
+  const [activeLearner, setActiveLearner] = useState<Learner | null>(null);
+  const [pendingEnrollment, setPendingEnrollment] = useState<{title: string, category: string, duration?: string, speaker?: string} | null>(null);
+
   useEffect(() => {
     localStorage.setItem('wisdom_lounge_view_mode', viewMode);
   }, [viewMode]);
-  const [user, setUser] = useState<any>(null);
-  const [activeLearner, setActiveLearner] = useState<Learner | null>(null);
+
+  useEffect(() => {
+    // If they are on updates view but have no active learner or user, redirect to learner
+    if (viewMode === 'updates' && !activeLearner) {
+      setViewMode('learner');
+    }
+  }, [viewMode, activeLearner]);
 
   useEffect(() => {
     const unsubscribe = authService.onAuthChange((u) => {
@@ -122,16 +132,24 @@ export default function App() {
             <div className="flex space-x-1 sm:space-x-2 items-center bg-brand-beige/30 p-1 rounded-xl border border-brand-border h-12">
               <button 
                 onClick={() => setViewMode('learner')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${viewMode === 'learner' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all hidden sm:inline-block ${viewMode === 'learner' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 Learner
               </button>
+              {activeLearner && (
+                <button 
+                  onClick={() => setViewMode('updates')}
+                  className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all inline-block ${viewMode === 'updates' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                >
+                  Lounge Updates
+                </button>
+              )}
               <button 
                 onClick={() => setViewMode('leaderboard')}
                 className={`px-4 py-2 flex items-center space-x-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${viewMode === 'leaderboard' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
-                <Trophy className="w-4 h-4" />
-                <span className="hidden md:inline">Leaderboard</span>
+                <Trophy className="w-4 h-4 hidden sm:block" />
+                <span>Leaderboard</span>
               </button>
               {isAdmin && (
                 <button 
@@ -188,7 +206,14 @@ export default function App() {
               onAdd={addLearner} 
               onApprove={approveLearner}
               onRemove={removeLearner} 
-              onUpdate={updateLearner} 
+              onUpdate={updateLearner}
+              onViewProfile={(id) => {
+                const profile = learners.find(l => l.id === id);
+                if (profile) {
+                  setActiveLearner(profile);
+                  setViewMode('learner');
+                }
+              }}
             />
           ) : (
             <div className="max-w-md mx-auto mt-20 text-center bg-brand-white p-12 rounded-3xl shadow-xl border border-brand-border">
@@ -213,10 +238,27 @@ export default function App() {
             onRegister={addLearner}
             activeLearner={activeLearner}
             setActiveLearner={setActiveLearner}
+            pendingEnrollment={pendingEnrollment}
           />
         )}
         {viewMode === 'leaderboard' && (
           <Leaderboard learners={learners} />
+        )}
+        {viewMode === 'updates' && (
+          <LoungeUpdates 
+            activeLearner={activeLearner}
+            onEnroll={(module) => {
+              // Determine category based on title, fallback to book
+              let category = 'book';
+              if (module.title.toLowerCase().includes('tafsir')) category = 'tafsir';
+              if (module.title.toLowerCase().includes('seerah')) category = 'seerah';
+              if (module.title.toLowerCase().includes('quran')) category = 'dowra';
+              
+              setPendingEnrollment({ title: module.title, category, duration: module.duration, speaker: 'Sana Amjad' });
+              setViewMode('learner');
+            }}
+            onLoginRequest={() => setViewMode('learner')}
+          />
         )}
       </main>
     </div>

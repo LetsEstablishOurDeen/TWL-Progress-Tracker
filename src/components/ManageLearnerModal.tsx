@@ -19,6 +19,7 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
   const [booksCompleted, setBooksCompleted] = useState<string[]>(learner?.booksCompleted || []);
   const [presentationsGiven, setPresentationsGiven] = useState<string[]>(learner?.presentationsGiven || []);
   const [tasksCompleted, setTasksCompleted] = useState(learner?.tasksCompleted || 0);
+  const [currentFocuses, setCurrentFocuses] = useState<any[]>(learner?.currentFocuses || []);
 
   const [tafsirCompletedItems, setTafsirCompletedItems] = useState<string[]>(
     learner?.moduleItems?.tafsir || (learner?.completedTafsirModule ? ['Tafsir Module Completed'] : [])
@@ -69,6 +70,7 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
       completedSeerahModule: seerahCompletedItems.length > 0,
       completedDawraEQuran: dowraCompletedItems.length > 0,
       completedArticlesModule: articlesCompletedItems.length > 0,
+      currentFocuses,
       ...(learner ? {} : { joinedAt: new Date().toISOString() })
     };
     onSave(data);
@@ -235,6 +237,39 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
                 className="w-full px-4 py-2 bg-brand-offwhite border border-brand-border rounded-xl text-sm"
               />
             </div>
+
+            {/* Active Focuses */}
+            {learner && (
+              <div className="space-y-2 border-t border-brand-border-light pt-4 sm:col-span-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">Active Learning Focuses</label>
+                {currentFocuses.length === 0 ? (
+                  <p className="text-xs text-brand-brown-light italic">No active focuses registered for this learner.</p>
+                ) : (
+                  <div className="space-y-2 mt-2">
+                    {currentFocuses.map((focus, i) => (
+                      <div key={focus.id || i} className="flex items-center justify-between bg-brand-bg-alt px-3 py-2 rounded-xl border border-brand-border-light text-xs font-medium text-brand-brown">
+                        <div className="flex flex-col">
+                          <span className="font-serif font-bold text-brand-text">{focus.title}</span>
+                          <span className="text-[10px] text-brand-brown-light uppercase tracking-wider">
+                            Domain: {focus.domain} | Target: {focus.estimatedDuration ? new Date(focus.estimatedDuration).toLocaleDateString() : 'N/A'}
+                          </span>
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setCurrentFocuses(currentFocuses.filter((_, idx) => idx !== i));
+                          }} 
+                          className="p-1.5 text-red-500 hover:bg-red-50 hover:text-red-700 rounded-lg transition-colors flex items-center justify-center shrink-0"
+                          title="Remove Active Focus"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Academic & Study Modules */}
             <div className="space-y-4 pt-4 border-t border-brand-border-light">

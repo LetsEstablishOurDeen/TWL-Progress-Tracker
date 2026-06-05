@@ -26,7 +26,7 @@ export const STATUS_TIERS: StatusTier[] = [
     requiredBadges: 3,
     perks: [
       '5% discount on paid modules',
-      'Priority consideration for community projects',
+      'Priority consideration for lounge projects',
       'Access to selected bonus learning resources'
     ],
   },
@@ -36,7 +36,7 @@ export const STATUS_TIERS: StatusTier[] = [
     requiredBadges: 6,
     perks: [
       '10% discount on paid modules',
-      'Eligible to submit draft Articles for community review',
+      'Eligible to submit draft Articles for lounge review',
       'Access to additional research resources'
     ],
   },
@@ -67,7 +67,7 @@ export const STATUS_TIERS: StatusTier[] = [
     perks: [
       '30% discount on paid modules',
       'Priority review of proposals and submissions',
-      'Special recognition across the community'
+      'Special recognition across the wisdom lounge'
     ],
   },
   {

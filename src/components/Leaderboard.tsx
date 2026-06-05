@@ -53,7 +53,7 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
               </div>
             </div>
           </h1>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-brown-light mt-2">Top performers across our community</p>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-brown-light mt-2">Top performers of The Wisdom Lounge.</p>
         </div>
         
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">

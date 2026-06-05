@@ -15,6 +15,7 @@ export interface Learner {
     id: string;
     domain: string;
     title: string;
+    author?: string;
     createdAt: string;
     estimatedDuration?: string;
     location?: 'lounge' | 'personal';
@@ -41,12 +42,14 @@ export interface EditRequest {
   moduleId?: string;
   details: {
     title?: string;
+    author?: string;
     completedAt?: string;
     duration?: string;
     count?: number;
     description?: string;
     estimatedDuration?: string;
     location?: 'lounge' | 'personal';
+    community?: string;
   };
   status: 'pending' | 'approved' | 'rejected';
   requestedAt: string;

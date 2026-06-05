@@ -3,7 +3,7 @@ import { Learner, EditRequest, FocusReminder } from '../types';
 import { 
   BookOpen, Mic, CheckCircle2, Search, Medal, Eye, EyeOff, 
   LayoutDashboard, BarChart3, Plus, X, Clock, Send, Info, Lock,
-  Bell, Calendar, HelpCircle
+  Bell, Calendar, HelpCircle, Flame, Activity, Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getLearnerBadges, ALL_BADGES } from '../lib/badges';
@@ -61,12 +61,14 @@ export function LearnerDashboard({
   learners, 
   onRegister,
   activeLearner,
-  setActiveLearner
+  setActiveLearner,
+  pendingEnrollment
 }: { 
   learners: Learner[], 
   onRegister: (data: Omit<Learner, 'joinedAt'>) => void,
   activeLearner: Learner | null,
-  setActiveLearner: (learner: Learner | null) => void
+  setActiveLearner: (learner: Learner | null) => void,
+  pendingEnrollment?: { title: string, category: string, duration?: string, speaker?: string } | null
 }) {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [searchTerm, setSearchTerm] = useState('');
@@ -91,6 +93,7 @@ export function LearnerDashboard({
   
   const [pendingRequests, setPendingRequests] = useState<EditRequest[]>([]);
   const [reminders, setReminders] = useState<FocusReminder[]>([]);
+  const [allLearnerRequests, setAllLearnerRequests] = useState<EditRequest[]>([]);
 
   // Reminder Response State
   const [activeReplyReminderId, setActiveReplyReminderId] = useState<string | null>(null);
@@ -154,6 +157,7 @@ export function LearnerDashboard({
 
   // Form State
   const [itemTitle, setItemTitle] = useState('');
+  const [itemAuthor, setItemAuthor] = useState('');
   const [completionDate, setCompletionDate] = useState('');
   const [timeTaken, setTimeTaken] = useState('');
   const [taskCount, setTaskCount] = useState(1);
@@ -166,8 +170,10 @@ export function LearnerDashboard({
   useEffect(() => {
     if (activeLearner) {
       const unsubscribe = requestService.subscribeToRequests((allRequests) => {
-        const learnerRequests = allRequests.filter(r => r.learnerId === activeLearner.id && r.status === 'pending');
-        setPendingRequests(learnerRequests);
+        const userReqs = allRequests.filter(r => r.learnerId === activeLearner.id);
+        const pending = userReqs.filter(r => r.status === 'pending');
+        setPendingRequests(pending);
+        setAllLearnerRequests(userReqs);
       });
       return () => unsubscribe();
     }
@@ -194,12 +200,14 @@ export function LearnerDashboard({
 
     setIsSubmitting(true);
     try {
+      const normType = requestType.endsWith('s') ? requestType.slice(0, -1) : requestType;
       await requestService.submitRequest({
         learnerId: activeLearner.id,
         learnerName: activeLearner.fullName,
-        type: requestType,
+        type: normType,
         details: {
           title: itemTitle,
+          author: itemAuthor,
           completedAt: completionDate,
           duration: timeTaken,
           count: taskCount,
@@ -210,6 +218,7 @@ export function LearnerDashboard({
       setIsRequestModalOpen(false);
       // Reset form
       setItemTitle('');
+      setItemAuthor('');
       setCompletionDate('');
       setTimeTaken('');
       setTaskCount(1);
@@ -312,8 +321,23 @@ export function LearnerDashboard({
   const [isFocusModalOpen, setIsFocusModalOpen] = useState(false);
   const [focusDomain, setFocusDomain] = useState<string>(APP_DOMAINS[0]?.type || 'book');
   const [focusTitle, setFocusTitle] = useState('');
+  const [focusAuthor, setFocusAuthor] = useState('');
   const [focusEstimatedDuration, setFocusEstimatedDuration] = useState('');
+  const [focusCommunity, setFocusCommunity] = useState('');
   const [focusLocation, setFocusLocation] = useState<'lounge' | 'personal'>('lounge');
+  const [isLoungeModule, setIsLoungeModule] = useState(false);
+
+  useEffect(() => {
+    if (pendingEnrollment && activeLearner) {
+      setFocusDomain(pendingEnrollment.category);
+      setFocusTitle(pendingEnrollment.title);
+      if (pendingEnrollment.duration) setFocusEstimatedDuration(pendingEnrollment.duration);
+      if (pendingEnrollment.speaker) setFocusAuthor(pendingEnrollment.speaker);
+      setFocusLocation('lounge');
+      setIsLoungeModule(true);
+      setIsFocusModalOpen(true);
+    }
+  }, [pendingEnrollment, activeLearner]);
 
   const handleUpdateFocus = async (e: FormEvent) => {
     e.preventDefault();
@@ -321,21 +345,27 @@ export function LearnerDashboard({
 
     setIsFocusSubmitting(true);
     try {
+      const normDomain = focusDomain.endsWith('s') ? focusDomain.slice(0, -1) : focusDomain;
       await requestService.submitRequest({
         learnerId: activeLearner.id,
         learnerName: activeLearner.fullName,
-        type: focusDomain,
+        type: normDomain,
         isFocus: true,
         details: {
           title: focusTitle,
+          author: focusAuthor,
           estimatedDuration: focusEstimatedDuration,
-          location: focusLocation
+          location: focusLocation,
+          community: focusCommunity
         }
       });
       setIsFocusModalOpen(false);
       setFocusTitle('');
+      setFocusAuthor('');
+      setFocusCommunity('');
       setFocusEstimatedDuration('');
       setFocusLocation('lounge');
+      setIsLoungeModule(false);
       setSuccess("Focus approval request submitted!");
     } catch (err) {
       setError("Failed to submit focus request.");
@@ -379,6 +409,206 @@ export function LearnerDashboard({
     return data;
   }, [activeLearner]);
 
+  const timelineActivities = useMemo(() => {
+    if (!activeLearner) return [];
+
+    const activities: any[] = [];
+    const matchedRequestIds = new Set<string>();
+
+    // 1. All pending and rejected requests are kept to show in-progress submission feedback
+    const nonApprovedRequests = allLearnerRequests.filter(r => r.status !== 'approved');
+    activities.push(...nonApprovedRequests);
+
+    // 2. Gather approved requests (both focus and milestones) to match against actual profile data
+    const approvedRequests = allLearnerRequests.filter(r => r.status === 'approved');
+
+    // Helper to find and match can be exact or loose
+    const findMatchingRequest = (type: string, titleToMatch: string, isFocusRequest = false) => {
+      const normType = type.endsWith('s') ? type.slice(0, -1) : type;
+      const found = approvedRequests.find(r => {
+        if (matchedRequestIds.has(r.id)) return false;
+        
+        const rNormType = r.type.endsWith('s') ? r.type.slice(0, -1) : r.type;
+        if (rNormType !== normType) return false;
+        if (!!r.isFocus !== isFocusRequest) return false;
+        
+        const reqTitle = r.details?.title || '';
+        return titleToMatch.toLowerCase().includes(reqTitle.toLowerCase()) || 
+               reqTitle.toLowerCase().includes(titleToMatch.toLowerCase());
+      });
+      if (found) {
+        matchedRequestIds.add(found.id);
+      }
+      return found;
+    };
+
+    // --- Active Focuses from learner's profile ---
+    const activeFocuses = activeLearner.currentFocuses || [];
+    activeFocuses.forEach((focus) => {
+      const normFocusDomain = focus.domain.endsWith('s') ? focus.domain.slice(0, -1) : focus.domain;
+      const req = findMatchingRequest(normFocusDomain, focus.title, true);
+      if (req) {
+        activities.push(req);
+      } else {
+        activities.push({
+          id: focus.id || `synth-focus-${focus.title}`,
+          learnerId: activeLearner.id,
+          learnerName: activeLearner.fullName,
+          type: normFocusDomain,
+          isFocus: true,
+          status: 'approved',
+          requestedAt: focus.createdAt || new Date().toISOString(),
+          details: {
+            title: focus.title,
+            author: focus.author,
+            estimatedDuration: focus.estimatedDuration,
+            location: focus.location,
+          }
+        });
+      }
+    });
+
+    // --- Books ---
+    const books = activeLearner.booksCompleted || [];
+    books.forEach((bookStr, index) => {
+      const match = bookStr.match(/^(.+?)(?:\s*\(([^)]+)\))?$/);
+      const title = match ? match[1].trim() : bookStr;
+      const durationOrDate = match && match[2] ? match[2].trim() : '';
+
+      let parsedDate = activeLearner.joinedAt || new Date().toISOString();
+      if (durationOrDate && !isNaN(Date.parse(durationOrDate))) {
+        parsedDate = new Date(durationOrDate).toISOString();
+      }
+
+      const req = findMatchingRequest('book', title, false);
+      if (req) {
+        activities.push(req);
+      } else {
+        activities.push({
+          id: `synth-book-${index}-${title}`,
+          learnerId: activeLearner.id,
+          learnerName: activeLearner.fullName,
+          type: 'book',
+          isFocus: false,
+          status: 'approved',
+          requestedAt: parsedDate,
+          details: {
+            title: title,
+            duration: durationOrDate || 'Completed',
+            completedAt: parsedDate
+          }
+        });
+      }
+    });
+
+    // --- Presentations ---
+    const presentations = activeLearner.presentationsGiven || [];
+    presentations.forEach((presStr, index) => {
+      const match = presStr.match(/^(.+?)(?:\s*\(([^)]+)\))?$/);
+      const title = match ? match[1].trim() : presStr;
+      const completedAtOrDate = match && match[2] ? match[2].trim() : '';
+
+      let parsedDate = activeLearner.joinedAt || new Date().toISOString();
+      if (completedAtOrDate && !isNaN(Date.parse(completedAtOrDate))) {
+        parsedDate = new Date(completedAtOrDate).toISOString();
+      }
+
+      const req = findMatchingRequest('presentation', title, false);
+      if (req) {
+        activities.push(req);
+      } else {
+        activities.push({
+          id: `synth-pres-${index}-${title}`,
+          learnerId: activeLearner.id,
+          learnerName: activeLearner.fullName,
+          type: 'presentation',
+          isFocus: false,
+          status: 'approved',
+          requestedAt: parsedDate,
+          details: {
+            title: title,
+            completedAt: parsedDate
+          }
+        });
+      }
+    });
+
+    // --- Modules (Tafsir, Seerah, Articles, Dowra) ---
+    const moduleTypes = ['tafsir', 'seerah', 'articles', 'dowra'];
+    moduleTypes.forEach(type => {
+      const items = getDomainItems(activeLearner, type);
+      items.forEach((itemTitle, index) => {
+        // Parse possible embedded date such as "Topic (2026-06-02)"
+        const match = itemTitle.match(/^(.+?)(?:\s*\(([^)]+)\))?$/);
+        const title = match ? match[1].trim() : itemTitle;
+        const durationOrDate = match && match[2] ? match[2].trim() : '';
+
+        let parsedDate = activeLearner.joinedAt || new Date().toISOString();
+        if (durationOrDate && !isNaN(Date.parse(durationOrDate))) {
+          parsedDate = new Date(durationOrDate).toISOString();
+        }
+
+        const req = findMatchingRequest(type, title, false);
+        if (req) {
+          activities.push(req);
+        } else {
+          activities.push({
+            id: `synth-${type}-${index}-${itemTitle}`,
+            learnerId: activeLearner.id,
+            learnerName: activeLearner.fullName,
+            type: type,
+            isFocus: false,
+            status: 'approved',
+            requestedAt: parsedDate,
+            details: {
+              title: itemTitle,
+              completedAt: parsedDate
+            }
+          });
+        }
+      });
+    });
+
+    // --- Tasks ---
+    const approvedTaskRequests = approvedRequests.filter(r => r.type === 'task' && !r.isFocus);
+    const loggedTaskCount = approvedTaskRequests.reduce((sum, r) => sum + (r.details?.count || 1), 0);
+    const actualTaskCount = activeLearner.tasksCompleted || 0;
+
+    // Push matched approved task requests
+    approvedTaskRequests.forEach(req => {
+      matchedRequestIds.add(req.id);
+      activities.push(req);
+    });
+
+    // Discrepancy Tasks
+    if (actualTaskCount > loggedTaskCount) {
+      const remainingTasks = actualTaskCount - loggedTaskCount;
+      activities.push({
+        id: `synth-tasks-remaining`,
+        learnerId: activeLearner.id,
+        learnerName: activeLearner.fullName,
+        type: 'task',
+        isFocus: false,
+        status: 'approved',
+        requestedAt: activeLearner.joinedAt || new Date().toISOString(),
+        details: {
+          title: 'Logged lounge action points',
+          count: remainingTasks,
+          completedAt: activeLearner.joinedAt || new Date().toISOString()
+        }
+      });
+    }
+
+    // Capture any approved requests that weren't matched above
+    approvedRequests.forEach(req => {
+      if (!matchedRequestIds.has(req.id)) {
+        activities.push(req);
+      }
+    });
+
+    return activities;
+  }, [activeLearner, allLearnerRequests]);
+
   return (
     <div className="space-y-8">
       {!activeLearner ? (
@@ -400,7 +630,7 @@ export function LearnerDashboard({
           </div>
 
           <h2 className="font-serif text-2xl font-bold mb-2 text-brand-text text-center">
-            {authMode === 'signin' ? 'Welcome Back' : 'Join the Community'}
+            {authMode === 'signin' ? 'Welcome Back' : 'Enter The Lounge'}
           </h2>
           <p className="text-brand-brown-light mb-6 text-center text-sm font-medium">
             {authMode === 'signin' 
@@ -499,14 +729,17 @@ export function LearnerDashboard({
                   type="text" 
                   value={regId}
                   onChange={(e) => setRegId(e.target.value)}
-                  placeholder="Create a unique secret code"
+                  placeholder="Create a unique code."
                   className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown shadow-sm"
                   required
                 />
                 <p className="text-[10px] text-brand-brown-light leading-relaxed mt-2 bg-brand-beige/50 p-3 rounded-md border border-brand-border/50">
-                  <span className="font-bold text-brand-brown uppercase tracking-widest block mb-1">Important:</span>
+                  <span className="font-bold text-brand-brown-130 uppercase tracking-widest block mb-1">Important:</span>
                   This Wisdom Code will be used as your unique identifier across The Wisdom Lounge. 
                   It must be kept completely secret and private. Do not share it with anyone else.
+                  <span className="block mt-1 text-brown-200 font-semibold tracking-narrow lowercase">
+                  It should IDEALLY include your name and a combination of numbers.
+                  </span>
                   <span className="block mt-1 text-red-400 font-bold tracking-wide uppercase">
                   IT CANNOT BE CHANGED IN THE FUTURE.
                   </span>
@@ -572,7 +805,12 @@ export function LearnerDashboard({
           className="max-w-6xl mx-auto space-y-8"
         >
           {/* Header Stats */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 bg-brand-beige p-6 sm:p-8 rounded-3xl border border-brand-border shrink-0 shadow-sm relative overflow-hidden">
+          <div 
+            className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4 p-6 sm:p-8 rounded-3xl border border-brand-border shrink-0 shadow-sm relative overflow-hidden transition-colors duration-1000"
+            style={{
+              backgroundColor: `hsl(35, ${Math.min(100, 30 + (wisdomPoints * 1.5))}%, ${Math.max(60, 93 - (wisdomPoints * 0.4))}%)`
+            }}
+          >
             <div className="absolute -right-10 -top-10 opacity-5 pointer-events-none">
               <Medal className="w-64 h-64 text-brand-brown" />
             </div>
@@ -587,7 +825,7 @@ export function LearnerDashboard({
                     {currentStatus.name}
                   </span>
                 </div>
-                <h1 className="font-serif text-4xl sm:text-5xl font-bold text-brand-text mb-2">{activeLearner.fullName}</h1>
+                <h1 className="font-sans text-4xl sm:text-5xl font-bold text-brand-text mb-2 tracking-tight">{activeLearner.fullName}</h1>
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="bg-brand-offwhite px-3 py-1 rounded-md text-sm font-mono text-brand-brown border border-brand-border-light shadow-sm">Wisdom Code: {activeLearner.id}</span>
                   {activeLearner.phoneNumber && (
@@ -689,6 +927,7 @@ export function LearnerDashboard({
                     onClick={() => {
                       setFocusDomain(APP_DOMAINS[0]?.type);
                       setFocusTitle('');
+                      setFocusAuthor('');
                       setIsFocusModalOpen(true);
                     }}
                     className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-brand-brown bg-brand-white rounded-lg shadow-sm hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all text-center"
@@ -836,6 +1075,11 @@ export function LearnerDashboard({
                           <h4 className="font-serif text-xl sm:text-2xl font-bold text-brand-offwhite mb-2 leading-tight">
                             {focus.title}
                           </h4>
+                          {focus.author && (
+                            <p className="text-sm text-brand-brown-light/80 italic mb-3">
+                              by {focus.author}
+                            </p>
+                          )}
                           <div className="flex flex-wrap items-center gap-2 mb-4">
                             <p className="text-[10px] font-medium text-brand-beige/80 bg-brand-beige/10 inline-block px-2 py-1 rounded-md border border-brand-beige/20 uppercase tracking-wider">
                               {APP_DOMAINS.find(d => d.type === focus.domain)?.label || focus.domain}
@@ -858,6 +1102,14 @@ export function LearnerDashboard({
                               const remaining = activeLearner.currentFocuses?.filter(f => f.id !== focus.id) || [];
                               const { learnerService } = await import('../services/learnerService');
                               await learnerService.updateLearner(activeLearner.id, { currentFocuses: remaining });
+                              if (focus.id) {
+                                try {
+                                  await requestService.deleteRequest(focus.id);
+                                  await reminderService.deleteRemindersByFocusId(focus.id);
+                                } catch (err) {
+                                  console.error("Failed to delete focus from database:", err);
+                                }
+                              }
                             }}
                             className="w-full sm:w-auto px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-brand-brown-light bg-brand-white rounded-lg shadow hover:bg-brand-offwhite hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all flex justify-center items-center gap-1 border border-brand-border"
                           >
@@ -867,6 +1119,7 @@ export function LearnerDashboard({
                             onClick={() => {
                               setRequestType(focus.domain);
                               setItemTitle(focus.title);
+                              setItemAuthor(focus.author || '');
                               setCompletionDate(new Date().toISOString().split('T')[0]);
                               setIsRequestModalOpen(true);
                             }}
@@ -910,7 +1163,7 @@ export function LearnerDashboard({
                   return (
                     <div key={req.id} className="bg-orange-50/50 backdrop-blur-sm px-4 py-2.5 rounded-xl border border-orange-100 text-[10px] font-black uppercase tracking-widest text-orange-800 flex items-center gap-2 shadow-sm transition-all hover:bg-orange-100">
                       <span className="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.5)]"></span>
-                      {domainLabel}: {req.details.title || `${req.details.count} Completed`}
+                      {domainLabel}: {req.details.title || `${req.details.count} Completed`} {req.details.author ? `by ${req.details.author}` : ''}
                     </div>
                   );
                 })}
@@ -997,6 +1250,264 @@ export function LearnerDashboard({
             </div>
           </div>
 
+          {/* Activity Momentum Feed (Boundary card removed, integrated full screen element) */}
+          <div className="mt-12 relative w-full">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 px-2">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-amber-500/10 text-amber-600 rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-500">
+                  <Flame className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-serif text-2xl font-bold text-brand-text flex items-center gap-2">
+                    Momentum Timeline
+                    {timelineActivities.some(r => r.status === 'approved' && !r.isFocus) && (
+                      <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-500 text-brand-offwhite text-[9px] font-black uppercase tracking-widest animate-[bounce_1.5s_infinite]">
+                        Active
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">
+                    Your real-time horizontal linear progression log of module milestones & accomplishments.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <span className="text-xs font-bold text-brand-brown-light bg-brand-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full border border-brand-border-light shadow-sm flex items-center gap-1.5 font-mono">
+                  <Activity className="w-3.5 h-3.5 text-brand-brown" />
+                  {timelineActivities.filter(r => r.status === 'approved' && !r.isFocus).length} Accomplishments
+                </span>
+              </div>
+            </div>
+
+            {timelineActivities.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center text-brand-brown-light bg-brand-white p-8 rounded-[2rem] border border-brand-border mx-2">
+                <div className="w-16 h-16 bg-brand-bg-alt rounded-full flex items-center justify-center mb-4 border border-brand-border-light">
+                  <Sparkles className="w-8 h-8 text-brand-brown-light opacity-65" />
+                </div>
+                <h4 className="font-serif italic text-lg font-bold text-brand-text mb-1">Your Momentum Feed is Quiet</h4>
+                <p className="text-xs max-w-md opacity-75">
+                  When you submit updates for tasks, presentations, or books, they will display on this interactive layout to map your spiritual and intellectual progress!
+                </p>
+              </div>
+            ) : (
+              <div className="relative w-screen left-1/2 -translate-x-1/2 overflow-hidden py-4">
+                {/* Visual fading overlays on both ends across the full screen width */}
+                <div className="absolute left-0 top-0 bottom-0 w-24 md:w-56 bg-gradient-to-r from-brand-bg via-brand-bg/95 to-transparent pointer-events-none z-20" />
+                <div className="absolute right-0 top-0 bottom-0 w-24 md:w-56 bg-gradient-to-l from-brand-bg via-brand-bg/95 to-transparent pointer-events-none z-20" />
+
+                {/* Horizontal Scrolling Track Container */}
+                <div className="overflow-x-auto flex gap-8 pb-10 pt-16 px-[25vw] relative scrollbar-none scroll-smooth snap-x snap-mandatory min-h-[350px]">
+                  {/* Master Thick Horizontal Connection Line spanning the entire scrollable content area in bright orange */}
+                  <div className="absolute left-0 right-0 top-[72px] -translate-y-1/2 h-1.5 bg-gradient-to-r from-orange-500/0 via-orange-500 to-orange-500/0 pointer-events-none z-10" />
+
+                  {[...timelineActivities]
+                    .sort((a, b) => b.requestedAt.localeCompare(a.requestedAt))
+                    .map((act, index, arr) => {
+                      const domainInfo = APP_DOMAINS.find(d => d.type === act.type);
+                      const domainLabel = domainInfo ? domainInfo.label : act.type;
+                      const isApproved = act.status === 'approved';
+                      const isPending = act.status === 'pending';
+                      const isRejected = act.status === 'rejected';
+
+                      // Determine if this is an active focus or a completed one
+                      const isActiveFocus = act.isFocus && activeLearner.currentFocuses?.some(f => {
+                        const fNorm = f.domain.endsWith('s') ? f.domain.slice(0, -1) : f.domain;
+                        const actNorm = act.type.endsWith('s') ? act.type.slice(0, -1) : act.type;
+                        return f.id === act.id || 
+                          (f.title.toLowerCase().trim() === act.details?.title?.toLowerCase().trim() && fNorm === actNorm);
+                      });
+
+                      // Determine formatted date of completion
+                      const dateObj = act.details?.completedAt || act.requestedAt;
+                      const completionDate = new Date(dateObj).toLocaleDateString(undefined, { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        year: 'numeric' 
+                      });
+
+                      // Determine study domains or points value
+                      let pts = 2; // Baseline focus init size
+                      if (act.isFocus) {
+                        pts = 2;
+                      } else if (act.type === 'book') {
+                        pts = 5;
+                      } else if (act.type === 'presentation') {
+                        pts = 10;
+                      } else if (act.type === 'task') {
+                        pts = act.details?.count || 1;
+                      } else if (['seerah', 'articles', 'tafsir', 'dowra'].includes(act.type)) {
+                        pts = 15;
+                      }
+
+                      // Define icon theme parameters
+                      let iconBg = "bg-brand-bg-alt text-brand-brown border-brand-border-light";
+                      let iconEl = <Sparkles className="w-5 h-5" />;
+
+                      if (act.type === 'book') {
+                        iconBg = "bg-emerald-50 text-emerald-800 border-emerald-100";
+                        iconEl = <BookOpen className="w-5 h-5" />;
+                      } else if (act.type === 'presentation') {
+                        iconBg = "bg-indigo-50 text-indigo-800 border-indigo-100";
+                        iconEl = <Mic className="w-5 h-5" />;
+                      } else if (act.type === 'task') {
+                        iconBg = "bg-blue-50 text-blue-800 border-blue-100";
+                        iconEl = <CheckCircle2 className="w-5 h-5" />;
+                      } else if (['seerah', 'articles', 'tafsir', 'dowra'].includes(act.type)) {
+                        iconBg = "bg-amber-50 text-amber-800 border-amber-100";
+                        iconEl = <Medal className="w-5 h-5" />;
+                      }
+
+                      return (
+                        <motion.div
+                          key={act.id}
+                          initial={{ opacity: 0, x: 30 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05, duration: 0.4 }}
+                          className="flex-none w-72 md:w-80 flex flex-col items-center relative pt-10 snap-start"
+                        >
+                          {/* Chronological Vertical Thread Peg/Connector */}
+                          <div className={`absolute top-0 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-brand-white shadow-sm z-30 transition-all ${
+                            act.isFocus
+                              ? (isApproved 
+                                  ? (isActiveFocus 
+                                      ? 'bg-indigo-600 ring-4 ring-indigo-500/30 ring-offset-1 scale-110' 
+                                      : 'bg-indigo-400 opacity-60') 
+                                  : isPending 
+                                  ? 'bg-amber-500 ring-4 ring-amber-500/25 animate-pulse' 
+                                  : 'bg-rose-500 ring-4 ring-rose-500/25')
+                              : (isApproved 
+                                  ? 'bg-emerald-500 ring-4 ring-emerald-500/25' 
+                                  : isPending 
+                                  ? 'bg-amber-500 ring-4 ring-amber-500/25 animate-pulse' 
+                                  : 'bg-rose-500 ring-4 ring-rose-500/25')
+                          }`} />
+
+                          {/* Peg to hanging card link helper */}
+                          <div className="absolute top-4 left-1/2 -translate-x-1/2 w-0.5 h-6 bg-dashed border-l border-dashed border-brand-border/60 z-20" />
+
+                          {/* Suspended Timeline Card */}
+                          <div className={`w-full p-5 rounded-2xl border transition-all duration-300 flex flex-col justify-between min-h-[190px] text-left hover:scale-[1.01] hover:shadow-md ${
+                            act.isFocus
+                              ? (isApproved 
+                                  ? (isActiveFocus 
+                                      ? 'bg-indigo-50/15 border-indigo-200/30 hover:border-indigo-400/50' 
+                                      : 'bg-indigo-50/5 border-indigo-200/20 opacity-70') 
+                                  : isPending
+                                  ? 'bg-amber-50/10 border-amber-500/15 hover:border-amber-500/25'
+                                  : 'bg-rose-50/10 border-rose-500/15 hover:border-rose-500/25')
+                              : (isApproved 
+                                  ? 'bg-emerald-50/10 border-emerald-600/10 hover:border-emerald-600/25' 
+                                  : isPending
+                                  ? 'bg-amber-50/10 border-amber-500/15 hover:border-amber-500/25'
+                                  : 'bg-rose-50/10 border-rose-500/15 hover:border-rose-500/25')
+                          }`}>
+                            <div className="space-y-3">
+                              {/* Header Meta Tag & Points Badge */}
+                              <div className="flex items-center justify-between gap-2">
+                                <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded border font-mono truncate max-w-[150px] ${
+                                  act.isFocus
+                                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200/40'
+                                    : 'bg-brand-bg-header text-brand-brown-light border border-brand-border-light'
+                                }`}>
+                                  {act.isFocus 
+                                    ? (isActiveFocus ? 'ACTIVE FOCUS' : 'ACHIEVED FOCUS') 
+                                    : act.type === 'book' 
+                                    ? 'Study Milestone' 
+                                    : act.type === 'presentation' 
+                                    ? 'Knowledge Share' 
+                                    : act.type === 'task' 
+                                    ? 'Action Task' 
+                                    : `${domainLabel} Milestone`}
+                                </span>
+                                <div className={`flex items-center gap-0.5 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                                  act.isFocus
+                                    ? (isApproved 
+                                        ? 'bg-indigo-50 text-indigo-800 border border-indigo-200/40' 
+                                        : 'bg-brand-bg-alt text-brand-brown-light/60 border border-brand-border-light')
+                                    : (isApproved 
+                                        ? 'bg-amber-100 text-amber-850 border border-amber-200/50' 
+                                        : 'bg-brand-bg-alt text-brand-brown-light/60 border border-brand-border-light')
+                                }`}>
+                                  <Sparkles className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                                  {act.isFocus 
+                                    ? (isApproved ? `+${pts} pts (Init)` : `+${pts} pending`)
+                                    : (isApproved ? `+${pts} pts` : `+${pts} pending`)}
+                                </div>
+                              </div>
+
+                              {/* Title Info */}
+                              <div className="space-y-1">
+                                <h4 className="font-serif text-sm font-bold text-brand-text leading-tight line-clamp-2">
+                                  {act.isFocus ? (
+                                    <>
+                                      {act.type === 'book' && `${isActiveFocus ? 'Active Focus Book Study' : 'Achieved Focus Book Study'}: "${act.details?.title}"`}
+                                      {act.type === 'presentation' && `${isActiveFocus ? 'Active Focus Presentation' : 'Achieved Focus Presentation'}: "${act.details?.title}"`}
+                                      {act.type === 'task' && `${isActiveFocus ? 'Active Focus Service Task' : 'Achieved Focus Service Task'}: "${act.details?.title || 'Action items'}"`}
+                                      {!['book', 'presentation', 'task'].includes(act.type) && `${isActiveFocus ? `Active Focus ${domainLabel}` : `Achieved Focus ${domainLabel}`}: "${act.details?.title || act.type}"`}
+                                    </>
+                                  ) : (
+                                    <>
+                                      {act.type === 'book' && `Completed Book: "${act.details?.title}"`}
+                                      {act.type === 'presentation' && `Delivered Presentation: "${act.details?.title}"`}
+                                      {act.type === 'task' && `Logged Task Points: "${act.details?.title || 'Action items'}"`}
+                                      {!['book', 'presentation', 'task'].includes(act.type) && `Completed ${domainLabel === 'Articles' ? 'Article Study' : domainLabel}: "${act.details?.title || act.type}"`}
+                                    </>
+                                  )}
+                                </h4>
+                                {act.details?.author && (
+                                  <p className="text-[11px] text-brand-brown-light italic leading-snug line-clamp-1 py-0.5">
+                                    by {act.details.author}
+                                  </p>
+                                )}
+                                {act.details?.description && (
+                                  <p className="text-[11px] text-brand-brown-light/85 italic leading-snug line-clamp-1 py-0.5 mt-0.5">
+                                    "{act.details.description}"
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Card Tail holding Date of Completion & Visual Status */}
+                            <div className="pt-3 mt-3 border-t border-brand-border-light flex items-center justify-between gap-2">
+                              <div className="inline-flex flex-col">
+                                <span className="text-[8px] font-extrabold uppercase tracking-widest text-brand-brown-light opacity-50">
+                                  {act.isFocus ? "Target Completion" : "Date of Completion"}
+                                </span>
+                                <span className="text-[10px] font-mono font-bold text-brand-brown shrink-0 mt-0.5 flex items-center gap-1">
+                                  <Calendar className="w-3 h-3 text-brand-brown-light" />
+                                  {act.isFocus && act.details?.estimatedDuration 
+                                    ? new Date(act.details.estimatedDuration).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+                                    : completionDate}
+                                </span>
+                              </div>
+
+                              <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border shrink-0 ${
+                                act.isFocus
+                                  ? (isApproved 
+                                      ? (isActiveFocus ? 'bg-indigo-100/60 text-indigo-700 border-indigo-200/50' : 'bg-indigo-100/30 text-indigo-500/80 border-indigo-200/20') 
+                                      : isPending 
+                                      ? 'bg-amber-100/60 text-amber-700 border-amber-200/50' 
+                                      : 'bg-rose-100/60 text-rose-700 border-rose-250/50')
+                                  : (isApproved 
+                                      ? 'bg-emerald-550/10 text-emerald-700 border-emerald-500/20' 
+                                      : isPending
+                                      ? 'bg-amber-550/10 text-amber-700 border-amber-500/20'
+                                      : 'bg-rose-550/10 text-rose-700 border-rose-500/20')
+                              }`}>
+                                {act.isFocus 
+                                  ? (isApproved ? (isActiveFocus ? 'In Progress' : 'Completed') : isPending ? 'Focus In Review' : 'Cancelled')
+                                  : (isApproved ? 'Logged' : isPending ? 'In Review' : 'TBD')}
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Badges */}
           <div className="bg-brand-white p-6 rounded-2xl shadow-sm border border-brand-border mt-8">
             <div className="flex items-center gap-3 mb-6 pb-4 border-b border-brand-border-light justify-between">
@@ -1014,15 +1525,16 @@ export function LearnerDashboard({
                 return (
                   <div 
                     key={badge.id} 
-                    className={`flex flex-col items-center bg-brand-bg-alt p-4 rounded-xl border text-center transition-all group relative ${
+                    tabIndex={0}
+                    className={`flex flex-col items-center bg-brand-bg-alt p-4 rounded-xl border text-center transition-all group relative outline-none ${
                       isEarned 
-                        ? 'border-brand-brown/20 shadow-sm hover:-translate-y-1 hover:shadow-md' 
-                        : 'border-brand-border-light/50 opacity-60 hover:opacity-100 grayscale hover:grayscale-0 cursor-help'
+                        ? 'border-brand-brown/20 shadow-sm md:hover:-translate-y-1 md:hover:shadow-md' 
+                        : 'border-brand-border-light/50 opacity-60 md:hover:opacity-100 grayscale hover:grayscale-0 cursor-pointer'
                     }`}
                   >
                     <span className={`text-4xl mb-3 drop-shadow-sm ${!isEarned && 'opacity-50'}`}>{badge.icon}</span>
                     <span className="font-bold text-brand-brown text-sm">{badge.name}</span>
-                    <span className="text-xs text-brand-brown-light mt-1 mb-2 line-clamp-2">{badge.description}</span>
+                    <span className="text-xs text-brand-brown-light mt-1 mb-2 leading-relaxed">{badge.description}</span>
                     
                     {!isEarned && (
                       <div className="mt-auto pt-2 border-t border-brand-border-light/50 w-full flex items-center justify-center gap-1 text-[9px] uppercase tracking-wider font-black text-brand-brown/50">
@@ -1032,7 +1544,7 @@ export function LearnerDashboard({
                     )}
                     
                     {!isEarned && (
-                      <div className="absolute left-1/2 -translate-x-1/2 bottom-[105%] mb-2 bg-brand-text text-brand-beige text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none w-[150%] max-w-[200px] z-10 transition-opacity shadow-xl">
+                      <div className="absolute left-1/2 -translate-x-1/2 bottom-[105%] mb-2 bg-brand-text text-brand-beige text-xs px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 group-focus:opacity-100 pointer-events-none w-[150%] max-w-[200px] z-10 transition-opacity shadow-xl">
                         <p className="font-bold text-[10px] uppercase tracking-widest text-brand-brown-light mb-1">Requirement</p>
                         <p>{badge.requirement}</p>
                         <div className="absolute top-full left-1/2 -translate-x-1/2 border-spacing-0 border-4 border-transparent border-t-brand-text" />
@@ -1108,19 +1620,36 @@ export function LearnerDashboard({
 
                     {/* Dynamic Fields based on Domain */}
                     {['tafsir', 'seerah', 'articles'].includes(requestType) ? (
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                          {requestType === 'articles' ? 'Article Title / Topic' : 'Batch Name'}
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={itemTitle}
-                          onChange={(e) => setItemTitle(e.target.value)}
-                          placeholder={requestType === 'articles' ? "e.g. History of Fiqh" : "e.g. Batch 2024"}
-                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                        />
-                      </div>
+                      <>
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                            {requestType === 'articles' ? 'Article Title / Topic' : 'Batch Name'}
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            value={itemTitle}
+                            onChange={(e) => setItemTitle(e.target.value)}
+                            placeholder={requestType === 'articles' ? "e.g. History of Fiqh" : "e.g. Batch 2024"}
+                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                          />
+                        </div>
+                        {['seerah', 'tafsir'].includes(requestType) && (
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
+                              Author / Editor
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={itemAuthor}
+                              onChange={(e) => setItemAuthor(e.target.value)}
+                              placeholder="e.g. Dr. Mustafa Khattab"
+                              className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                            />
+                          </div>
+                        )}
+                      </>
                     ) : requestType === 'dowra' ? (
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Year of Dowra Quran</label>
@@ -1148,7 +1677,24 @@ export function LearnerDashboard({
                             className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+
+                        {['book', 'seerah', 'tafsir'].includes(requestType) && (
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
+                              author / Editor
+                            </label>
+                            <input
+                              type="text"
+                              required
+                              value={itemAuthor}
+                              onChange={(e) => setItemAuthor(e.target.value)}
+                              placeholder="e.g. Dr. Mustafa Khattab"
+                              className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                            />
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-4 mt-4">
                           <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Completion Date</label>
                             <input
@@ -1270,20 +1816,89 @@ export function LearnerDashboard({
                     </div>
 
                     {/* Dynamic Fields based on Domain */}
-                    {['tafsir', 'seerah', 'articles'].includes(focusDomain) ? (
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                          {focusDomain === 'articles' ? 'Article Title / Topic' : 'Batch Name'}
-                        </label>
+                    {['tafsir', 'seerah', 'dowra'].includes(focusDomain) && (
+                      <div className="flex items-center gap-2 mt-4 bg-brand-offwhite p-3 rounded-xl border border-brand-border">
                         <input
-                          type="text"
-                          required
-                          value={focusTitle}
-                          onChange={(e) => setFocusTitle(e.target.value)}
-                          placeholder={focusDomain === 'articles' ? "e.g. History of Fiqh" : "e.g. Batch 2024"}
-                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                          type="checkbox"
+                          id="isLoungeModule"
+                          checked={isLoungeModule}
+                          onChange={(e) => {
+                            setIsLoungeModule(e.target.checked);
+                            if (e.target.checked) setFocusLocation('lounge');
+                          }}
+                          className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown"
                         />
+                        <label htmlFor="isLoungeModule" className="text-sm font-bold text-brand-text cursor-pointer">
+                          Link to an ongoing/upcoming Lounge Module
+                        </label>
                       </div>
+                    )}
+
+                    {['tafsir', 'seerah', 'articles', 'dowra'].includes(focusDomain) ? (
+                      <>
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                            {focusDomain === 'articles' ? 'Article Title / Topic' : 'Batch Name / Module Title'}
+                          </label>
+                          <input
+                            type="text"
+                            required={!isLoungeModule}
+                            value={focusTitle}
+                            onChange={(e) => setFocusTitle(e.target.value)}
+                            readOnly={isLoungeModule}
+                            placeholder={focusDomain === 'articles' ? "e.g. History of Fiqh" : "e.g. Batch 2024"}
+                            className={`w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown ${isLoungeModule ? 'opacity-70 cursor-not-allowed' : ''}`}
+                          />
+                        </div>
+                        {['seerah', 'tafsir', 'dowra'].includes(focusDomain) && (
+                          <div>
+                            {isLoungeModule ? (
+                              <>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
+                                  Speaker
+                                </label>
+                                <select
+                                  required
+                                  value={focusAuthor}
+                                  onChange={(e) => setFocusAuthor(e.target.value)}
+                                  className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                                >
+                                  <option value="">Select a Speaker</option>
+                                  <option value="Sana Amjad">Sana Amjad</option>
+                                </select>
+                              </>
+                            ) : (
+                              <>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
+                                  Author / Teacher
+                                </label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={focusAuthor}
+                                  onChange={(e) => setFocusAuthor(e.target.value)}
+                                  placeholder="e.g. Dr. Mustafa Khattab"
+                                  className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                                />
+                                {focusLocation === 'personal' && (
+                                  <>
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
+                                      Circle / Community (If it's a course)
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={focusCommunity}
+                                      onChange={(e) => setFocusCommunity(e.target.value)}
+                                      placeholder="e.g. AlMaghrib Institute"
+                                      className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                                    />
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </>
                     ) : focusDomain === 'dowra' ? (
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Year of Dowra Quran</label>
@@ -1324,40 +1939,60 @@ export function LearnerDashboard({
                       </div>
                     )}
 
+                    {['book'].includes(focusDomain) && (
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
+                          Author / Editor
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={focusAuthor}
+                          onChange={(e) => setFocusAuthor(e.target.value)}
+                          placeholder="e.g. Dr. Mustafa Khattab"
+                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                        />
+                      </div>
+                    )}
+
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                        Target completion date
+                        Duration
                       </label>
                       <input
-                        type="date"
-                        required
+                        type="text"
+                        required={!isLoungeModule}
                         value={focusEstimatedDuration}
                         onChange={(e) => setFocusEstimatedDuration(e.target.value)}
-                        className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                        readOnly={isLoungeModule}
+                        placeholder="e.g. 2 Months"
+                        className={`w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown ${isLoungeModule ? 'opacity-70 cursor-not-allowed' : ''}`}
                       />
                     </div>
 
                     <div>
                       <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Location</label>
                       <div className="flex gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
+                        <label className={`flex items-center gap-2 ${isLoungeModule ? 'cursor-not-allowed opacity-100' : 'cursor-pointer'}`}>
                           <input
                             type="radio"
                             name="focusLocation"
                             value="lounge"
                             checked={focusLocation === 'lounge'}
                             onChange={() => setFocusLocation('lounge')}
+                            disabled={isLoungeModule}
                             className="text-brand-brown focus:ring-brand-brown"
                           />
                           <span className="text-sm text-brand-brown font-medium">Inside the Lounge</span>
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
+                        <label className={`flex items-center gap-2 ${isLoungeModule ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
                           <input
                             type="radio"
                             name="focusLocation"
                             value="personal"
                             checked={focusLocation === 'personal'}
                             onChange={() => setFocusLocation('personal')}
+                            disabled={isLoungeModule}
                             className="text-brand-brown focus:ring-brand-brown"
                           />
                           <span className="text-sm text-brand-brown font-medium">Personal (Outside)</span>
@@ -1378,7 +2013,7 @@ export function LearnerDashboard({
                               <p>Since this goal is being pursued independently, you will be required to share a meaningful overview of the book after completion. The purpose of this is to encourage sincerity, reflection, and genuine understanding rather than passive reading.</p>
                               <p>You may fulfill this by either:</p>
                               <ul className="list-disc pl-5 space-y-1">
-                                <li>Conducting a community session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
+                                <li>Conducting a lounge session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
                                 <li>Submitting a detailed written reflection or summary document.</li>
                               </ul>
                               <p>Your overview should ideally include key lessons, reflections, important insights, and practical takeaways from the book.</p>
@@ -1386,9 +2021,9 @@ export function LearnerDashboard({
                           )}
                           {focusDomain === 'presentation' && (
                             <>
-                              <p>Since this goal is being pursued independently, you will be expected to share your completed presentation within the lounge community. This may be done through:</p>
+                              <p>Since this goal is being pursued independently, you will be expected to share your completed presentation within the lounge. This may be done through:</p>
                               <ul className="list-disc pl-5 space-y-1">
-                                <li>A live community presentation/session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
+                                <li>A live lounge presentation/session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
                                 <li>A well-structured written document or presentation file.</li>
                               </ul>
                               <p>The objective is to encourage beneficial knowledge-sharing and meaningful contribution to the learning environment.</p>
@@ -1399,7 +2034,7 @@ export function LearnerDashboard({
                               <p>Since this goal is being pursued independently, you will be required to submit a clear and detailed overview of the completed task or project.</p>
                               <p>You may fulfill this by either:</p>
                               <ul className="list-disc pl-5 space-y-1">
-                                <li>Conducting a brief community session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
+                                <li>Conducting a brief lounge session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
                                 <li>Submitting a detailed written overview.</li>
                               </ul>
                               <p>Your submission should briefly explain:</p>
@@ -1416,7 +2051,7 @@ export function LearnerDashboard({
                               <p>Since these goals are being pursued independently, you will be expected to share your learnings with the lounge after completion or throughout your progress.</p>
                               <p>This may be done through:</p>
                               <ul className="list-disc pl-5 space-y-1">
-                                <li>A community session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
+                                <li>A lounge session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
                                 <li>A written reflection, notes document, or learning summary.</li>
                               </ul>
                               <p>The aim is to strengthen understanding, reflection, and beneficial sharing of knowledge within the community.</p>

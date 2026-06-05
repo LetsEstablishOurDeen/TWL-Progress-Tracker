@@ -1,6 +1,6 @@
 {
   "name": "The Wisdom Lounge Tracker",
-  "description": "Comprehensive tracker for The Wisdom Lounge community, managing study progress across modules (Dowra, Tafsir, Hadith, Arabic) and student contributions.",
+  "description": "Comprehensive tracker for The Wisdom Lounge, managing study progress across modules (Dowra, Tafsir, Hadith, Arabic) and student contributions.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
