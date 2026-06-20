@@ -1,6 +1,6 @@
 import { learnerService, LEARNERS_COLLECTION } from '../services/learnerService';
 import { db, auth } from './firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
 
 // Basic LocalStorage Auth Simulation for Learners
@@ -97,9 +97,40 @@ export const authService = {
     }
   },
 
-  async adminSignIn() {
+  async adminSignIn(forceReAuth = false) {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    provider.addScope('https://www.googleapis.com/auth/drive.file');
+    provider.addScope('https://www.googleapis.com/auth/drive.readonly');
+    
+    if (forceReAuth) {
+      provider.setCustomParameters({ prompt: 'consent' });
+    }
+    
+    // We should also store the credential so we can get the access token
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (credential?.accessToken) {
+      await this.setAccessToken(credential.accessToken);
+    }
+  },
+
+  async setAccessToken(token: string) {
+    // Keep it in memory or localStorage depending on persistence needs
+    // For simple usage, we can store loosely in localStorage (not typically recommended for long-lived, but works for this scope) or memory
+    // Let's use memory/sessionStorage to avoid long-term token leaks
+    sessionStorage.setItem('google_drive_access_token', token);
+    try {
+      await setDoc(doc(db, 'settings', 'google_drive'), {
+        accessToken: token,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.warn("Could not store Google Drive token in Firestore:", err);
+    }
+  },
+
+  getAccessToken() {
+    return sessionStorage.getItem('google_drive_access_token');
   },
 
   async signOut() {

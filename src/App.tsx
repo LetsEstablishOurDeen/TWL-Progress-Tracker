@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useLearners } from './store';
 import { Learner } from './types';
-import { Users, Library, Trophy, LogIn, LogOut } from 'lucide-react';
+import { Users, Library as LibraryIcon, Trophy, LogIn, LogOut } from 'lucide-react';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LearnerDashboard } from './components/LearnerDashboard';
 import { Leaderboard } from './components/Leaderboard';
 import { LoungeUpdates } from './components/LoungeUpdates';
+import { Library } from './components/Library';
 
 import { authService } from './lib/auth';
 
-type ViewMode = 'learner' | 'admin' | 'leaderboard' | 'updates';
+type ViewMode = 'learner' | 'admin' | 'leaderboard' | 'updates' | 'library';
 
 const ADMIN_EMAIL = 'araizhasan00@gmail.com';
 
@@ -68,8 +69,11 @@ export default function App() {
   const handleAdminSignIn = async () => {
     try {
       await authService.adminSignIn();
-    } catch (error) {
-      console.error("Sign in failed:", error);
+    } catch (error: any) {
+      if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/cancelled-popup-request') {
+        return; // gracefully handle user closing the popup
+      }
+      console.warn("Sign in failed:", error);
     }
   };
 
@@ -128,36 +132,43 @@ export default function App() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex space-x-1 sm:space-x-2 items-center bg-brand-beige/30 p-1 rounded-xl border border-brand-border h-12">
+          <div className="flex items-center gap-4 overflow-x-auto pb-1 -mb-1 w-full sm:w-auto">
+            <div className="flex space-x-1 sm:space-x-2 items-center bg-brand-beige/30 p-1 rounded-xl border border-brand-border h-12 w-full sm:w-auto overflow-x-auto no-scrollbar">
               <button 
                 onClick={() => setViewMode('learner')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all hidden sm:inline-block ${viewMode === 'learner' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${viewMode === 'learner' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 Learner
               </button>
               {activeLearner && (
                 <button 
                   onClick={() => setViewMode('updates')}
-                  className={`px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all inline-block ${viewMode === 'updates' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                  className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${viewMode === 'updates' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
                 >
                   Lounge Updates
                 </button>
               )}
               <button 
                 onClick={() => setViewMode('leaderboard')}
-                className={`px-4 py-2 flex items-center space-x-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all ${viewMode === 'leaderboard' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                className={`px-3 sm:px-4 py-2 flex items-center space-x-1 sm:space-x-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${viewMode === 'leaderboard' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 <Trophy className="w-4 h-4 hidden sm:block" />
                 <span>Leaderboard</span>
               </button>
+              <button 
+                onClick={() => setViewMode('library')}
+                className={`px-3 sm:px-4 py-2 flex items-center space-x-1 sm:space-x-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${viewMode === 'library' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
+              >
+                <LibraryIcon className="w-4 h-4 hidden sm:block" />
+                <span>Library</span>
+              </button>
               {isAdmin && (
                 <button 
                   onClick={() => setViewMode('admin')}
-                  className={`px-4 py-2 flex items-center space-x-2 rounded-lg text-sm font-bold uppercase tracking-wider transition-all relative ${viewMode === 'admin' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                  className={`px-3 sm:px-4 py-2 flex items-center space-x-1 sm:space-x-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all relative whitespace-nowrap ${viewMode === 'admin' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
                 >
                   <Users className="w-4 h-4" />
-                  <span className="hidden md:inline">Admin</span>
+                  <span className="hidden sm:inline">Admin</span>
                   {pendingRequests > 0 && (
                     <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-brand-white font-bold animate-bounce shadow-md">
                       {pendingRequests}
@@ -239,22 +250,52 @@ export default function App() {
             activeLearner={activeLearner}
             setActiveLearner={setActiveLearner}
             pendingEnrollment={pendingEnrollment}
+            clearPendingEnrollment={() => setPendingEnrollment(null)}
           />
         )}
         {viewMode === 'leaderboard' && (
           <Leaderboard learners={learners} />
         )}
+        {viewMode === 'library' && (
+          <Library 
+            isAdmin={isAdmin} 
+            activeLearner={activeLearner} 
+            onAddToFocus={(item) => {
+              let focusDomain = 'book';
+              if (item.category === 'articles' || item.category === 'research_papers') {
+                focusDomain = 'research papers/article';
+              } else if (item.category === 'guided_studies') {
+                focusDomain = 'talaqqi';
+              } else if (item.category === 'presentations') {
+                focusDomain = 'presentation';
+              } else if (item.category === 'seerah_tafsir_dowra') {
+                focusDomain = 'seerah';
+              }
+              
+              setPendingEnrollment({
+                title: item.name,
+                category: focusDomain,
+                speaker: item.author || 'Unknown'
+              });
+              setViewMode('learner');
+            }}
+          />
+        )}
         {viewMode === 'updates' && (
           <LoungeUpdates 
             activeLearner={activeLearner}
             onEnroll={(module) => {
-              // Determine category based on title, fallback to book
-              let category = 'book';
-              if (module.title.toLowerCase().includes('tafsir')) category = 'tafsir';
-              if (module.title.toLowerCase().includes('seerah')) category = 'seerah';
-              if (module.title.toLowerCase().includes('quran')) category = 'dowra';
-              
-              setPendingEnrollment({ title: module.title, category, duration: module.duration, speaker: 'Sana Amjad' });
+              let targetDate = '';
+              if (module.category === 'tafsir') targetDate = '2026-08-14';
+              else if (module.category === 'seerah') targetDate = '2026-08-14';
+              else targetDate = '2026-07-14';
+
+              setPendingEnrollment({ 
+                title: module.batch || module.title, 
+                category: module.category || 'book', 
+                duration: targetDate, 
+                speaker: module.speaker || 'Sana Amjad' 
+              });
               setViewMode('learner');
             }}
             onLoginRequest={() => setViewMode('learner')}

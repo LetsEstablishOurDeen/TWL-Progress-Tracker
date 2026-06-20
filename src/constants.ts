@@ -3,6 +3,7 @@ export const APP_DOMAINS = [
   { id: 'books', label: 'Books', type: 'book', icon: 'BookOpen' },
   { id: 'presentations', label: 'Presentations', type: 'presentation', icon: 'Mic' },
   { id: 'tasks', label: 'Tasks', type: 'task', icon: 'CheckCircle2' },
+  { id: 'talaqqi', label: 'Guided Studies', type: 'talaqqi', icon: 'Users' },
   
   // Modules merged as Domains
   { 
@@ -32,8 +33,8 @@ export const APP_DOMAINS = [
   },
   { 
     id: 'articles', 
-    label: 'Articles',
-    type: 'articles',
+    label: 'Research Paper / Article',
+    type: 'research papers/article',
     icon: 'BookOpen'
   }
 ] as const;
@@ -52,4 +53,16 @@ export const ISLAMIC_BOOKS = [
   "Muwatta Imam Malik",
   "Riyadh as-Salihin",
   "Bulugh al-Maram"
+];
+
+export const SUBJECTS = [
+  "History",
+  "Economics",
+  "Spirituality",
+  "Seerah",
+  "Fiqh",
+  "Hadith",
+  "Arabic",
+  "Quranic Studies",
+  "Personal Development"
 ];

@@ -19,11 +19,16 @@ export interface Learner {
     createdAt: string;
     estimatedDuration?: string;
     location?: 'lounge' | 'personal';
+    isLoungeModule?: boolean;
+    sessionAttendance?: Record<string, 'attended' | 'missed'>;
+    isResearchPaper?: boolean;
   }[];
   completedTafsirModule?: boolean;
   completedSeerahModule?: boolean;
   completedDawraEQuran?: boolean;
   completedArticlesModule?: boolean;
+  isProfilePublic?: boolean;
+  librarySubmissionsCount?: number;
 }
 
 export interface StatusTier {
@@ -39,6 +44,7 @@ export interface EditRequest {
   learnerName: string;
   type: string;
   isFocus?: boolean;
+  isLibrarySubmission?: boolean;
   moduleId?: string;
   details: {
     title?: string;
@@ -49,7 +55,22 @@ export interface EditRequest {
     description?: string;
     estimatedDuration?: string;
     location?: 'lounge' | 'personal';
+    isLoungeModule?: boolean;
     community?: string;
+    link?: string;
+    hasFile?: boolean;
+    fileLink?: string;
+    documentOverview?: string;
+    overview?: string;
+    isResearchPaper?: boolean;
+    isOnline?: boolean;
+    source?: string;
+    ustadName?: string;
+    communityName?: string;
+    subject?: string;
+    objective?: string;
+    materialOwnership?: 'own' | 'someone_else';
+    language?: string;
   };
   status: 'pending' | 'approved' | 'rejected';
   requestedAt: string;

@@ -1,16 +1,21 @@
-import React, { useState } from 'react';
-import { BookOpen, Medal, Flame, Bell, Calendar, Clock, DollarSign, ArrowRight, Zap, Info, Users, CreditCard, Moon, Cloud } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { BookOpen, Medal, Flame, Bell, Calendar, Clock, DollarSign, ArrowRight, Zap, Info, Users, CreditCard, Moon, Cloud, MapPin, Megaphone, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { Learner } from '../types';
+import { getLearnerBadges } from '../lib/badges';
+import { getLearnerStatus } from '../lib/status';
+import { noticeService, Notice } from '../services/noticeService';
 
 export const LOUNGE_MODULES = [
   {
     id: 1,
-    status: 'upcoming',
-    title: 'Tafsir: Surah Nisaa',
+    status: 'ongoing',
+    title: 'Tafsir',
+    tag: 'The Exegesis Of The Noble Quran',
+    batch: 'Surah Nisaa',
     synopsis: 'Diving deep into the architecture of justice, society, and divine law-exploring the balance between rights, duties, and accountability in this world and the next.',
-    timeline: <>Orientation on<br />June 12th</>,
+    timeline: 'Orientation on June 14th',
     sessions: 'Bi-weekly',
     duration: '2 Months',
     time: 'Night time',
@@ -19,12 +24,18 @@ export const LOUNGE_MODULES = [
     fee: 'PKR 500/mo',
     icon: <Moon className="w-6 h-6" />,
     color: 'amber',
+    speaker: 'Sana Amjad',
+    location: 'Inside the Lounge',
+    category: 'tafsir',
   },
 
   {
     id: 2,
     status: 'upcoming',
-    title: 'Seerah: Lessons From The Life Of Beloved ﷺ ',
+    title: 'Seerah',
+    tag: 'The Legacy Of The Beloved ﷺ',
+    batch: 'living like the beloved prophet ﷺ',
+    collab: "Mindful Muslims",
     synopsis: 'Focusing on the Fiqh-us-Seerah.',
     timeline: 'TBD',
     sessions: 'TBD',
@@ -35,13 +46,17 @@ export const LOUNGE_MODULES = [
     fee: 'TBD',
     icon: <Cloud className="w-6 h-6" />,
     color: 'green',
+    speaker: 'Sadia Nouman',
+    location: 'Inside the Lounge',
+    category: 'seerah',
   },
 
   {
     id: 3,
     status: 'past',
     title: 'Dowra e Quran',
-    synopsis: 'An intensive study through the entire Quran, understanding brief meanings and overarching themes of every Surah with Sheikh Khalid Mehmood Abbasi.',
+    batch: 'Islamic Year ١٤٤٧.ھ',
+    synopsis: 'An intensive study through the entire Quran, understanding brief meanings and overarching themes of every Surah with Khalid Mehmood Abbasi.',
     timeline: 'Ramadhan 2026',
     sessions: 'N/A',
     duration: 'Whole Month',
@@ -51,27 +66,9 @@ export const LOUNGE_MODULES = [
     fee: 'N/A',
     icon: <Medal className="w-6 h-6" />,
     color: 'blue',
-  }
-];
-
-const GENERAL_UPDATES = [
-  {
-    id: 1,
-    title: 'Daily Consistency Challenge',
-    content: 'To help cultivate a habit of regular learning, we will be rolling out a small daily habit tracker for specific ongoing tasks and readings starting next week.',
-    date: 'Jun 4, 2026',
-    icon: <Zap className="w-5 h-5 text-indigo-600" />,
-    iconBg: 'bg-indigo-50',
-    iconBorder: 'border-indigo-100',
-  },
-  {
-    id: 2,
-    title: 'New Lounge Access Guidelines',
-    content: 'Please ensure that your profile is fully updated with your current phone numbers as we will be migrating to a new notification system soon.',
-    date: 'May 28, 2026',
-    icon: <Info className="w-5 h-5 text-emerald-600" />,
-    iconBg: 'bg-emerald-50',
-    iconBorder: 'border-emerald-100',
+    speaker: 'Khalid Mehmood Abbasi',
+    location: 'Inside the Lounge',
+    category: 'dowra',
   }
 ];
 
@@ -87,6 +84,56 @@ export function LoungeUpdates({
   const [activeTab, setActiveTab] = useState<'modules' | 'general'>('modules');
 
   const [enrollmentModule, setEnrollmentModule] = useState<typeof LOUNGE_MODULES[0] | null>(null);
+  
+  const [generalUpdates, setGeneralUpdates] = useState<Notice[]>([]);
+  const [noticesLoading, setNoticesLoading] = useState(true);
+
+  useEffect(() => {
+    if (activeTab === 'general' && noticesLoading) {
+      const fetchNotices = async () => {
+        try {
+          const notices = await noticeService.getNotices();
+          setGeneralUpdates(notices);
+        } catch (error) {
+          console.error("Failed to fetch notices", error);
+        } finally {
+          setNoticesLoading(false);
+        }
+      };
+      fetchNotices();
+    }
+  }, [activeTab]);
+
+  // Calculate discount percentage based on active learner status
+  const badgeCount = activeLearner ? getLearnerBadges(activeLearner).length : 0;
+  const statusTier = activeLearner ? getLearnerStatus(badgeCount) : null;
+  
+  let discountPercent = 0;
+  if (statusTier) {
+    if (statusTier.id === '3') discountPercent = 5;
+    else if (statusTier.id === '4') discountPercent = 10;
+    else if (statusTier.id === '5') discountPercent = 15;
+    else if (statusTier.id === '6') discountPercent = 20;
+    else if (statusTier.id === '7') discountPercent = 30;
+    else if (statusTier.id === '8') discountPercent = 40;
+    else if (statusTier.id === '9') discountPercent = 50;
+    else if (statusTier.id === '10') discountPercent = 100;
+  }
+
+  // Utility to parse and calculate discounted fee string
+  const calculateDiscountedFee = (feeString: string, discount: number) => {
+    if (discount <= 0) return null;
+    const match = feeString.match(/\d+/);
+    if (!match) return null;
+    const originalAmount = parseFloat(match[0]);
+    if (isNaN(originalAmount) || originalAmount <= 0) return null;
+    
+    if (discount >= 100) {
+      return "Free";
+    }
+    const finalAmount = Math.max(0, originalAmount - (originalAmount * discount) / 100);
+    return feeString.replace(match[0], Math.round(finalAmount).toString());
+  };
 
   const upcomingModules = LOUNGE_MODULES.filter(m => m.status === 'upcoming');
   const ongoingModules = LOUNGE_MODULES.filter(m => m.status === 'ongoing');
@@ -111,7 +158,10 @@ export function LoungeUpdates({
       iconBg = 'bg-rose-50 text-rose-600 shadow-rose-100';
     }
 
+    const isEnrolled = activeLearner?.currentFocuses?.some(f => f.title === module.title || f.title === module.batch);
     const isEnrollmentOpen = module.enrollment === 'Open';
+    const discountedEnrollmentFee = calculateDiscountedFee(module.enrollmentFee, discountPercent);
+    const discountedMonthlyFee = calculateDiscountedFee(module.fee, discountPercent);
 
     return (
       <div key={module.id} className="bg-brand-white p-6 rounded-3xl shadow-sm border border-brand-border hover:shadow-md transition-all group flex flex-col justify-between">
@@ -124,7 +174,42 @@ export function LoungeUpdates({
               {module.status === 'ongoing' ? 'Ongoing' : module.status === 'upcoming' ? 'Upcoming' : 'Past'}
             </div>
           </div>
-          <h3 className="font-serif text-xl sm:text-2xl font-bold text-brand-text mb-3 leading-tight group-hover:text-brand-brown transition-colors">{module.title}</h3>
+          <div className="flex flex-col gap-1 mb-3">
+            <h3 className="font-serif text-xl sm:text-2xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
+              {module.title}
+            </h3>
+            {('tag' in module) && module.tag && (
+              <p className="text-xs font-bold uppercase tracking-wider text-brand-brown-light/80">
+                {module.tag as string}
+              </p>
+            )}
+          </div>
+          
+          <div className="flex flex-wrap gap-2 mb-4">
+            {module.batch && (
+              <div className="text-[11px] font-extrabold text-brand-white bg-brand-brown inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-brand-brown uppercase tracking-wider shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-beige shrink-0" />
+                <span>Batch: {module.batch}</span>
+              </div>
+            )}
+            
+            {'collab' in module && module.collab && (
+              <div className="text-[11px] font-extrabold text-brand-brown bg-brand-beige/50 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-brand-border uppercase tracking-wider shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-brand-brown-light shrink-0" />
+                <span>A Collaboration with: {module.collab as React.ReactNode}</span>
+              </div>
+            )}
+          </div>
+          
+          {discountPercent > 0 && (discountedEnrollmentFee || discountedMonthlyFee) && (
+            <div className="mb-4 px-3 py-1.5 bg-green-50/70 border border-green-200/60 rounded-xl flex items-center gap-1.5 text-[11px] font-semibold text-green-800">
+              <Zap className="w-3.5 h-3.5 text-green-600 animate-pulse" />
+              <span>
+                <strong>{statusTier?.name}</strong>: <strong>{discountPercent}% Off</strong> Applied!
+              </span>
+            </div>
+          )}
+
           <p className="text-sm font-medium text-brand-brown-light leading-relaxed mb-6">
             {module.synopsis}
           </p>
@@ -147,6 +232,20 @@ export function LoungeUpdates({
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-brand-brown/60 shrink-0" />
               <div className="flex flex-col min-w-0">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Speaker</span>
+                <span className="text-xs font-bold text-brand-text truncate">{module.speaker}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <MapPin className="w-4 h-4 text-brand-brown/60 shrink-0" />
+              <div className="flex flex-col min-w-0">
+                <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Location</span>
+                <span className="text-xs font-bold text-brand-text truncate">{module.location}</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-brand-brown/60 shrink-0" />
+              <div className="flex flex-col min-w-0">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Sessions</span>
                 <span className="text-xs font-bold text-brand-text truncate">{module.sessions}</span>
               </div>
@@ -162,29 +261,51 @@ export function LoungeUpdates({
               <CreditCard className="w-4 h-4 text-brand-brown/60 shrink-0" />
               <div className="flex flex-col min-w-0">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Enrollment Fee</span>
-                <span className="text-xs font-bold text-brand-text truncate">{module.enrollmentFee}</span>
+                <div className="text-xs font-bold text-brand-text truncate">
+                  {discountedEnrollmentFee ? (
+                    <span className="flex items-center gap-1 flex-wrap">
+                      <span className="line-through text-brand-brown-light/40 font-normal">{module.enrollmentFee}</span>
+                      <span className="text-brand-brown font-extrabold">{discountedEnrollmentFee}</span>
+                    </span>
+                  ) : (
+                    <span>{module.enrollmentFee}</span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <CreditCard className="w-4 h-4 text-brand-brown/60 shrink-0" />
               <div className="flex flex-col min-w-0">
                 <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Monthly Fee</span>
-                <span className="text-xs font-bold text-brand-text truncate">{module.fee}</span>
+                <div className="text-xs font-bold text-brand-text truncate">
+                  {discountedMonthlyFee ? (
+                    <span className="flex items-center gap-1 flex-wrap">
+                      <span className="line-through text-brand-brown-light/40 font-normal">{module.fee}</span>
+                      <span className="text-brand-brown font-extrabold">{discountedMonthlyFee}</span>
+                    </span>
+                  ) : (
+                    <span>{module.fee}</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         <button 
-          disabled={!isEnrollmentOpen}
+          disabled={!isEnrollmentOpen || isEnrolled}
           onClick={() => setEnrollmentModule(module)}
           className={`w-full py-3.5 px-4 rounded-xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 border shadow-sm ${
-            isEnrollmentOpen 
-              ? 'bg-brand-brown text-brand-white hover:bg-brand-brown-dark hover:shadow border-brand-brown' 
-              : 'bg-brand-bg-alt text-brand-brown-light border-brand-border-light cursor-not-allowed'
+            isEnrolled
+              ? 'bg-green-700 text-brand-white border-green-800 cursor-not-allowed shadow-none'
+              : isEnrollmentOpen 
+                ? 'bg-brand-brown text-brand-white hover:bg-brand-brown-dark hover:shadow border-brand-brown' 
+                : 'bg-brand-bg-alt text-brand-brown-light border-brand-border-light cursor-not-allowed'
           }`}
         >
-          {isEnrollmentOpen ? (
+          {isEnrolled ? (
+            'Enrolled'
+          ) : isEnrollmentOpen ? (
             <>Enroll Now <ArrowRight className="w-4 h-4" /></>
           ) : (
             'Enrollment Closed'
@@ -296,22 +417,42 @@ export function LoungeUpdates({
               </div>
 
             <div className="space-y-4">
-              {GENERAL_UPDATES.map((update) => (
-                <div key={update.id} className="bg-brand-white p-6 md:p-8 rounded-3xl border border-brand-border shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row gap-6">
-                  <div className={`w-14 h-14 shrink-0 rounded-full flex items-center justify-center border ${update.iconBg} ${update.iconBorder}`}>
-                    {update.icon}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                       <h3 className="font-serif text-xl font-bold text-brand-text">{update.title}</h3>
-                       <span className="text-xs font-mono font-medium text-brand-brown-light px-3 py-1 bg-brand-bg-alt rounded-md border border-brand-border-light whitespace-nowrap">{update.date}</span>
-                    </div>
-                    <p className="text-brand-brown-light text-sm md:text-base leading-relaxed">
-                      {update.content}
-                    </p>
-                  </div>
+              {noticesLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 opacity-50">
+                  <Loader2 className="w-8 h-8 text-brand-brown animate-spin mb-4" />
+                  <p className="text-sm font-bold uppercase tracking-widest text-brand-brown-light">Loading Notices...</p>
                 </div>
-              ))}
+              ) : generalUpdates.length === 0 ? (
+                 <div className="bg-brand-bg-alt p-8 rounded-3xl border border-brand-border text-center">
+                   <p className="text-brand-brown-light text-sm font-medium">No general updates at this moment.</p>
+                 </div>
+              ) : (
+                generalUpdates.map((update) => {
+                  let Icon = Megaphone;
+                  if (update.iconType === 'megaphone') Icon = Megaphone;
+                  else if (update.iconType === 'info') Icon = Info;
+                  else if (update.iconType === 'flame') Icon = Flame;
+                  else if (update.iconType === 'bell') Icon = Bell;
+                  else if (update.iconType === 'calendar') Icon = Calendar;
+
+                  return (
+                    <div key={update.id} className="bg-brand-white p-6 md:p-8 rounded-3xl border border-brand-border shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row gap-6">
+                      <div className={`w-14 h-14 shrink-0 rounded-full flex items-center justify-center border ${update.iconBg} ${update.iconBorder}`}>
+                        <Icon className={`w-6 h-6 ${update.iconBg.replace('bg-', 'text-').replace('-50', '-600').replace('-100', '-600')}`} />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                           <h3 className="font-serif text-xl font-bold text-brand-text">{update.title}</h3>
+                           <span className="text-xs font-mono font-medium text-brand-brown-light px-3 py-1 bg-brand-bg-alt rounded-md border border-brand-border-light whitespace-nowrap">{update.date}</span>
+                        </div>
+                        <p className="text-brand-brown-light text-sm md:text-base leading-relaxed whitespace-pre-wrap">
+                          {update.content}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </motion.div>
         )}
@@ -341,9 +482,53 @@ export function LoungeUpdates({
                 ) : (
                   <>
                     <h3 className="font-serif text-2xl font-bold text-brand-text mb-2">Confirm Enrollment</h3>
-                    <p className="text-brand-brown-light text-sm">
+                    <p className="text-brand-brown-light text-sm mb-4">
                       You are about to set <span className="font-bold text-brand-text">{enrollmentModule.title}</span> as an active focus on your Learner Dashboard.
                     </p>
+                    
+                    {discountPercent > 0 && (calculateDiscountedFee(enrollmentModule.enrollmentFee, discountPercent) || calculateDiscountedFee(enrollmentModule.fee, discountPercent)) && (
+                      <div className="bg-green-50/50 border border-green-100/60 rounded-2xl p-4 text-left space-y-2 mb-2">
+                        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-green-800">
+                          <Zap className="w-4 h-4 text-green-600 animate-pulse" />
+                          <span>Status Discount Perks ({statusTier?.name})</span>
+                        </div>
+                        <p className="text-xs text-green-700/90 leading-relaxed">
+                          Alhamdulillah! Your dedication has earned you <strong>{discountPercent}% off</strong> standard fees:
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-green-100/60 font-semibold text-brand-text">
+                          <div>
+                            <span className="block text-green-700/80 uppercase font-black tracking-widest text-[9px] mb-0.5">Enrollment Fee</span>
+                            <div className="flex items-center gap-1.5">
+                              {calculateDiscountedFee(enrollmentModule.enrollmentFee, discountPercent) ? (
+                                <>
+                                  <span className="line-through text-brand-brown-light/40 font-normal">{enrollmentModule.enrollmentFee}</span>
+                                  <span className="text-brand-brown font-extrabold">
+                                    {calculateDiscountedFee(enrollmentModule.enrollmentFee, discountPercent)}
+                                  </span>
+                                </>
+                              ) : (
+                                <span>{enrollmentModule.enrollmentFee}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="block text-green-700/80 uppercase font-black tracking-widest text-[9px] mb-0.5">Monthly Fee</span>
+                            <div className="flex items-center gap-1.5">
+                              {calculateDiscountedFee(enrollmentModule.fee, discountPercent) ? (
+                                <>
+                                  <span className="line-through text-brand-brown-light/40 font-normal">{enrollmentModule.fee}</span>
+                                  <span className="text-brand-brown font-extrabold">
+                                    {calculateDiscountedFee(enrollmentModule.fee, discountPercent)}
+                                  </span>
+                                </>
+                              ) : (
+                                <span>{enrollmentModule.fee}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

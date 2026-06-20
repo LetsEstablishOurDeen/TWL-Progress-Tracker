@@ -31,7 +31,7 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
     learner?.moduleItems?.dowra || (learner?.completedDawraEQuran ? ['Dowra e Quran Completed'] : [])
   );
   const [articlesCompletedItems, setArticlesCompletedItems] = useState<string[]>(
-    learner?.moduleItems?.articles || (learner?.completedArticlesModule ? ['Articles Completed'] : [])
+    learner?.moduleItems?.articles || learner?.moduleItems?.['research papers/article'] || (learner?.completedArticlesModule ? ['Articles Completed'] : [])
   );
   
   const [newBook, setNewBook] = useState('');
@@ -58,6 +58,7 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
         seerah: seerahCompletedItems,
         dowra: dowraCompletedItems,
         articles: articlesCompletedItems,
+        'research papers/article': articlesCompletedItems,
       },
       moduleStats: {
         ...(learner?.moduleStats || {}),
@@ -65,6 +66,7 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
         seerah: seerahCompletedItems.length,
         dowra: dowraCompletedItems.length,
         articles: articlesCompletedItems.length,
+        'research papers/article': articlesCompletedItems.length,
       },
       completedTafsirModule: tafsirCompletedItems.length > 0,
       completedSeerahModule: seerahCompletedItems.length > 0,
@@ -249,9 +251,34 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
                     {currentFocuses.map((focus, i) => (
                       <div key={focus.id || i} className="flex items-center justify-between bg-brand-bg-alt px-3 py-2 rounded-xl border border-brand-border-light text-xs font-medium text-brand-brown">
                         <div className="flex flex-col">
-                          <span className="font-serif font-bold text-brand-text">{focus.title}</span>
+                          <span className="font-serif font-bold text-brand-text flex items-center gap-2">
+                            {focus.title}
+                            {focus.domain === 'task' && focus.estimatedDuration && (() => {
+                              if (/^\d{4}-\d{2}-\d{2}$/.test(focus.estimatedDuration)) {
+                                const targetDate = new Date(focus.estimatedDuration);
+                                if (!isNaN(targetDate.getTime())) {
+                                  const today = new Date();
+                                  const todayMs = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+                                  const targetMs = Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+                                  const diffDays = Math.ceil((targetMs - todayMs) / (1000 * 60 * 60 * 24));
+                                  if (diffDays >= 0 && diffDays <= 3) {
+                                    return (
+                                      <span className="text-[9px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded border border-red-200 animate-pulse flex items-center">
+                                        ⚠️ Due Soon
+                                      </span>
+                                    );
+                                  }
+                                }
+                              }
+                              return null;
+                            })()}
+                          </span>
                           <span className="text-[10px] text-brand-brown-light uppercase tracking-wider">
-                            Domain: {focus.domain} | Target: {focus.estimatedDuration ? new Date(focus.estimatedDuration).toLocaleDateString() : 'N/A'}
+                            Domain: {focus.domain} | Target: {focus.estimatedDuration
+                              ? (/^\d{4}-\d{2}-\d{2}$/.test(focus.estimatedDuration) && !isNaN(new Date(focus.estimatedDuration).getTime())
+                                ? new Date(focus.estimatedDuration).toLocaleDateString()
+                                : focus.estimatedDuration)
+                              : 'N/A'}
                           </span>
                         </div>
                         <button 
@@ -368,9 +395,9 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
                 </div>
               </div>
 
-              {/* Articles */}
+              {/* Research Papers / Articles */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">Articles Completed</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">Research Papers / Articles Completed</label>
                 <div className="flex gap-2">
                   <input
                     type="text"

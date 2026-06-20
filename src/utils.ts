@@ -14,7 +14,7 @@ export const getDomainValue = (learner: Learner, type: string) => {
     if (type === 'dowra' && learner.completedDawraEQuran && total === 0) total = 1;
     if (type === 'tafsir' && learner.completedTafsirModule && total === 0) total = 1;
     if (type === 'seerah' && learner.completedSeerahModule && total === 0) total = 1;
-    if (type === 'articles' && learner.completedArticlesModule && total === 0) total = 1;
+    if (type === 'research papers/article' && learner.completedArticlesModule && total === 0) total = 1;
     
     if ('subOptions' in domain && domain.subOptions) {
       (domain.subOptions as unknown as any[]).forEach((sub: any) => {
@@ -50,7 +50,32 @@ export const getModulePoints = (learner: Learner, type: string) => {
     return pts;
   }
   
-  if (type === 'seerah' || type === 'articles') {
+  if (type === 'research papers/article') {
+    const list = learner.moduleItems?.['articles'] || learner.moduleItems?.['research papers/article'] || [];
+    if (list.length === 0) {
+      return count * 15;
+    }
+    let pts = 0;
+    list.forEach(item => {
+      if (item.includes('[Research Paper]')) {
+        pts += 30; // Scholarly Research Paper gets 30 points
+      } else {
+        pts += 15; // Regular Article gets 15 points
+      }
+      if (item.includes('[Document Uploaded]')) pts += 1;
+    });
+    return pts;
+  }
+
+  if (type === 'book') {
+    let pts = count * 5;
+    learner.booksCompleted?.forEach(book => {
+      if (book.includes('[Document Uploaded]')) pts += 1;
+    });
+    return pts;
+  }
+
+  if (type === 'seerah') {
     return count * 15;
   }
   
@@ -68,5 +93,17 @@ export const getOverallPoints = (learner: Learner) => {
     pts += learner.currentFocuses.length * 2;
   }
   
+  if (learner.librarySubmissionsCount) {
+    pts += learner.librarySubmissionsCount * 1; // +1 point upon approval of each submission
+  }
+  
   return pts;
+};
+
+export const toTitleCase = (str: string | undefined | null): string => {
+  if (!str) return '';
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/\b\w/g, char => char.toUpperCase());
 };

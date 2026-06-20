@@ -1,13 +1,13 @@
 import { useState, useMemo, ReactNode, useEffect } from 'react';
 import { Learner, EditRequest, FocusReminder } from '../types';
-import { Plus, Edit2, Trash2, Search, CheckCircle2, BarChart3, Users as UsersIcon, BookOpen, Mic, Bell, Check, X, Calendar, AlertTriangle, MessageSquare, Database, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, CheckCircle2, BarChart3, Users as UsersIcon, BookOpen, Mic, Bell, Check, X, Calendar, AlertTriangle, MessageSquare, Database, RefreshCw, Folder, FolderOpen, ChevronDown, ChevronUp } from 'lucide-react';
 import { ManageLearnerModal } from './ManageLearnerModal';
 import { requestService } from '../services/requestService';
 import { reminderService } from '../services/reminderService';
 import { learnerService } from '../services/learnerService';
 import { motion, AnimatePresence } from 'motion/react';
 import { APP_DOMAINS } from '../constants';
-import { getOverallPoints, getDomainValue } from '../utils';
+import { getOverallPoints, getDomainValue, toTitleCase } from '../utils';
 import { 
   BarChart, 
   Bar, 
@@ -22,6 +22,11 @@ import {
   LineChart,
   Line
 } from 'recharts';
+
+import { AdminNoticeboard } from './AdminNoticeboard';
+
+import { messageService } from '../services/messageService';
+import { AdminMessaging } from './AdminMessaging';
 
 export function AdminDashboard({ 
   learners, 
@@ -39,10 +44,20 @@ export function AdminDashboard({
   onViewProfile: (id: string) => void
 }) {
   const pendingCount = learners.filter(l => !l.isApproved).length;
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'reports' | 'updates' | 'reminders'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'reports' | 'updates' | 'reminders' | 'notices' | 'messages'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [requests, setRequests] = useState<EditRequest[]>([]);
   const [reminders, setReminders] = useState<FocusReminder[]>([]);
+  const [unreadMessages, setUnreadMessages] = useState<Record<string, number>>({});
+  const totalUnreadMessages: number = Object.values(unreadMessages).reduce((a: number, b: number) => a + b, 0) as number;
+
+  useEffect(() => {
+    const unsub = messageService.subscribeToUnreadAdminMessages((counts: Record<string, number>) => {
+      setUnreadMessages(counts);
+    });
+    return () => unsub();
+  }, []);
+
   const [isSeeding, setIsSeeding] = useState(false);
   const [seedSuccess, setSeedSuccess] = useState(false);
 
@@ -85,6 +100,14 @@ export function AdminDashboard({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLearner, setEditingLearner] = useState<Learner | null>(null);
   const [learnerToDelete, setLearnerToDelete] = useState<string | null>(null);
+  const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
+
+  const toggleFolder = (name: string) => {
+    setCollapsedFolders(prev => ({
+      ...prev,
+      [name]: !prev[name]
+    }));
+  };
 
   const filteredLearners = learners.filter(l => {
     const matchesSearch = l.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || l.id.includes(searchTerm);
@@ -92,107 +115,155 @@ export function AdminDashboard({
     return matchesSearch && matchesTab;
   });
 
+  const [processingRequests, setProcessingRequests] = useState<Set<string>>(new Set());
+
   const handleApproveRequest = async (request: EditRequest) => {
-    const learner = learners.find(l => l.id === request.learnerId);
-    if (!learner) return;
-
-    let updates: Partial<Learner> = {};
-    const reqType = request.type.endsWith('s') ? request.type.slice(0, -1) : request.type;
-
-    if (request.isFocus) {
-      const currentFocuses = learner.currentFocuses || [];
-      updates = {
-        currentFocuses: [
-          ...currentFocuses,
-          {
-            id: request.id,
-            domain: reqType,
-            title: request.details.title || 'Untitled Focus',
-            author: request.details.author,
-            createdAt: new Date().toISOString(),
-            estimatedDuration: request.details.estimatedDuration,
-            location: request.details.location
-          }
-        ]
-      };
-    } else if (reqType === 'book') {
-      const displayTitle = request.details.author ? `${request.details.title} by ${request.details.author}` : request.details.title;
-      updates = { 
-        booksCompleted: [...(learner.booksCompleted || []), `${displayTitle} (${request.details.duration || 'Completed'})`] 
-      };
-    } else if (reqType === 'presentation') {
-      updates = { 
-        presentationsGiven: [...(learner.presentationsGiven || []), `${request.details.title} (${request.details.completedAt || new Date().toISOString().split('T')[0]})`] 
-      };
-    } else if (reqType === 'task') {
-      updates = { 
-        tasksCompleted: (learner.tasksCompleted || 0) + (request.details.count || 1) 
-      };
-    } else {
-      // Handle module-based domains
-      const currentStats = learner.moduleStats || {};
-      const currentItems = learner.moduleItems || {};
-      const displayTitle = request.details.author ? `${request.details.title} by ${request.details.author}` : request.details.title;
-      
-      updates = {
-        moduleStats: {
-          ...currentStats,
-          [reqType]: (currentStats[reqType] || 0) + (request.details.count || 1)
-        },
-        moduleItems: {
-          ...currentItems,
-          [reqType]: [...(currentItems[reqType] || []), displayTitle || 'Completed Module Item']
-        }
-      };
-
-      if (reqType === 'dowra') updates.completedDawraEQuran = true;
-      if (reqType === 'tafsir') updates.completedTafsirModule = true;
-      if (reqType === 'seerah') updates.completedSeerahModule = true;
-      if (reqType === 'articles') updates.completedArticlesModule = true;
-    }
-    
-    // Always check if this completion matches an active focus and remove it
-    if (!request.isFocus && learner.currentFocuses) {
-      const removedFocuses: any[] = [];
-      const remainingFocuses = learner.currentFocuses.filter(
-        f => {
-          const fNorm = f.domain.endsWith('s') ? f.domain.slice(0, -1) : f.domain;
-          const rNorm = request.type.endsWith('s') ? request.type.slice(0, -1) : request.type;
-          const isMatch = f.title.toLowerCase().trim() === request.details.title?.toLowerCase().trim() && fNorm === rNorm;
-          if (isMatch) {
-            removedFocuses.push(f);
-          }
-          return !isMatch;
-        }
-      );
-      if (remainingFocuses.length !== learner.currentFocuses.length) {
-        updates.currentFocuses = remainingFocuses;
-        // Clean up completed focus from edit_requests and reminders
-        for (const focus of removedFocuses) {
-          if (focus.id) {
-            try {
-              await requestService.deleteRequest(focus.id);
-              await reminderService.deleteRemindersByFocusId(focus.id);
-            } catch (err) {
-              console.error("Failed to delete completed focus from database:", err);
-            }
-          }
-        }
-      }
-    }
+    if (processingRequests.has(request.id)) return;
+    setProcessingRequests(prev => new Set(prev).add(request.id));
 
     try {
-      await onUpdate(learner.id, updates);
-      await requestService.updateRequestStatus(request.id, 'approved');
-      // Optionally delete or keep history. For now, let's just keep as approved.
+      await learnerService.updateLearnerWithTransaction(request.learnerId, (learner) => {
+        let updates: Partial<Learner> = {};
+        const reqType = request.type.endsWith('s') ? request.type.slice(0, -1) : request.type;
+
+        if (request.isFocus) {
+          const currentFocuses = learner.currentFocuses || [];
+          updates = {
+            currentFocuses: [
+              ...currentFocuses,
+              {
+                id: request.id,
+                domain: reqType,
+                title: request.details.title || 'Untitled Focus',
+                author: request.details.author,
+                createdAt: new Date().toISOString(),
+                estimatedDuration: request.details.estimatedDuration,
+                location: request.details.location,
+                isLoungeModule: request.details.isLoungeModule,
+                isResearchPaper: request.details.isResearchPaper
+              }
+            ]
+          };
+        } else if (request.isLibrarySubmission) {
+          updates = {
+            librarySubmissionsCount: (learner.librarySubmissionsCount || 0) + 1
+          };
+        } else if (reqType === 'book') {
+          let displayTitle = request.details.author ? `${request.details.title} by ${request.details.author}` : request.details.title;
+          if (request.details.hasFile) displayTitle += ' [Document Uploaded]';
+          const overviewText = request.details.documentOverview || request.details.overview || request.details.description;
+          if (overviewText) {
+            displayTitle += ` (Overview: ${overviewText})`;
+          }
+          updates = { 
+            booksCompleted: [...(learner.booksCompleted || []), `${displayTitle} (${request.details.duration || 'Completed'})`] 
+          };
+        } else if (reqType === 'presentation') {
+          updates = { 
+            presentationsGiven: [...(learner.presentationsGiven || []), `${request.details.title} (${request.details.completedAt || new Date().toISOString().split('T')[0]})`] 
+          };
+        } else if (reqType === 'task') {
+          updates = { 
+            tasksCompleted: (learner.tasksCompleted || 0) + (request.details.count || 1) 
+          };
+        } else {
+          // Handle module-based domains
+          const currentStats = learner.moduleStats || {};
+          const currentItems = learner.moduleItems || {};
+          const saveKey = reqType === 'research papers/article' ? 'articles' : reqType;
+          
+          let displayTitle = request.details.author ? `${request.details.title} by ${request.details.author}` : request.details.title;
+          if (reqType === 'research papers/article') {
+            const prefix = request.details.isResearchPaper ? '[Research Paper] ' : '[Article] ';
+            displayTitle = prefix + displayTitle;
+            if (request.details.hasFile) {
+              displayTitle += ' [Document Uploaded]';
+            }
+            if (request.details.link) {
+              displayTitle += ` [Link: ${request.details.link}]`;
+            }
+            if (request.details.overview) {
+              displayTitle += ` (Overview: ${request.details.overview})`;
+            }
+          }
+          
+          updates = {
+            moduleStats: {
+              ...currentStats,
+              [saveKey]: (currentStats[saveKey] || 0) + (request.details.count || 1)
+            },
+            moduleItems: {
+              ...currentItems,
+              [saveKey]: [...(currentItems[saveKey] || []), displayTitle || 'Completed Module Item']
+            }
+          };
+
+          if (reqType === 'dowra') updates.completedDawraEQuran = true;
+          if (reqType === 'tafsir') updates.completedTafsirModule = true;
+          if (reqType === 'seerah') updates.completedSeerahModule = true;
+          if (reqType === 'research papers/article') updates.completedArticlesModule = true;
+        }
+        
+        // Always check if this completion matches an active focus and remove it
+        if (!request.isFocus && learner.currentFocuses) {
+          const removedFocuses: any[] = [];
+          const remainingFocuses = learner.currentFocuses.filter(
+            f => {
+              const fNorm = f.domain.endsWith('s') ? f.domain.slice(0, -1) : f.domain;
+              const rNorm = request.type.endsWith('s') ? request.type.slice(0, -1) : request.type;
+              const isMatch = f.title.toLowerCase().trim() === request.details.title?.toLowerCase().trim() && fNorm === rNorm;
+              if (isMatch) {
+                removedFocuses.push(f);
+              }
+              return !isMatch;
+            }
+          );
+          if (remainingFocuses.length !== learner.currentFocuses.length) {
+            updates.currentFocuses = remainingFocuses;
+            // Clean up completed focus from edit_requests and reminders
+            // We use setTimeout here so it runs outside the transaction
+            setTimeout(() => {
+              for (const focus of removedFocuses) {
+                if (focus.id) {
+                  try {
+                    requestService.deleteRequest(focus.id);
+                    reminderService.deleteRemindersByFocusId(focus.id);
+                  } catch (err) {
+                    console.error("Failed to delete completed focus from database:", err);
+                  }
+                }
+              }
+            }, 0);
+          }
+        }
+        return updates;
+      });
+      await requestService.updateRequestStatus(request.id, 'approved', request.learnerName, (request as any).docPath);
     } catch (err) {
       console.error("Failed to approve request:", err);
+    } finally {
+      setProcessingRequests(prev => {
+        const next = new Set(prev);
+        next.delete(request.id);
+        return next;
+      });
     }
   };
 
-  const handleRejectRequest = async (id: string) => {
+  const handleRejectRequest = async (request: EditRequest) => {
     try {
-      await requestService.updateRequestStatus(id, 'rejected');
+      if (request.details?.fileLink) {
+        try {
+          const { driveService, extractFileId } = await import('../services/driveService');
+          const fileId = extractFileId(request.details.fileLink);
+          if (fileId) {
+            await driveService.deleteFile(fileId);
+          }
+        } catch (err) {
+          console.warn("Could not delete associated Google Drive file on request rejection:", err);
+        }
+      }
+      await requestService.updateRequestStatus(request.id, 'rejected', request.learnerName, (request as any).docPath);
     } catch (err) {
       console.error("Failed to reject request:", err);
     }
@@ -266,13 +337,30 @@ export function AdminDashboard({
             Lounge Management ({learners.length} learners)
           </p>
         </div>
-        <button 
-          onClick={handleAddNew}
-          className="bg-brand-brown text-brand-offwhite px-6 py-3 rounded-xl font-bold uppercase tracking-wider text-xs shadow-lg hover:shadow-xl hover:bg-brand-brown-dark transition-all flex items-center space-x-2 transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Enroll New Learner</span>
-        </button>
+        <div className="flex bg-brand-brown rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 divide-x divide-brand-brown-dark">
+          <button 
+            onClick={handleAddNew}
+            className="text-brand-offwhite px-6 py-3 font-bold uppercase tracking-wider text-xs hover:bg-brand-brown-dark flex items-center space-x-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Enroll New Learner</span>
+          </button>
+          <button
+            onClick={() => {
+              const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(learners, null, 2));
+              const downloadAnchorNode = document.createElement('a');
+              downloadAnchorNode.setAttribute('href', dataStr);
+              downloadAnchorNode.setAttribute('download', `learners_data_${new Date().toISOString().split('T')[0]}.json`);
+              document.body.appendChild(downloadAnchorNode);
+              downloadAnchorNode.click();
+              downloadAnchorNode.remove();
+            }}
+            className="text-brand-offwhite px-4 py-3 hover:bg-brand-brown-dark flex items-center justify-center"
+            title="Download Data (JSON)"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>
+          </button>
+        </div>
       </div>
 
       {learners.length === 0 && (
@@ -386,8 +474,21 @@ export function AdminDashboard({
                 Focus Alerts
                 {activeRemindersCount > 0 && <span className="bg-amber-600 text-white text-[10px] px-1.5 py-0.5 rounded-full flex items-center justify-center font-black animate-pulse">{activeRemindersCount}</span>}
               </button>
+              <button 
+                onClick={() => setActiveTab('notices')}
+                className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'notices' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+              >
+                Noticeboard
+              </button>
+              <button 
+                onClick={() => setActiveTab('messages')}
+                className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'messages' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+              >
+                Messages
+                {totalUnreadMessages > 0 && <span className="bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-black animate-pulse">{totalUnreadMessages}</span>}
+              </button>
             </div>
-            {activeTab !== 'reports' && activeTab !== 'updates' && (
+            {activeTab !== 'reports' && activeTab !== 'updates' && activeTab !== 'reminders' && activeTab !== 'notices' && activeTab !== 'messages' && (
               <div className="relative w-full sm:max-w-xs flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-brown-light w-4 h-4" />
                 <input 
@@ -484,9 +585,214 @@ export function AdminDashboard({
               </div>
             </div>
           </div>
-        ) : activeTab === 'updates' ? (
+        ) : activeTab === 'updates' ? ( // UPDATE_TAB_MARKER
           <div className="p-6 space-y-4 bg-brand-bg-alt min-h-[400px]">
-             {requests.length === 0 ? (
+             {(() => {
+               // Group requests by learner
+               const grouped: Record<string, EditRequest[]> = {};
+               requests.forEach(req => {
+                 const name = req.learnerName || 'Unknown Learner';
+                 if (!grouped[name]) {
+                   grouped[name] = [];
+                 }
+                 grouped[name].push(req);
+               });
+
+               return requests.length === 0 ? (
+                 <div className="flex flex-col items-center justify-center py-20 text-brand-brown-light">
+                   <Bell className="w-12 h-12 mb-4 opacity-20" />
+                   <p className="font-medium italic">No pending update requests.</p>
+                 </div>
+               ) : (
+                 <div className="space-y-4 w-full">
+                   <div className="flex items-center justify-between px-1 mb-2">
+                     <span className="text-xs font-bold uppercase tracking-wider text-brand-brown-light flex items-center gap-2">
+                       <Database className="w-3.5 h-3.5" />
+                       Database Folder Views (Grouped by LearnerName)
+                     </span>
+                     <span className="text-xs text-brand-brown-light italic">
+                       {Object.keys(grouped).length} Active Folder{Object.keys(grouped).length !== 1 ? 's' : ''}
+                     </span>
+                   </div>
+                   
+                   {Object.entries(grouped).map(([learnerName, learnerReqs]) => {
+                     const isCollapsed = collapsedFolders[learnerName] ?? false;
+                     const folderPath = `edit_requests/${learnerName.trim().replace(/\s+/g, '_').toLowerCase()}/requests/`;
+                     
+                     return (
+                       <div 
+                         key={learnerName} 
+                         className="bg-brand-white rounded-2xl border border-brand-border/60 shadow-sm overflow-hidden"
+                       >
+                         {/* Folder Header */}
+                         <div 
+                           onClick={() => toggleFolder(learnerName)}
+                           className="bg-brand-white hover:bg-brand-beige/20 px-5 py-4 flex items-center justify-between border-b border-brand-border/40 cursor-pointer select-none transition-colors"
+                         >
+                           <div className="flex items-center gap-3">
+                             <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100/50">
+                               {isCollapsed ? (
+                                 <Folder className="w-5.5 h-5.5 fill-amber-100" />
+                               ) : (
+                                 <FolderOpen className="w-5.5 h-5.5 fill-amber-100" />
+                               )}
+                             </div>
+                             <div>
+                               <div className="flex items-center gap-2">
+                                 <h4 className="font-serif font-bold text-brand-text text-base">{learnerName}</h4>
+                                 <span className="px-2 py-0.5 bg-brand-beige text-brand-brown rounded-full text-[10px] font-bold">
+                                   {learnerReqs.length} request{learnerReqs.length !== 1 ? 's' : ''}
+                                 </span>
+                               </div>
+                               <p className="text-[10px] font-mono text-brand-brown-light">
+                                 Path: <span className="text-brand-brown/85 font-semibold font-sans">{folderPath}</span>
+                               </p>
+                             </div>
+                           </div>
+                           
+                           <div className="w-8 h-8 rounded-lg hover:bg-brand-beige/40 flex items-center justify-center text-brand-brown-light transition-colors">
+                             {isCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                           </div>
+                         </div>
+
+                         {/* Folder Content */}
+                         {!isCollapsed && (
+                           <div className="p-4 bg-brand-bg-alt/30 border-t border-brand-border/25 space-y-4">
+                             {learnerReqs.map(req => (
+                               <motion.div 
+                                 layout
+                                 key={req.id} 
+                                 className="bg-brand-white p-5 rounded-xl border border-brand-border-light shadow-sm flex flex-col md:flex-row items-center justify-between gap-6"
+                               >
+                                 <div className="flex items-start gap-4 flex-1">
+                                    {(() => {
+                                       const domain = APP_DOMAINS.find(d => d.type === req.type);
+                                       const Icon = { BookOpen, Mic, CheckCircle2 }[domain?.icon as any] as any || BookOpen;
+                                       return (
+                                         <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-brand-beige text-brand-brown border border-brand-border/40">
+                                           <Icon className="w-5.5 h-5.5" />
+                                         </div>
+                                       );
+                                    })()}
+                                    <div>
+                                      <div className="flex items-center gap-2 mb-0.5">
+                                        <span className="text-[10px] font-semibold text-brand-brown bg-brand-beige/50 px-2 py-0.5 rounded-full uppercase tracking-wider">{req.type}</span>
+                                        <span className="text-[10px] font-mono text-brand-brown-light/80">ID: {req.id}</span>
+                                      </div>
+                                      <p className="text-sm text-brand-brown">
+                                        {req.isFocus ? 'Requested to start focusing on: ' : 'Requested to add: '}
+                                        <span className="font-bold text-brand-text">
+                                          {req.type === 'task' && !req.isFocus 
+                                            ? `${req.details.count} Completion(s)` 
+                                            : req.details.title}
+                                          {req.details.author && <span className="text-brand-brown-light font-normal italic"> by {req.details.author}</span>}
+                                        </span>
+                                      </p>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        {!req.isFocus && req.type !== 'task' && (
+                                          <p className="text-xs text-brand-brown-light flex items-center gap-2">
+                                            <span>Completed: {req.details.completedAt}</span>
+                                            <span className="w-1 h-1 bg-brand-border rounded-full"></span>
+                                            <span>Duration: {req.details.duration}</span>
+                                          </p>
+                                        )}
+                                        {req.isFocus && (
+                                          <p className="text-xs text-brand-brown-light flex items-center gap-2">
+                                            <span>Target: {req.details.estimatedDuration ? new Date(req.details.estimatedDuration).toLocaleDateString() : 'unknown'}</span>
+                                            <span className="w-1 h-1 bg-brand-border rounded-full"></span>
+                                            <span>Location: {req.details.location === 'personal' ? 'Personal (Outside)' : 'Inside Lounge'}</span>
+                                          </p>
+                                        )}
+                                      </div>
+                                      {req.type === 'task' && req.details.description && (
+                                        <p className="text-xs text-brand-brown-light mt-1 italic">"{req.details.description}"</p>
+                                      )}
+                                      {req.details.link && (
+                                        <p className="text-xs text-brand-brown mt-1.5 flex items-center gap-1.5">
+                                          <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[10px]">Online Link:</span>
+                                          <a href={req.details.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all">{req.details.link}</a>
+                                        </p>
+                                      )}
+                                      {req.details.overview && (
+                                        <div className="text-xs text-brand-brown mt-1.5 bg-brand-beige/30 p-2.5 rounded-lg border border-brand-border/60 max-w-md">
+                                          <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[10px] block mb-1">Brief Overview / Summary</span>
+                                          <p className="italic">"{req.details.overview}"</p>
+                                        </div>
+                                      )}
+                                      {req.details.hasFile && (
+                                        <div className="text-xs text-brand-brown mt-1.5 bg-brand-beige/30 p-2.5 rounded-lg border border-brand-border/60 max-w-md">
+                                          <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[10px] block mb-1">Uploaded Document (Requires Approval For +1 pt)</span>
+                                          {req.details.fileLink && (
+                                            <a href={req.details.fileLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all mb-2 inline-block">View Document</a>
+                                          )}
+                                          {req.details.documentOverview && (
+                                            <div>
+                                              <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[9px] block mb-0.5">Document Overview:</span>
+                                              <p className="italic">"{req.details.documentOverview}"</p>
+                                            </div>
+                                          )}
+                                          {req.details.language && (
+                                            <div className="mt-2 pt-2 border-t border-brand-border/40">
+                                              <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[9px] block mb-0.5">Selected Languages:</span>
+                                              <div className="flex flex-wrap gap-1 mt-1">
+                                                {req.details.language.split(',').map((lang: string) => (
+                                                  <span key={lang.trim()} className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-100 text-blue-800 border border-blue-200">
+                                                    {lang.trim()}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            </div>
+                                          )}
+                                          {req.details.materialOwnership && (
+                                            <div className="mt-2 pt-2 border-t border-brand-border/40">
+                                              <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[9px] block mb-0.5">Material Attribution:</span>
+                                              <span className={`inline-block px-2 py-0.5 mt-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${req.details.materialOwnership === 'own' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                                                {req.details.materialOwnership === 'own' ? "Uploader's Own Material" : "Someone Else's Material"}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                      {req.type === 'talaqqi' && (
+                                        <div className="text-xs text-brand-brown mt-1.5 space-y-1 bg-brand-beige/30 p-2.5 rounded-lg border border-brand-border/60 max-w-md">
+                                          {req.details.subject && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Subject:</span> {toTitleCase(req.details.subject)}</div>}
+                                          {req.details.ustadName && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Ustad:</span> {toTitleCase(req.details.ustadName)}</div>}
+                                          {req.details.isOnline !== undefined && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Mode:</span> {req.details.isOnline ? 'Online' : 'Offline'}</div>}
+                                          {req.details.source && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Source:</span> <span className="break-all">{req.details.source}</span></div>}
+                                          {req.details.community && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Community:</span> {req.details.community}</div>}
+                                          {req.details.objective && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Objective:</span> {req.details.objective}</div>}
+                                        </div>
+                                      )}
+                                    </div>
+                                 </div>
+                                 <div className="flex items-center gap-3 w-full md:w-auto shrink-0 justify-end">
+                                    <button 
+                                      onClick={() => handleApproveRequest(req)}
+                                      disabled={processingRequests.has(req.id)}
+                                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-green-700 shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                      <Check className="w-4 h-4" />
+                                      {processingRequests.has(req.id) ? 'Approving...' : 'Approve'}
+                                    </button>
+                                    <button 
+                                      onClick={() => handleRejectRequest(req)}
+                                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-offwhite text-red-600 border border-red-100 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-red-50 active:scale-95 transition-all"
+                                    >
+                                      <X className="w-4 h-4" />
+                                      Reject
+                                    </button>
+                                 </div>
+                               </motion.div>
+                             ))}
+                           </div>
+                         )}
+                       </div>
+                     );
+                   })}
+                 </div>
+               );
+             })()}
+             {false && requests.length === 0 ? (
                <div className="flex flex-col items-center justify-center py-20 text-brand-brown-light">
                  <Bell className="w-12 h-12 mb-4 opacity-20" />
                  <p className="font-medium italic">No pending update requests.</p>
@@ -520,8 +826,8 @@ export function AdminDashboard({
                             <span className="font-bold">
                               {req.type === 'task' && !req.isFocus 
                                 ? `${req.details.count} Completion(s)` 
-                                : req.details.title}
-                              {req.details.author && <span className="text-brand-brown-light font-normal italic"> by {req.details.author}</span>}
+                                : toTitleCase(req.details.title)}
+                              {req.details.author && <span className="text-brand-brown-light font-normal italic"> by {toTitleCase(req.details.author)}</span>}
                             </span>
                           </p>
                           <div className="flex items-center gap-2 mt-1">
@@ -543,15 +849,72 @@ export function AdminDashboard({
                           {req.type === 'task' && req.details.description && (
                             <p className="text-xs text-brand-brown-light mt-1 italic">"{req.details.description}"</p>
                           )}
+                          {req.details.link && (
+                            <p className="text-xs text-brand-brown mt-1.5 flex items-center gap-1.5">
+                              <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[10px]">Online Link:</span>
+                              <a href={req.details.link} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all">{req.details.link}</a>
+                            </p>
+                          )}
+                          {req.details.overview && (
+                            <div className="text-xs text-brand-brown mt-1.5 bg-brand-beige/30 p-2.5 rounded-lg border border-brand-border/60 max-w-md">
+                              <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[10px] block mb-1">Brief Overview / Summary</span>
+                              <p className="italic">"{req.details.overview}"</p>
+                            </div>
+                          )}
+                          {req.details.hasFile && (
+                            <div className="text-xs text-brand-brown mt-1.5 bg-brand-beige/30 p-2.5 rounded-lg border border-brand-border/60 max-w-md">
+                              <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[10px] block mb-1">Uploaded Document (Requires Approval For +1 pt)</span>
+                              {req.details.fileLink && (
+                                <a href={req.details.fileLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all mb-2 inline-block">View Document</a>
+                              )}
+                              {req.details.documentOverview && (
+                                <div>
+                                  <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[9px] block mb-0.5">Document Overview:</span>
+                                  <p className="italic">"{req.details.documentOverview}"</p>
+                                </div>
+                              )}
+                              {req.details.language && (
+                                <div className="mt-2 pt-2 border-t border-brand-border/40">
+                                  <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[9px] block mb-0.5">Selected Languages:</span>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {req.details.language.split(',').map((lang: string) => (
+                                      <span key={lang.trim()} className="inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-blue-100 text-blue-800 border border-blue-200">
+                                        {lang.trim()}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {req.details.materialOwnership && (
+                                <div className="mt-2 pt-2 border-t border-brand-border/40">
+                                  <span className="font-bold text-brand-brown-light uppercase tracking-wider text-[9px] block mb-0.5">Material Attribution:</span>
+                                  <span className={`inline-block px-2 py-0.5 mt-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${req.details.materialOwnership === 'own' ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}`}>
+                                    {req.details.materialOwnership === 'own' ? "Uploader's Own Material" : "Someone Else's Material"}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {req.type === 'talaqqi' && (
+                            <div className="text-xs text-brand-brown mt-1.5 space-y-1 bg-brand-beige/30 p-2.5 rounded-lg border border-brand-border/60 max-w-md">
+                              {req.details.subject && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Subject:</span> {toTitleCase(req.details.subject)}</div>}
+                              {req.details.ustadName && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Ustad:</span> {toTitleCase(req.details.ustadName)}</div>}
+                              {req.details.isOnline !== undefined && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Mode:</span> {req.details.isOnline ? 'Online' : 'Offline'}</div>}
+                              {req.details.source && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Source:</span> <span className="break-all">{req.details.source}</span></div>}
+                              {req.details.community && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Community:</span> {req.details.community}</div>}
+                              {req.details.objective && <div className="flex gap-2"><span className="font-bold text-brand-brown-light uppercase tracking-wider">Objective:</span> {req.details.objective}</div>}
+                            </div>
+                          )}
                         </div>
                      </div>
                      <div className="flex items-center gap-3 w-full md:w-auto">
                         <button 
                           onClick={() => handleApproveRequest(req)}
-                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-green-700 shadow-md active:scale-95 transition-all"
+                          disabled={processingRequests.has(req.id)}
+                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-green-700 shadow-md active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Check className="w-4 h-4" />
-                          Approve
+                          {processingRequests.has(req.id) ? 'Approving...' : 'Approve'}
                         </button>
                         <button 
                           onClick={() => handleRejectRequest(req.id)}
@@ -695,6 +1058,12 @@ export function AdminDashboard({
                    })}
                </div>
              )}
+          </div>
+        ) : activeTab === 'notices' ? (
+          <AdminNoticeboard />
+        ) : activeTab === 'messages' ? (
+          <div className="p-6">
+            <AdminMessaging learners={learners} unreadCounts={unreadMessages} />
           </div>
         ) : (
           <div className="overflow-x-auto">

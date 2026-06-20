@@ -10,7 +10,7 @@ import {
   getDocs,
   where
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, sanitizeFirestoreData } from '../lib/firebase';
 import { FocusReminder } from '../types';
 
 export const REMINDERS_COLLECTION = 'focus_reminders';
@@ -45,8 +45,7 @@ export const reminderService = {
   subscribeToLearnerReminders(learnerId: string, callback: (reminders: FocusReminder[]) => void) {
     const q = query(
       collection(db, REMINDERS_COLLECTION),
-      where('learnerId', '==', learnerId),
-      orderBy('createdAt', 'desc')
+      where('learnerId', '==', learnerId)
     );
 
     return onSnapshot(q, (snapshot) => {
@@ -54,6 +53,8 @@ export const reminderService = {
         id: doc.id,
         ...doc.data()
       })) as FocusReminder[];
+      // Sort in-memory to avoid needing a composite index
+      reminders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       callback(reminders);
     }, (error) => {
       handleFirestoreError(error, 'subscribeToLearner', REMINDERS_COLLECTION);
@@ -63,22 +64,27 @@ export const reminderService = {
   // Add a new reminder
   async addReminder(reminder: Omit<FocusReminder, 'id'>) {
     try {
-      // Direct prevent duplicate safety check
+      // Avoid composite indexes by querying only by learnerId and filtering in-memory
       const q = query(
         collection(db, REMINDERS_COLLECTION),
-        where('learnerId', '==', reminder.learnerId),
-        where('focusId', '==', reminder.focusId),
-        where('type', '==', reminder.type),
-        where('status', '==', 'pending')
+        where('learnerId', '==', reminder.learnerId)
       );
       const snap = await getDocs(q);
-      if (!snap.empty) {
+      const isDuplicate = snap.docs.some(doc => {
+        const data = doc.data();
+        return data.focusId === reminder.focusId && 
+               data.type === reminder.type && 
+               data.status === 'pending';
+      });
+
+      if (isDuplicate) {
         console.log("Blocking duplicate reminder generation for focus:", reminder.focusId, "and type:", reminder.type);
         return null;
       }
 
       const colRef = collection(db, REMINDERS_COLLECTION);
-      return await addDoc(colRef, reminder);
+      const sanitized = sanitizeFirestoreData(reminder);
+      return await addDoc(colRef, sanitized);
     } catch (error) {
       handleFirestoreError(error, 'addReminder', REMINDERS_COLLECTION);
     }
@@ -104,7 +110,8 @@ export const reminderService = {
       if (newTargetDate) {
         updates.newTargetDate = newTargetDate;
       }
-      await updateDoc(docRef, updates);
+      const sanitizedUpdates = sanitizeFirestoreData(updates);
+      await updateDoc(docRef, sanitizedUpdates);
     } catch (error) {
       handleFirestoreError(error, 'respondToReminder', `${REMINDERS_COLLECTION}/${reminderId}`);
     }

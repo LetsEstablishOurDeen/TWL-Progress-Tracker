@@ -8,9 +8,10 @@ import {
   query,
   where,
   getDocFromServer,
-  addDoc
+  addDoc,
+  runTransaction
 } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { db, auth, sanitizeFirestoreData } from '../lib/firebase';
 import { Learner } from '../types';
 
 export const LEARNERS_COLLECTION = 'learners';
@@ -38,11 +39,32 @@ export const learnerService = {
     const docRef = doc(db, LEARNERS_COLLECTION, learner.id);
     const joinedAt = new Date().toISOString();
     try {
-      await setDoc(docRef, { 
+      const payload = sanitizeFirestoreData({ 
         ...learner, 
         joinedAt,
         moduleStats: {},
         moduleItems: {}
+      });
+      await setDoc(docRef, payload);
+    } catch (error) {
+      handleFirestoreError(error);
+    }
+  },
+
+  async updateLearnerWithTransaction(id: string, updateFn: (learner: Learner) => Partial<Learner>) {
+    const docRef = doc(db, LEARNERS_COLLECTION, id);
+    try {
+      await runTransaction(db, async (transaction) => {
+        const docSnap = await transaction.get(docRef);
+        if (!docSnap.exists()) {
+          throw new Error("Learner does not exist!");
+        }
+        const currentData = docSnap.data() as Learner;
+        const updates = updateFn(currentData);
+        if (updates && Object.keys(updates).length > 0) {
+          const sanitizedUpdates = sanitizeFirestoreData(updates);
+          transaction.update(docRef, sanitizedUpdates);
+        }
       });
     } catch (error) {
       handleFirestoreError(error);
@@ -52,7 +74,8 @@ export const learnerService = {
   async updateLearner(id: string, updates: Partial<Learner>) {
     const docRef = doc(db, LEARNERS_COLLECTION, id);
     try {
-      await updateDoc(docRef, updates);
+      const sanitizedUpdates = sanitizeFirestoreData(updates);
+      await updateDoc(docRef, sanitizedUpdates);
     } catch (error) {
       handleFirestoreError(error);
     }
@@ -155,7 +178,7 @@ export const learnerService = {
       }
 
       // Also populate a few sample requests and reminders to keep the app highly engaging!
-      const { REQUESTS_COLLECTION } = await import('./requestService');
+      const { REQUESTS_COLLECTION, getFolderName } = await import('./requestService');
       const reqs = [
         {
           learnerId: "923001234501",
@@ -184,7 +207,8 @@ export const learnerService = {
       ];
 
       for (const r of reqs) {
-        await addDoc(collection(db, REQUESTS_COLLECTION), r);
+        const folder = getFolderName(r.learnerName);
+        await addDoc(collection(db, REQUESTS_COLLECTION, folder, 'requests'), r);
       }
 
       const { REMINDERS_COLLECTION } = await import('./reminderService');
