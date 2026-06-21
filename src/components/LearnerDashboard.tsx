@@ -4,7 +4,7 @@ import {
   BookOpen, Mic, CheckCircle2, Search, Medal, Eye, EyeOff, 
   LayoutDashboard, BarChart3, Plus, X, Clock, Send, Info, Lock,
   Bell, Calendar, HelpCircle, Flame, Activity, Sparkles, Volume2, Settings,
-  ChevronLeft, ChevronRight, Trophy, MessageSquare, Upload
+  ChevronLeft, ChevronRight, Trophy, MessageSquare, Upload, ArrowRight, Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getLearnerBadges, ALL_BADGES } from '../lib/badges';
@@ -17,6 +17,7 @@ import { MODULES, APP_DOMAINS, SUBJECTS } from '../constants';
 import { getOverallPoints, getDomainValue, toTitleCase } from '../utils';
 import { messageService } from '../services/messageService';
 import { ChatWidget } from './Messaging';
+import { circleService, LoungeCircle } from '../services/circleService';
 
 import { 
   Radar, 
@@ -94,14 +95,16 @@ export function LearnerDashboard({
   activeLearner,
   setActiveLearner,
   pendingEnrollment,
-  clearPendingEnrollment
+  clearPendingEnrollment,
+  onNavigateToCircles
 }: { 
   learners: Learner[], 
   onRegister: (data: Omit<Learner, 'joinedAt'>) => void,
   activeLearner: Learner | null,
   setActiveLearner: (learner: Learner | null) => void,
-  pendingEnrollment?: { title: string, category: string, duration?: string, speaker?: string } | null,
-  clearPendingEnrollment?: () => void
+  pendingEnrollment?: { title: string, category: string, duration?: string, speaker?: string, targetDomain?: string } | null,
+  clearPendingEnrollment?: () => void,
+  onNavigateToCircles?: () => void
 }) {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [searchTerm, setSearchTerm] = useState('');
@@ -530,6 +533,7 @@ export function LearnerDashboard({
   const [isFocusSubmitting, setIsFocusSubmitting] = useState(false);
   const [isFocusModalOpen, setIsFocusModalOpen] = useState(false);
   const [focusDomain, setFocusDomain] = useState<string>(APP_DOMAINS[0]?.type || 'book');
+  const [focusTargetDomain, setFocusTargetDomain] = useState<string>('');
   const [focusTitle, setFocusTitle] = useState('');
   const [focusAuthor, setFocusAuthor] = useState('');
   const [focusEstimatedDuration, setFocusEstimatedDuration] = useState('');
@@ -546,9 +550,77 @@ export function LearnerDashboard({
   const [focusSubject, setFocusSubject] = useState('');
   const [focusObjective, setFocusObjective] = useState('');
 
+  const [loungeCircles, setLoungeCircles] = useState<LoungeCircle[]>([]);
+  const [circlesLoading, setCirclesLoading] = useState(false);
+  const [selectedCircle, setSelectedCircle] = useState<LoungeCircle | null>(null);
+
+  useEffect(() => {
+    if (!isFocusModalOpen) {
+      setSelectedCircle(null);
+    }
+  }, [isFocusModalOpen]);
+
+  useEffect(() => {
+    if (isFocusModalOpen) {
+      const fetchCircles = async () => {
+        setCirclesLoading(true);
+        try {
+          const data = await circleService.getCircles();
+          setLoungeCircles(data);
+          
+          if (focusDomain === 'book' && focusLocation === 'lounge' && focusTitle) {
+            const matchingCircle = data.find(c => 
+              (c.bookName || c.title).toLowerCase() === focusTitle.toLowerCase() ||
+              c.title.toLowerCase() === focusTitle.toLowerCase()
+            );
+            if (matchingCircle) {
+              setSelectedCircle(matchingCircle);
+            }
+          }
+        } catch (e) {
+          console.error("Failed to load circles inside focus modal:", e);
+        } finally {
+          setCirclesLoading(false);
+        }
+      };
+      fetchCircles();
+    }
+  }, [isFocusModalOpen]);
+
+  const renderLocationSelection = () => (
+    <div className="bg-brand-offwhite p-4 rounded-2xl border border-brand-border space-y-2">
+      <label className="block text-xs font-black uppercase tracking-wider text-brand-brown-light">Location</label>
+      <div className="flex gap-4">
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="radio"
+            name="focusLocation"
+            value="lounge"
+            checked={focusLocation === 'lounge'}
+            onChange={() => setFocusLocation('lounge')}
+            className="text-brand-brown focus:ring-brand-brown w-4 h-4"
+          />
+          <span className="text-sm text-brand-brown font-semibold">Inside the Lounge</span>
+        </label>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="radio"
+            name="focusLocation"
+            value="personal"
+            checked={focusLocation === 'personal'}
+            onChange={() => setFocusLocation('personal')}
+            className="text-brand-brown focus:ring-brand-brown w-4 h-4"
+          />
+          <span className="text-sm text-brand-brown font-semibold">Personal (Outside)</span>
+        </label>
+      </div>
+    </div>
+  );
+
   useEffect(() => {
     if (pendingEnrollment && activeLearner) {
       setFocusDomain(pendingEnrollment.category);
+      setFocusTargetDomain(pendingEnrollment.targetDomain || pendingEnrollment.category);
       setFocusTitle(pendingEnrollment.title);
       if (pendingEnrollment.duration) setFocusEstimatedDuration(pendingEnrollment.duration);
       if (pendingEnrollment.speaker) setFocusAuthor(pendingEnrollment.speaker);
@@ -565,7 +637,8 @@ export function LearnerDashboard({
 
     setIsFocusSubmitting(true);
     try {
-      const normDomain = focusDomain.endsWith('s') ? focusDomain.slice(0, -1) : focusDomain;
+      const finalDomain = focusTargetDomain || focusDomain;
+      const normDomain = finalDomain.endsWith('s') ? finalDomain.slice(0, -1) : finalDomain;
       await requestService.submitRequest({
         learnerId: activeLearner.id,
         learnerName: activeLearner.fullName,
@@ -588,6 +661,7 @@ export function LearnerDashboard({
           objective: normDomain === 'talaqqi' ? focusObjective : undefined
         }
       });
+      setFocusTargetDomain('');
       setIsFocusModalOpen(false);
       setFocusTitle('');
       setFocusAuthor('');
@@ -1569,7 +1643,8 @@ export function LearnerDashboard({
                   <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-brand-beige/50">Active Focuses</h3>
                   <button 
                     onClick={() => {
-                      setFocusDomain(APP_DOMAINS[0]?.type);
+                      setFocusDomain(APP_DOMAINS[0]?.type || 'book');
+                      setFocusTargetDomain('');
                       setFocusTitle('');
                       setFocusAuthor('');
                       setIsFocusModalOpen(true);
@@ -3015,7 +3090,10 @@ export function LearnerDashboard({
                             <button
                               key={domain.type}
                               type="button"
-                              onClick={() => setFocusDomain(domain.type)}
+                              onClick={() => {
+                                setFocusDomain(domain.type);
+                                setFocusTargetDomain('');
+                              }}
                               disabled={isDisabled}
                               className={`relative w-full py-2.5 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 ${!isDisabled ? 'active:scale-95' : ''} ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''} ${focusDomain === domain.type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
                             >
@@ -3032,6 +3110,163 @@ export function LearnerDashboard({
                         })}
                       </div>
                     </div>
+
+                    {/* Top Location & Ongoing Circles block for Book category */}
+                    {focusDomain === 'book' && focusLocation === 'lounge' && (
+                      <div className="space-y-4">
+                        {renderLocationSelection()}
+                        
+                        {selectedCircle ? (
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.98 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="p-5 bg-green-50/50 border border-green-200 rounded-2xl flex flex-col space-y-4 shadow-sm"
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center border border-green-200">
+                                  <CheckCircle2 className="w-5 h-5 text-green-700" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-green-700 block">Selected Lounge Circle</span>
+                                  <h4 className="font-serif text-base font-bold text-brand-text mt-0.5 truncate">{selectedCircle.title}</h4>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedCircle(null);
+                                  setFocusTitle('');
+                                  setFocusAuthor('');
+                                  setFocusEstimatedDuration('');
+                                }}
+                                className="px-3 py-1.5 border border-brand-border hover:bg-brand-offwhite text-brand-brown rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shrink-0"
+                              >
+                                Change
+                              </button>
+                            </div>
+
+                            <div className="bg-brand-white/80 p-4 rounded-xl border border-brand-border-light space-y-2 text-xs text-brand-brown">
+                              {selectedCircle.bookName && (
+                                <p className="font-medium text-brand-text">
+                                  📖 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Book Name:</span> {selectedCircle.bookName}
+                                </p>
+                              )}
+                              <p className="font-medium text-brand-text">
+                                🎓 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Moderator:</span> {selectedCircle.moderator}
+                              </p>
+                              <p className="font-medium">
+                                📅 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Schedule:</span> {selectedCircle.schedule}
+                              </p>
+                              {selectedCircle.duration && (
+                                <p className="font-medium">
+                                  ⏳ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Target Date:</span> {selectedCircle.duration}
+                                </p>
+                              )}
+                              {selectedCircle.startDate && (
+                                <p className="font-medium">
+                                  🗓️ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Starts:</span> {selectedCircle.startDate}
+                                </p>
+                              )}
+                            </div>
+
+                            <p className="text-[11px] text-green-800 leading-relaxed font-semibold">
+                              ✓ Ready! Click the "Update Focus" button at the bottom of the modal to submit your request to study this book inside the Wisdom Lounge.
+                            </p>
+                          </motion.div>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="border-b border-brand-border pb-2">
+                              <h4 className="font-serif text-base font-bold text-brand-text">Choose an Ongoing Circle to Join</h4>
+                              <p className="text-xs text-brand-brown-light mt-1">
+                                Book reading inside the Lounge must be registered by joining one of our active study circles. Select a group to prefill.
+                              </p>
+                            </div>
+
+                            {circlesLoading ? (
+                              <div className="flex flex-col items-center justify-center py-8 opacity-65">
+                                <Activity className="w-6 h-6 text-brand-brown animate-spin mb-2" />
+                                <span className="text-xs font-bold uppercase tracking-wider text-brand-brown-light">Loading study circles...</span>
+                              </div>
+                            ) : loungeCircles.length === 0 ? (
+                              <div className="p-6 bg-brand-offwhite rounded-xl border border-dashed border-brand-border text-center">
+                                <p className="text-xs text-brand-brown-light font-bold">No active study circles found.</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                                {loungeCircles.map((circle) => {
+                                  const bookNameOrTitle = circle.bookName || circle.title;
+                                  const isAlreadyJoined = activeLearner?.currentFocuses?.some(f => 
+                                    f.title.toLowerCase() === bookNameOrTitle.toLowerCase()
+                                  );
+
+                                  return (
+                                    <div 
+                                      key={circle.id} 
+                                      className={`p-4 bg-brand-white border border-brand-border rounded-2xl flex flex-col justify-between gap-3 shadow-xs transition-all ${
+                                        isAlreadyJoined 
+                                          ? 'opacity-65 bg-brand-offwhite/80 border-dashed' 
+                                          : 'hover:border-brand-brown/50'
+                                      }`}
+                                    >
+                                      <div>
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 rounded">
+                                            {circle.category || 'Study Circle'}
+                                          </span>
+                                          <span className="text-[9px] font-bold text-brand-brown-light/60">
+                                            {circle.format || 'Onsite'}
+                                          </span>
+                                        </div>
+
+                                        <h5 className="font-sans font-bold text-brand-text text-sm mt-1.5 leading-tight">{circle.title}</h5>
+                                        {circle.bookName && (
+                                          <p className="text-xs text-brand-brown font-extrabold mt-1">
+                                            Book: <span className="text-brand-text">{circle.bookName}</span>{circle.bookAuthor ? ` (by ${circle.bookAuthor})` : ''}
+                                          </p>
+                                        )}
+                                        {circle.subject && (
+                                          <p className="text-[11px] text-emerald-800 font-extrabold mt-0.5">
+                                            Subject: <span className="text-emerald-950 font-semibold">{circle.subject}</span>
+                                          </p>
+                                        )}
+                                        <p className="text-[11px] text-brand-brown-light font-bold mt-0.5">
+                                          Host: {circle.moderator} | Schedule: {circle.schedule}
+                                          {circle.startDate ? ` | Starts: ${circle.startDate}` : ''}
+                                        </p>
+                                      </div>
+
+                                      {isAlreadyJoined ? (
+                                        <div className="w-full text-center py-2 px-3 bg-green-50 text-green-700 text-xs font-black uppercase tracking-wider rounded-xl border border-green-200 border-dashed select-none">
+                                          Already Joined ✓
+                                        </div>
+                                      ) : (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedCircle(circle);
+                                            setFocusTitle(circle.bookName || circle.title);
+                                            setFocusAuthor(circle.bookAuthor || (focusDomain === 'book' ? '' : circle.moderator) || '');
+                                            
+                                            const d = new Date();
+                                            d.setMonth(d.getMonth() + 2);
+                                            const yyyymmdd = d.toISOString().split('T')[0];
+                                            setFocusEstimatedDuration(yyyymmdd);
+                                          }}
+                                          className="w-full py-2 px-3 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 active:scale-95"
+                                        >
+                                          Select Circle <ArrowRight className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Dynamic Fields based on Domain */}
                     {['tafsir', 'seerah', 'dowra'].includes(focusDomain) && (
@@ -3278,7 +3513,7 @@ export function LearnerDashboard({
                           className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
                         />
                       </div>
-                    ) : (
+                    ) : (focusDomain === 'book' && focusLocation === 'lounge') ? null : (
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
                           Specific Title or Subject
@@ -3294,7 +3529,7 @@ export function LearnerDashboard({
                       </div>
                     )}
 
-                    {['book'].includes(focusDomain) && (
+                    {['book'].includes(focusDomain) && focusLocation !== 'lounge' && (
                       <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
                           Author / Editor
@@ -3347,46 +3582,50 @@ export function LearnerDashboard({
                       </div>
                     )}
 
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                        Target Date
-                      </label>
-                      <input
-                        type="date"
-                        required
-                        value={focusEstimatedDuration}
-                        onChange={(e) => setFocusEstimatedDuration(e.target.value)}
-                        className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Location</label>
-                      <div className="flex gap-4">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="focusLocation"
-                            value="lounge"
-                            checked={focusLocation === 'lounge'}
-                            onChange={() => setFocusLocation('lounge')}
-                            className="text-brand-brown focus:ring-brand-brown"
-                          />
-                          <span className="text-sm text-brand-brown font-medium">Inside the Lounge</span>
+                    {!(focusDomain === 'book' && focusLocation === 'lounge') && (
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                          Target Date
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="focusLocation"
-                            value="personal"
-                            checked={focusLocation === 'personal'}
-                            onChange={() => setFocusLocation('personal')}
-                            className="text-brand-brown focus:ring-brand-brown"
-                          />
-                          <span className="text-sm text-brand-brown font-medium">Personal (Outside)</span>
-                        </label>
+                        <input
+                          type="date"
+                          required
+                          value={focusEstimatedDuration}
+                          onChange={(e) => setFocusEstimatedDuration(e.target.value)}
+                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                        />
                       </div>
-                    </div>
+                    )}
+
+                    {!(focusDomain === 'book' && focusLocation === 'lounge') && (
+                      <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Location</label>
+                        <div className="flex gap-4">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="focusLocation"
+                              value="lounge"
+                              checked={focusLocation === 'lounge'}
+                              onChange={() => setFocusLocation('lounge')}
+                              className="text-brand-brown focus:ring-brand-brown"
+                            />
+                            <span className="text-sm text-brand-brown font-medium">Inside the Lounge</span>
+                          </label>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="focusLocation"
+                              value="personal"
+                              checked={focusLocation === 'personal'}
+                              onChange={() => setFocusLocation('personal')}
+                              className="text-brand-brown focus:ring-brand-brown"
+                            />
+                            <span className="text-sm text-brand-brown font-medium">Personal (Outside)</span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
 
                     {focusLocation === 'personal' && (
                       <motion.div 
@@ -3453,22 +3692,24 @@ export function LearnerDashboard({
                       <button
                         type="button"
                         onClick={() => setIsFocusModalOpen(false)}
-                        className="flex-1 px-6 py-3 border border-brand-border rounded-xl text-xs font-bold uppercase tracking-widest text-brand-brown hover:bg-brand-offwhite active:scale-95 transition-all"
+                        className={`${(focusDomain === 'book' && focusLocation === 'lounge' && !selectedCircle) ? 'w-full' : 'flex-1'} px-6 py-3 border border-brand-border rounded-xl text-xs font-bold uppercase tracking-widest text-brand-brown hover:bg-brand-offwhite active:scale-95 transition-all`}
                       >
                         Cancel
                       </button>
-                      <button
-                        type="submit"
-                        disabled={isFocusSubmitting}
-                        className="flex-2 px-6 py-3 bg-brand-brown text-brand-offwhite rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                      >
-                        {isFocusSubmitting ? 'Updating...' : (
-                          <>
-                            <Send className="w-4 h-4" />
-                            Update Focus
-                          </>
-                        )}
-                      </button>
+                      {!(focusDomain === 'book' && focusLocation === 'lounge' && !selectedCircle) && (
+                        <button
+                          type="submit"
+                          disabled={isFocusSubmitting}
+                          className="flex-2 px-6 py-3 bg-brand-brown text-brand-offwhite rounded-xl text-xs font-bold uppercase tracking-widest shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                        >
+                          {isFocusSubmitting ? 'Updating...' : (
+                            <>
+                              <Send className="w-4 h-4" />
+                              Update Focus
+                            </>
+                          )}
+                        </button>
+                      )}
                     </div>
                   </form>
                 </motion.div>

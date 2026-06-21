@@ -1,7 +1,7 @@
 import React, { useState, useEffect, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { driveService, extractFileId } from '../services/driveService';
-import { Library as LibraryIcon, FileText, Upload, Link as LinkIcon, Trash2, ExternalLink, Loader2, AlertCircle, X, BookOpen, FileCheck, Award, MessageSquare, Compass, Info, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { Library as LibraryIcon, FileText, Upload, Link as LinkIcon, Trash2, ExternalLink, Loader2, AlertCircle, X, BookOpen, FileCheck, Award, MessageSquare, Compass, Info, ChevronDown, ChevronUp, Lock, Users } from 'lucide-react';
 import { authService } from '../lib/auth';
 import { Learner, EditRequest } from '../types';
 import { requestService } from '../services/requestService';
@@ -47,6 +47,28 @@ const CATEGORIES = [
   { id: 'presentations', label: 'Presentation Files', icon: '🎤', desc: 'PowerPoint presentations, slide reels, and speech files' }
 ] as const;
 
+// --- CONFIGURATION FOR LIBRARY CATEGORY ACCESS TIERS ---
+// Define the badge-count and name requirements for each category.
+// To change tier requirements, simply update the minimum number of badges (minBadges) required:
+// - 0 badges: Lounge Guest (Accessible to all)
+// - 1 badge: Seeker of Wisdom
+// - 3 badges: Avid Explorer
+// - 6 badges: Lounge Scholar
+// - 10 badges: Wisdom Adept
+// - 15 badges: Lounge Vanguard
+// ... and so on (see STATUS_TIERS in src/lib/status.ts)
+export const CATEGORY_TIER_REQUIREMENTS: Record<
+  'books' | 'articles' | 'research_papers' | 'seerah_tafsir_dowra' | 'guided_studies' | 'presentations',
+  { minBadges: number; name: string }
+> = {
+  books: { minBadges: 0, name: 'Lounge Guest' },                     // Accessible to all
+  articles: { minBadges: 6, name: 'Lounge Scholar' },                 // Accessible to Lounge Scholar+
+  research_papers: { minBadges: 6, name: 'Lounge Scholar' },          // Accessible to Lounge Scholar+
+  seerah_tafsir_dowra: { minBadges: 1, name: 'Seeker of Wisdom' },    // Accessible to Seeker of Wisdom+
+  guided_studies: { minBadges: 6, name: 'Lounge Scholar' },           // Accessible to Lounge Scholar+
+  presentations: { minBadges: 1, name: 'Seeker of Wisdom' },          // Accessible to Seeker of Wisdom+
+};
+
 interface UploadFileData {
   file: File;
   tag: string;
@@ -56,9 +78,10 @@ interface LibraryProps {
   isAdmin: boolean;
   activeLearner?: Learner | null;
   onAddToFocus?: (item: ArchiveItem) => void;
+  onMakeCircle?: (item: ArchiveItem) => void;
 }
 
-export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) {
+export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: LibraryProps) {
   const [files, setFiles] = useState<any[]>([]);
   const [requests, setRequests] = useState<EditRequest[]>([]);
   const [allRequestsWithFiles, setAllRequestsWithFiles] = useState<EditRequest[]>([]);
@@ -87,11 +110,10 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterValue, setFilterValue] = useState<string>('none');
-  const [showLockAlert, setShowLockAlert] = useState(false);
+  const [lockedCategory, setLockedCategory] = useState<{ label: string; requiredTier: string } | null>(null);
 
   const userBadges = activeLearner ? getLearnerBadges(activeLearner) : [];
   const userStatus = getLearnerStatus(userBadges.length);
-  const isScholarOrAbove = isAdmin || userBadges.length >= 6;
 
   const toggleExpand = (itemId: string) => {
     setExpandedItems(prev => ({
@@ -429,7 +451,13 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
     }
   }
 
+  // Sort book collection by their name alphabetically by default
+  if (activeCategory === 'books') {
+    processedItems.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+  }
+
   const filteredItems = processedItems;
+  const hoveredItemObj = hoveredItem ? filteredItems.find(i => i.id === hoveredItem) : null;
 
   if (isConnected === null) {
     return (
@@ -478,9 +506,9 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
         return (
           <div className="flex-1 min-w-0 mr-2">
             <div className="flex overflow-x-auto no-scrollbar gap-2 max-w-full pb-0.5 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              {data.map((obj, i) => (
+              {data.map((obj: any, i: number) => (
                 <a key={i} href={obj.link} target="_blank" rel="noreferrer" className="shrink-0 text-[10px] bg-white/10 border border-white/20 px-2.5 py-1 rounded font-bold uppercase tracking-wider text-brand-offwhite hover:bg-white/20 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                  {obj.tag ? obj.tag : (data.length > 1 ? `Vol ${i+1}` : 'Read')}
+                  {obj.tag ? (obj.tag === 'Vol 1' && data.length === 1 ? 'Read' : obj.tag) : (data.length > 1 ? `Vol ${i+1}` : 'Read')}
                 </a>
               ))}
             </div>
@@ -507,7 +535,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
     }
     
     return (
-      <a href={linkString} target="_blank" rel="noreferrer" className="text-xs font-bold uppercase tracking-wider text-brand-offwhite hover:underline whitespace-nowrap shrink-0" onClick={(e) => e.stopPropagation()}>
+      <a href={linkString} target="_blank" rel="noreferrer" className="shrink-0 text-[10px] bg-white/10 border border-white/20 px-2.5 py-1 rounded font-bold uppercase tracking-wider text-brand-offwhite hover:bg-white/20 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
         Read
       </a>
     );
@@ -518,12 +546,9 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
       {/* Title & Actions bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-brand-text flex items-center gap-3 flex-wrap">
+          <h1 className="font-serif text-3xl font-bold text-brand-text flex items-center gap-3">
             <LibraryIcon className="w-8 h-8 text-brand-brown" />
             Wisdom Archive
-            <span className="text-xs font-sans font-extrabold px-3 py-1 bg-brand-brown/10 text-brand-brown border border-brand-brown/20 rounded-full tracking-wider shadow-sm">
-              {allItems.filter(i => i.category === 'books').length} Books Archived
-            </span>
           </h1>
           <p className="text-brand-brown-light mt-1">Centralized digital vault of classical books, articles, notes and presentations</p>
         </div>
@@ -606,7 +631,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
       </div>
 
       <AnimatePresence>
-        {showLockAlert && (
+        {lockedCategory && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -616,7 +641,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
             <Lock className="w-5 h-5 shrink-0 mt-0.5" />
             <div className="text-sm">
               <p className="font-bold">Access Restricted</p>
-              <p>This section of the library is only available to members at the <strong>Lounge Scholar</strong> tier and above. Earning more badges will unlock this material.</p>
+              <p>The <strong>{lockedCategory.label}</strong> section of the library is only available to members at the <strong>{lockedCategory.requiredTier}</strong> tier and above. Earning more badges will unlock this material.</p>
             </div>
           </motion.div>
         )}
@@ -626,15 +651,16 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-6">
         {CATEGORIES.map((cat) => {
           const isActive = activeCategory === cat.id;
-          const isLocked = !isScholarOrAbove && cat.id !== 'books';
+          const requirement = CATEGORY_TIER_REQUIREMENTS[cat.id];
+          const isLocked = !isAdmin && userBadges.length < requirement.minBadges;
           const count = allItems.filter(item => item.category === cat.id).length;
           return (
             <button
               key={cat.id}
               onClick={() => {
                 if (isLocked) {
-                  setShowLockAlert(true);
-                  setTimeout(() => setShowLockAlert(false), 5000);
+                  setLockedCategory({ label: cat.label, requiredTier: requirement.name });
+                  setTimeout(() => setLockedCategory(null), 5000);
                 } else {
                   setActiveCategory(cat.id);
                 }
@@ -644,9 +670,11 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
               <span className="text-2xl mb-1.5">{cat.icon}</span>
               <div className="flex flex-col items-center">
                 <span className="text-xs font-bold tracking-tight leading-tight">{cat.label}</span>
-                <span className={`text-[9px] font-mono tracking-wider font-semibold mt-0.5 px-1.5 rounded-full ${isActive ? 'bg-white/20 text-brand-offwhite' : 'bg-brand-beige/40 text-brand-brown-light'}`}>
-                  {count} {count === 1 ? 'item' : 'items'}
-                </span>
+                {!isLocked && (
+                  <span className={`text-[9px] font-mono tracking-wider font-semibold mt-0.5 px-1.5 rounded-full ${isActive ? 'bg-white/20 text-brand-offwhite' : 'bg-brand-beige/40 text-brand-brown-light'}`}>
+                    {count} {count === 1 ? 'item' : 'items'}
+                  </span>
+                )}
               </div>
               {isLocked && (
                 <div className="absolute top-2 right-2 bg-brand-brown/80 rounded-full p-1 backdrop-blur-sm shadow-sm">
@@ -682,22 +710,22 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
                 key={item.id} 
                 className="group relative flex flex-col rounded-2xl border-2 border-brand-brown-dark bg-brand-brown-dark text-brand-offwhite shadow-lg transition-all duration-300 overflow-hidden cursor-pointer"
                 onClick={() => {
-                  if (window.matchMedia("(hover: none)").matches) {
+                  if (window.matchMedia("(hover: none)").matches || window.innerWidth < 1024) {
                     toggleExpand(item.id);
                   }
                 }}
                 onMouseEnter={() => {
-                  if (!window.matchMedia("(hover: none)").matches) {
+                  if (!window.matchMedia("(hover: none)").matches && window.innerWidth >= 1024) {
                     setHoveredItem(item.id);
                   }
                 }}
                 onMouseMove={(e) => {
-                  if (!window.matchMedia("(hover: none)").matches) {
+                  if (!window.matchMedia("(hover: none)").matches && window.innerWidth >= 1024) {
                     setMousePosition({ x: e.clientX, y: e.clientY });
                   }
                 }}
                 onMouseLeave={() => {
-                  if (!window.matchMedia("(hover: none)").matches) {
+                  if (!window.matchMedia("(hover: none)").matches && window.innerWidth >= 1024) {
                     setHoveredItem(null);
                   }
                 }}
@@ -724,25 +752,55 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
                 
                 {/* Overview area - animated tooltip for mobile */}
                 <AnimatePresence>
-                  {expandedItems[item.id] && (item.overview || item.uploader || item.language) && (
+                  {expandedItems[item.id] && (
                     <motion.div
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="absolute inset-0 bg-brand-brown-dark z-10 p-4 flex flex-col justify-center border-2 border-brand-brown-dark"
+                      className="absolute inset-0 bg-brand-brown-dark/95 backdrop-blur-md z-10 p-4 flex flex-col justify-center border-2 border-brand-brown-dark"
                     >
                       <button 
                         onClick={(e) => { e.stopPropagation(); toggleExpand(item.id); }}
-                        className="absolute top-2 right-2 p-1 bg-white/10 rounded-full"
+                        className="absolute top-2 right-2 p-1.5 bg-white/10 rounded-full hover:bg-white/20 transition-all active:scale-95 z-20"
                       >
                         <X className="w-4 h-4 text-white" />
                       </button>
-                      <div className="overflow-y-auto">
-                        {item.overview && <p className="text-sm text-brand-offwhite/90 mb-2">{item.overview}</p>}
-                        {(item.uploader || item.language) && (
-                          <div className="pt-2 border-t border-white/10 text-xs text-brand-offwhite/60 space-y-1">
-                            {item.uploader && <p>Uploader: {item.uploader}</p>}
-                            {item.language && <p>Language: {item.language}</p>}
+                      <div className="overflow-y-auto pr-2 mt-4 text-left">
+                        <div className="mb-2">
+                          <span className="text-[9px] font-mono tracking-widest font-extrabold text-brand-beige uppercase block mb-1">
+                            Full Book Title
+                          </span>
+                          <h5 className="font-serif font-bold text-sm text-brand-offwhite leading-snug">
+                            {item.name}
+                          </h5>
+                        </div>
+
+                        {item.overview && (
+                          <p className="text-xs text-brand-offwhite/85 mt-2 mb-2 italic leading-relaxed">
+                            "{item.overview}"
+                          </p>
+                        )}
+
+                        {(item.author || item.uploader || item.language) && (
+                          <div className="pt-2 mt-2 border-t border-white/10 text-[10px] text-brand-offwhite/60 space-y-1">
+                            {item.author && item.author !== 'Unknown Contribution' && (
+                              <p className="flex items-center justify-between gap-4">
+                                <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Author:</span>
+                                <span className="text-right truncate max-w-[125px] font-medium">{item.author}</span>
+                              </p>
+                            )}
+                            {item.uploader && (
+                              <p className="flex items-center justify-between gap-4">
+                                <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Uploader:</span>
+                                <span className="text-right truncate max-w-[120px] font-medium">{item.uploader}</span>
+                              </p>
+                            )}
+                            {item.language && (
+                              <p className="flex items-center justify-between gap-4">
+                                <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Language:</span>
+                                <span className="text-right font-medium">{item.language}</span>
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
@@ -751,26 +809,38 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
                 </AnimatePresence>
                 
                 {/* Footer */}
-                <div className="p-3 bg-black/10 border-t border-white/10 flex items-center justify-between gap-2 flex-wrap">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    {renderLinks(item.webViewLink)}
-                    {onAddToFocus && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onAddToFocus(item);
-                        }}
-                        className="shrink-0 text-[10px] bg-brand-brown text-brand-offwhite border border-brand-brown px-2.5 py-1 rounded font-bold uppercase tracking-wider hover:bg-brand-brown/85 whitespace-nowrap transition-all flex items-center gap-1.5 shadow-sm active:scale-95"
-                        title="Add this book to your Active Focus"
-                      >
-                        <Compass className="w-3.5 h-3.5" />
-                        <span>Focus</span>
+                <div className="p-3 bg-black/10 border-t border-white/10 flex flex-col gap-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 min-w-0 flex shrink-0 items-center gap-1.5">
+                      {renderLinks(item.webViewLink)}
+                      {isAdmin && onMakeCircle && activeCategory === 'books' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onMakeCircle(item); }}
+                          className="shrink-0 text-[10px] bg-green-900/40 border border-green-500/30 px-2.5 py-1 rounded font-bold uppercase tracking-wider text-green-100 hover:bg-green-800/60 transition-all whitespace-nowrap h-[26px] flex items-center"
+                          title="Make a Reading Circle for this book"
+                        >
+                          <span className="flex items-center gap-1"><Users className="w-3 h-3" />Circle</span>
+                        </button>
+                      )}
+                    </div>
+                    {isAdmin && (
+                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmItem(item); }} className="text-brand-offwhite/50 hover:text-red-300 shrink-0 ml-1">
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     )}
                   </div>
-                  {isAdmin && (
-                    <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmItem(item); }} className="text-brand-offwhite/50 hover:text-red-300 ml-2 shrink-0">
-                      <Trash2 className="w-4 h-4" />
+                  
+                  {onAddToFocus && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onAddToFocus(item);
+                      }}
+                      className="w-full text-[10px] bg-brand-brown text-brand-offwhite border border-brand-brown py-1.5 rounded font-bold uppercase tracking-wider hover:bg-brand-brown/85 whitespace-nowrap transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                      title="Add this book to your Active Focus"
+                    >
+                      <Compass className="w-3.5 h-3.5" />
+                      <span>Focus</span>
                     </button>
                   )}
                 </div>
@@ -778,21 +848,50 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
             ))}
             
             {/* Tooltip */}
-            {hoveredItem && (filteredItems.find(i => i.id === hoveredItem)?.overview || filteredItems.find(i => i.id === hoveredItem)?.uploader || filteredItems.find(i => i.id === hoveredItem)?.language) && (
+            {hoveredItemObj && (
               <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed z-[100] bg-brand-brown-dark text-brand-offwhite p-4 rounded-lg shadow-xl border-2 border-brand-brown-dark max-w-xs pointer-events-none"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.15 }}
+                className="fixed z-[100] bg-brand-brown-dark/95 backdrop-blur-md text-brand-offwhite p-4 rounded-xl shadow-2xl border border-white/20 max-w-xs pointer-events-none"
                 style={{ left: mousePosition.x + 15, top: mousePosition.y + 15 }}
               >
-                {filteredItems.find(i => i.id === hoveredItem)?.overview && (
-                  <p className="text-sm text-brand-offwhite/90 mb-2">{filteredItems.find(i => i.id === hoveredItem)?.overview}</p>
+                <div className="mb-2">
+                  <span className="text-[9px] font-mono tracking-widest font-extrabold text-brand-beige uppercase block mb-1">
+                    Full Book Title
+                  </span>
+                  <h5 className="font-serif font-bold text-sm text-brand-offwhite leading-snug">
+                    {hoveredItemObj.name}
+                  </h5>
+                </div>
+
+                {hoveredItemObj.overview && (
+                  <p className="text-xs text-brand-offwhite/85 mt-2 mb-2 italic leading-relaxed">
+                    "{hoveredItemObj.overview}"
+                  </p>
                 )}
-                {(filteredItems.find(i => i.id === hoveredItem)?.uploader || filteredItems.find(i => i.id === hoveredItem)?.language) && (
-                  <div className="pt-2 border-t border-white/10 text-xs text-brand-offwhite/60 space-y-1">
-                    {filteredItems.find(i => i.id === hoveredItem)?.uploader && <p>Uploader: {filteredItems.find(i => i.id === hoveredItem)?.uploader}</p>}
-                    {filteredItems.find(i => i.id === hoveredItem)?.language && <p>Language: {filteredItems.find(i => i.id === hoveredItem)?.language}</p>}
+
+                {(hoveredItemObj.author || hoveredItemObj.uploader || hoveredItemObj.language) && (
+                  <div className="pt-2 mt-2 border-t border-white/10 text-[10px] text-brand-offwhite/60 space-y-1">
+                    {hoveredItemObj.author && hoveredItemObj.author !== 'Unknown Contribution' && (
+                      <p className="flex items-center justify-between gap-4">
+                        <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Author:</span>
+                        <span className="text-right truncate max-w-[150px] font-medium">{hoveredItemObj.author}</span>
+                      </p>
+                    )}
+                    {hoveredItemObj.uploader && (
+                      <p className="flex items-center justify-between gap-4">
+                        <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Uploader:</span>
+                        <span className="text-right truncate max-w-[150px] font-medium">{hoveredItemObj.uploader}</span>
+                      </p>
+                    )}
+                    {hoveredItemObj.language && (
+                      <p className="flex items-center justify-between gap-4">
+                        <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Language:</span>
+                        <span className="text-right font-medium">{hoveredItemObj.language}</span>
+                      </p>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -1043,9 +1142,12 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
                       type="checkbox" 
                       checked={isCollection} 
                       onChange={(e) => {
-                        setIsCollection(e.target.checked);
-                        if (!e.target.checked && uploadFiles.length > 1) {
-                            setUploadFiles(uploadFiles.slice(0, 1));
+                        const checked = e.target.checked;
+                        setIsCollection(checked);
+                        if (!checked && uploadFiles.length > 1) {
+                            setUploadFiles(uploadFiles.slice(0, 1).map(uf => ({ ...uf, tag: uf.tag || 'Vol 1' })));
+                        } else if (checked) {
+                            setUploadFiles(uploadFiles.map((uf, idx) => ({ ...uf, tag: uf.tag || `Vol ${idx + 1}` })));
                         }
                       }} 
                     />
@@ -1060,7 +1162,11 @@ export function Library({ isAdmin, activeLearner, onAddToFocus }: LibraryProps) 
                         multiple={isCollection} 
                         onChange={e => {
                           if (e.target.files) {
-                            setUploadFiles(Array.from(e.target.files).map(f => ({ file: f, tag: '' })));
+                            const filesArray = Array.from(e.target.files);
+                            if (filesArray.length > 1) {
+                              setIsCollection(true);
+                            }
+                            setUploadFiles(filesArray.map((f, i) => ({ file: f, tag: `Vol ${i + 1}` })));
                           }
                         }} 
                         className="hidden" 

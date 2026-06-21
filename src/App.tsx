@@ -21,19 +21,26 @@ export default function App() {
   const { learners, addLearner, approveLearner, removeLearner, updateLearner } = useLearners();
 
   const [user, setUser] = useState<any>(null);
+  const isAdmin = user?.email === ADMIN_EMAIL;
   const [activeLearner, setActiveLearner] = useState<Learner | null>(null);
-  const [pendingEnrollment, setPendingEnrollment] = useState<{title: string, category: string, duration?: string, speaker?: string} | null>(null);
+  const [pendingEnrollment, setPendingEnrollment] = useState<{title: string, category: string, duration?: string, speaker?: string, targetDomain?: string} | null>(null);
+  const [updatesInitialTab, setUpdatesInitialTab] = useState<'modules' | 'circles' | 'general'>('modules');
+  const [adminInitialTab, setAdminInitialTab] = useState<'all' | 'pending' | 'reports' | 'updates' | 'reminders' | 'notices' | 'circles' | 'messages' | undefined>(undefined);
+  const [pendingCircleItem, setPendingCircleItem] = useState<any>(null);
 
   useEffect(() => {
     localStorage.setItem('wisdom_lounge_view_mode', viewMode);
   }, [viewMode]);
 
   useEffect(() => {
-    // If they are on updates view but have no active learner or user, redirect to learner
+    // If they are on updates or library view but have no active learner or admin session, redirect to learner
     if (viewMode === 'updates' && !activeLearner) {
       setViewMode('learner');
     }
-  }, [viewMode, activeLearner]);
+    if (viewMode === 'library' && !activeLearner && !isAdmin) {
+      setViewMode('learner');
+    }
+  }, [viewMode, activeLearner, isAdmin]);
 
   useEffect(() => {
     const unsubscribe = authService.onAuthChange((u) => {
@@ -82,7 +89,6 @@ export default function App() {
     if (viewMode === 'admin') setViewMode('learner');
   };
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
   const pendingRequests = learners.filter(l => !l.isApproved).length;
   const [isOnline, setIsOnline] = useState(true);
 
@@ -142,7 +148,10 @@ export default function App() {
               </button>
               {activeLearner && (
                 <button 
-                  onClick={() => setViewMode('updates')}
+                  onClick={() => {
+                    setUpdatesInitialTab('modules');
+                    setViewMode('updates');
+                  }}
                   className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${viewMode === 'updates' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
                 >
                   Lounge Updates
@@ -155,13 +164,15 @@ export default function App() {
                 <Trophy className="w-4 h-4 hidden sm:block" />
                 <span>Leaderboard</span>
               </button>
-              <button 
-                onClick={() => setViewMode('library')}
-                className={`px-3 sm:px-4 py-2 flex items-center space-x-1 sm:space-x-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${viewMode === 'library' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
-              >
-                <LibraryIcon className="w-4 h-4 hidden sm:block" />
-                <span>Library</span>
-              </button>
+              {(activeLearner || isAdmin) && (
+                <button 
+                  onClick={() => setViewMode('library')}
+                  className={`px-3 sm:px-4 py-2 flex items-center space-x-1 sm:space-x-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${viewMode === 'library' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                >
+                  <LibraryIcon className="w-4 h-4 hidden sm:block" />
+                  <span>Library</span>
+                </button>
+              )}
               {isAdmin && (
                 <button 
                   onClick={() => setViewMode('admin')}
@@ -225,6 +236,8 @@ export default function App() {
                   setViewMode('learner');
                 }
               }}
+              initialTab={adminInitialTab}
+              pendingCircleItem={pendingCircleItem}
             />
           ) : (
             <div className="max-w-md mx-auto mt-20 text-center bg-brand-white p-12 rounded-3xl shadow-xl border border-brand-border">
@@ -251,6 +264,10 @@ export default function App() {
             setActiveLearner={setActiveLearner}
             pendingEnrollment={pendingEnrollment}
             clearPendingEnrollment={() => setPendingEnrollment(null)}
+            onNavigateToCircles={() => {
+              setUpdatesInitialTab('circles');
+              setViewMode('updates');
+            }}
           />
         )}
         {viewMode === 'leaderboard' && (
@@ -262,28 +279,44 @@ export default function App() {
             activeLearner={activeLearner} 
             onAddToFocus={(item) => {
               let focusDomain = 'book';
-              if (item.category === 'articles' || item.category === 'research_papers') {
+              let targetDomain = 'book';
+              if (item.subject === 'Seerah' || item.subject === 'seerah') {
+                targetDomain = 'seerah';
+              } else if (item.subject === 'Quranic Studies' || item.subject === 'quranic studies') {
+                targetDomain = 'tafsir';
+              } else if (item.category === 'articles' || item.category === 'research_papers') {
                 focusDomain = 'research papers/article';
+                targetDomain = 'research papers/article';
               } else if (item.category === 'guided_studies') {
                 focusDomain = 'talaqqi';
+                targetDomain = 'talaqqi';
               } else if (item.category === 'presentations') {
                 focusDomain = 'presentation';
+                targetDomain = 'presentation';
               } else if (item.category === 'seerah_tafsir_dowra') {
                 focusDomain = 'seerah';
+                targetDomain = 'seerah';
               }
               
               setPendingEnrollment({
                 title: item.name,
                 category: focusDomain,
-                speaker: item.author || 'Unknown'
+                speaker: item.author || 'Unknown',
+                targetDomain: targetDomain
               });
               setViewMode('learner');
+            }}
+            onMakeCircle={(item) => {
+              setPendingCircleItem(item);
+              setAdminInitialTab('circles');
+              setViewMode('admin');
             }}
           />
         )}
         {viewMode === 'updates' && (
           <LoungeUpdates 
             activeLearner={activeLearner}
+            initialTab={updatesInitialTab}
             onEnroll={(module) => {
               let targetDate = '';
               if (module.category === 'tafsir') targetDate = '2026-08-14';
@@ -295,6 +328,23 @@ export default function App() {
                 category: module.category || 'book', 
                 duration: targetDate, 
                 speaker: module.speaker || 'Sana Amjad' 
+              });
+              setViewMode('learner');
+            }}
+            onJoinCircle={(circle) => {
+              let domain = 'book';
+              let targetDomain = 'book';
+              if (circle.subject === 'Seerah' || circle.subject === 'seerah') {
+                targetDomain = 'seerah';
+              } else if (circle.subject === 'Quranic Studies' || circle.subject === 'quranic studies') {
+                targetDomain = 'tafsir';
+              }
+              setPendingEnrollment({
+                title: circle.bookName || circle.title,
+                category: domain,
+                duration: circle.duration || circle.schedule || 'Ongoing',
+                speaker: circle.bookAuthor || (targetDomain === 'book' || targetDomain === 'seerah' || targetDomain === 'tafsir' ? '' : circle.moderator) || '',
+                targetDomain: targetDomain
               });
               setViewMode('learner');
             }}

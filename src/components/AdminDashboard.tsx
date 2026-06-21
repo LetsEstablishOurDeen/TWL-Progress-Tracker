@@ -24,6 +24,7 @@ import {
 } from 'recharts';
 
 import { AdminNoticeboard } from './AdminNoticeboard';
+import { AdminCircles } from './AdminCircles';
 
 import { messageService } from '../services/messageService';
 import { AdminMessaging } from './AdminMessaging';
@@ -34,17 +35,21 @@ export function AdminDashboard({
   onApprove,
   onRemove, 
   onUpdate,
-  onViewProfile
+  onViewProfile,
+  initialTab,
+  pendingCircleItem
 }: { 
   learners: Learner[], 
   onAdd: (l: Omit<Learner, 'joinedAt'>) => void,
   onApprove: (id: string) => void,
   onRemove: (id: string) => void,
   onUpdate: (id: string, l: Partial<Learner>) => void,
-  onViewProfile: (id: string) => void
+  onViewProfile: (id: string) => void,
+  initialTab?: 'all' | 'pending' | 'reports' | 'updates' | 'reminders' | 'notices' | 'circles' | 'messages',
+  pendingCircleItem?: any | null
 }) {
   const pendingCount = learners.filter(l => !l.isApproved).length;
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'reports' | 'updates' | 'reminders' | 'notices' | 'messages'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'reports' | 'updates' | 'reminders' | 'notices' | 'circles' | 'messages'>(initialTab || 'all');
   const [searchTerm, setSearchTerm] = useState('');
   const [requests, setRequests] = useState<EditRequest[]>([]);
   const [reminders, setReminders] = useState<FocusReminder[]>([]);
@@ -481,6 +486,12 @@ export function AdminDashboard({
                 Noticeboard
               </button>
               <button 
+                onClick={() => setActiveTab('circles')}
+                className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'circles' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+              >
+                Circles
+              </button>
+              <button 
                 onClick={() => setActiveTab('messages')}
                 className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'messages' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
@@ -488,7 +499,7 @@ export function AdminDashboard({
                 {totalUnreadMessages > 0 && <span className="bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-black animate-pulse">{totalUnreadMessages}</span>}
               </button>
             </div>
-            {activeTab !== 'reports' && activeTab !== 'updates' && activeTab !== 'reminders' && activeTab !== 'notices' && activeTab !== 'messages' && (
+            {activeTab !== 'reports' && activeTab !== 'updates' && activeTab !== 'reminders' && activeTab !== 'notices' && activeTab !== 'circles' && activeTab !== 'messages' && (
               <div className="relative w-full sm:max-w-xs flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-brown-light w-4 h-4" />
                 <input 
@@ -1061,6 +1072,8 @@ export function AdminDashboard({
           </div>
         ) : activeTab === 'notices' ? (
           <AdminNoticeboard />
+        ) : activeTab === 'circles' ? (
+          <AdminCircles pendingCircleItem={pendingCircleItem} />
         ) : activeTab === 'messages' ? (
           <div className="p-6">
             <AdminMessaging learners={learners} unreadCounts={unreadMessages} />

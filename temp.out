@@ -1,0 +1,32 @@
+212:        setRequestType(reminder.focusDomain);
+224:            if (f.id === reminder.focusId || (f.title === reminder.focusTitle && f.domain === reminder.focusDomain)) {
+535:  const [focusDomain, setFocusDomain] = useState<string>(APP_DOMAINS[0]?.type || 'book');
+570:          if (focusDomain === 'book' && focusLocation === 'lounge' && focusTitle) {
+638:      const normDomain = focusDomain.endsWith('s') ? focusDomain.slice(0, -1) : focusDomain;
+3083:                          const isDisabled = isLoungeModule && focusDomain !== domain.type;
+3090:                              className={`relative w-full py-2.5 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 ${!isDisabled ? 'active:scale-95' : ''} ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''} ${focusDomain === domain.type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
+3092:                              {focusDomain === domain.type && (
+3107:                    {focusDomain === 'book' && focusLocation === 'lounge' && (
+3264:                    {['tafsir', 'seerah', 'dowra'].includes(focusDomain) && (
+3274:                              if (focusDomain === 'tafsir') {
+3278:                              } else if (focusDomain === 'seerah') {
+3282:                              } else if (focusDomain === 'dowra') {
+3297:                    {['tafsir', 'seerah', 'research papers/article', 'dowra'].includes(focusDomain) ? (
+3301:                            {focusDomain === 'research papers/article' ? 'Title / Topic' : (!isLoungeModule ? 'Book Name' : 'Batch Name / Module Title')}
+3309:                            placeholder={focusDomain === 'research papers/article' ? "e.g. History of Fiqh" : (!isLoungeModule ? "e.g. The Sealed Nectar" : "e.g. Batch 2024")}
+3313:                        {focusDomain === 'research papers/article' && (
+3358:                        {['seerah', 'tafsir', 'dowra'].includes(focusDomain) && (
+3429:                    ) : focusDomain === 'dowra' ? (
+3441:                    ) : focusDomain === 'talaqqi' ? (
+3496:                    ) : focusDomain === 'task' ? (
+3508:                    ) : (focusDomain === 'book' && focusLocation === 'lounge') ? null : (
+3518:                          placeholder={`e.g. ${APP_DOMAINS.find(d => d.type === focusDomain)?.label === 'Books' ? 'The Clear Quran' : 'Focus Topic'}`}
+3524:                    {['book'].includes(focusDomain) && focusLocation !== 'lounge' && (
+3577:                    {!(focusDomain === 'book' && focusLocation === 'lounge') && (
+3592:                    {!(focusDomain === 'book' && focusLocation === 'lounge') && (
+3630:                          {focusDomain === 'book' && (
+3641:                          {focusDomain === 'presentation' && (
+3651:                          {focusDomain === 'task' && (
+3668:                          {['dowra', 'tafsir', 'seerah', 'research papers/article', 'talaqqi'].includes(focusDomain) && (
+3687:                        className={`${(focusDomain === 'book' && focusLocation === 'lounge' && !selectedCircle) ? 'w-full' : 'flex-1'} px-6 py-3 border border-brand-border rounded-xl text-xs font-bold uppercase tracking-widest text-brand-brown hover:bg-brand-offwhite active:scale-95 transition-all`}
+3691:                      {!(focusDomain === 'book' && focusLocation === 'lounge' && !selectedCircle) && (

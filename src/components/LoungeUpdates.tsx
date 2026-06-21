@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Medal, Flame, Bell, Calendar, Clock, DollarSign, ArrowRight, Zap, Info, Users, CreditCard, Moon, Cloud, MapPin, Megaphone, Loader2 } from 'lucide-react';
+import { BookOpen, Medal, Flame, Bell, Calendar, Clock, DollarSign, ArrowRight, Zap, Info, Users, CreditCard, Moon, Cloud, MapPin, Megaphone, Loader2, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 import { Learner } from '../types';
 import { getLearnerBadges } from '../lib/badges';
 import { getLearnerStatus } from '../lib/status';
 import { noticeService, Notice } from '../services/noticeService';
+import { circleService, LoungeCircle } from '../services/circleService';
 
 export const LOUNGE_MODULES = [
   {
@@ -74,19 +75,30 @@ export const LOUNGE_MODULES = [
 
 export function LoungeUpdates({ 
   onEnroll, 
+  onJoinCircle,
   activeLearner, 
-  onLoginRequest 
+  onLoginRequest,
+  initialTab = 'modules'
 }: { 
   onEnroll?: (module: typeof LOUNGE_MODULES[0]) => void;
+  onJoinCircle?: (circle: LoungeCircle) => void;
   activeLearner?: Learner | null;
   onLoginRequest?: () => void;
+  initialTab?: 'modules' | 'circles' | 'general';
 }) {
-  const [activeTab, setActiveTab] = useState<'modules' | 'general'>('modules');
+  const [activeTab, setActiveTab] = useState<'modules' | 'circles' | 'general'>(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   const [enrollmentModule, setEnrollmentModule] = useState<typeof LOUNGE_MODULES[0] | null>(null);
   
   const [generalUpdates, setGeneralUpdates] = useState<Notice[]>([]);
   const [noticesLoading, setNoticesLoading] = useState(true);
+
+  const [circles, setCircles] = useState<LoungeCircle[]>([]);
+  const [circlesLoading, setCirclesLoading] = useState(true);
 
   useEffect(() => {
     if (activeTab === 'general' && noticesLoading) {
@@ -101,6 +113,18 @@ export function LoungeUpdates({
         }
       };
       fetchNotices();
+    } else if (activeTab === 'circles' && circlesLoading) {
+      const fetchCircles = async () => {
+        try {
+          const data = await circleService.getCircles();
+          setCircles(data);
+        } catch (error) {
+          console.error("Failed to fetch circles", error);
+        } finally {
+          setCirclesLoading(false);
+        }
+      };
+      fetchCircles();
     }
   }, [activeTab]);
 
@@ -334,16 +358,22 @@ export function LoungeUpdates({
         </div>
       </div>
 
-      <div className="flex bg-brand-beige/50 p-1.5 rounded-2xl border border-brand-border h-16 w-full max-w-md mx-auto mb-8 shadow-sm">
+      <div className="flex bg-brand-beige/50 p-1.5 rounded-2xl border border-brand-border h-16 w-full max-w-lg mx-auto mb-8 shadow-sm">
         <button 
           onClick={() => setActiveTab('modules')}
-          className={`flex-1 rounded-xl text-sm font-bold uppercase tracking-widest transition-all focus:outline-none focus:ring-2 focus:ring-brand-brown focus:ring-offset-2 focus:ring-offset-brand-bg relative ${activeTab === 'modules' ? 'bg-brand-brown text-brand-white shadow' : 'text-brand-brown-light hover:text-brand-brown hover:bg-brand-offwhite/50'}`}
+          className={`flex-1 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider md:tracking-widest transition-all focus:outline-none focus:ring-2 focus:ring-brand-brown focus:ring-offset-2 focus:ring-offset-brand-bg relative ${activeTab === 'modules' ? 'bg-brand-brown text-brand-white shadow' : 'text-brand-brown-light hover:text-brand-brown hover:bg-brand-offwhite/50'}`}
         >
           Modules
         </button>
         <button 
+          onClick={() => setActiveTab('circles')}
+          className={`flex-1 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider md:tracking-widest transition-all focus:outline-none focus:ring-2 focus:ring-brand-brown focus:ring-offset-2 focus:ring-offset-brand-bg relative ${activeTab === 'circles' ? 'bg-brand-brown text-brand-white shadow' : 'text-brand-brown-light hover:text-brand-brown hover:bg-brand-offwhite/50'}`}
+        >
+          Circles
+        </button>
+        <button 
           onClick={() => setActiveTab('general')}
-          className={`flex-1 rounded-xl text-sm font-bold uppercase tracking-widest transition-all focus:outline-none focus:ring-2 focus:ring-brand-brown focus:ring-offset-2 focus:ring-offset-brand-bg relative ${activeTab === 'general' ? 'bg-brand-brown text-brand-white shadow' : 'text-brand-brown-light hover:text-brand-brown hover:bg-brand-offwhite/50'}`}
+          className={`flex-1 rounded-xl text-xs sm:text-sm font-bold uppercase tracking-wider md:tracking-widest transition-all focus:outline-none focus:ring-2 focus:ring-brand-brown focus:ring-offset-2 focus:ring-offset-brand-bg relative ${activeTab === 'general' ? 'bg-brand-brown text-brand-white shadow' : 'text-brand-brown-light hover:text-brand-brown hover:bg-brand-offwhite/50'}`}
         >
           General
         </button>
@@ -399,6 +429,485 @@ export function LoungeUpdates({
                 </div>
               </div>
             )}
+          </motion.div>
+        ) : activeTab === 'circles' ? (
+          <motion.div
+            key="circles"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.2 }}
+            className="space-y-12 animate-in duration-200"
+          >
+            <div>
+              {/* Ongoing Circles */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-brand-border pb-4 gap-4">
+                <div>
+                  <h2 className="text-2xl font-serif font-bold text-brand-brown">Ongoing Study & Reflection Circles</h2>
+                  <p className="text-brand-brown-light text-sm mt-1">Informal study assemblies, reading circles, and peer discussion groups held inside the Wisdom Lounge.</p>
+                </div>
+              </div>
+
+              {circlesLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 opacity-50">
+                  <Loader2 className="w-8 h-8 text-brand-brown animate-spin mb-4" />
+                  <p className="text-sm font-bold uppercase tracking-widest text-brand-brown-light">Loading Circles...</p>
+                </div>
+              ) : circles.filter(c => !c.status || c.status === 'ongoing').length === 0 ? (
+                <div className="bg-brand-bg-alt p-8 rounded-3xl border border-brand-border text-center">
+                  <p className="text-brand-brown-light text-sm font-medium">No ongoing circles listed at this moment.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                  {circles.filter(c => !c.status || c.status === 'ongoing').map((circle) => {
+                    const bookNameOrTitle = circle.bookName || circle.title;
+                    const isJoined = activeLearner?.currentFocuses?.some(f => 
+                      f.title.toLowerCase() === bookNameOrTitle.toLowerCase()
+                    );
+
+                    const handleJoinCircleClick = () => {
+                      if (!activeLearner) {
+                        if (onLoginRequest) {
+                          onLoginRequest();
+                        }
+                        return;
+                      }
+                      if (onJoinCircle) {
+                        onJoinCircle(circle);
+                      }
+                    };
+
+                    return (
+                      <div key={circle.id} className={`p-6 rounded-3xl shadow-sm border transition-all group flex flex-col justify-between ${
+                        isJoined 
+                          ? 'bg-brand-offwhite/65 border-brand-border border-dashed opacity-75' 
+                          : 'bg-brand-white border-brand-border hover:shadow-md'
+                      }`}>
+                        <div className="flex flex-col h-full justify-between">
+                          <div>
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm bg-brand-beige text-brand-brown">
+                                <Users className="w-6 h-6" />
+                              </div>
+                              <div className="flex flex-col gap-1 items-end">
+                                <span className="px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border bg-amber-50 text-amber-800 border-amber-200 text-right">
+                                  {circle.category || 'Study Circle'}
+                                </span>
+                                <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-right">
+                                  {circle.format || 'Onsite'}
+                                </span>
+                                {circle.subject && (
+                                  <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-right">
+                                    {circle.subject}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-col gap-1 mb-3">
+                              <h3 className="font-serif text-xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
+                                {circle.title}
+                              </h3>
+                              <p className="text-[11px] font-extrabold uppercase tracking-wider text-brand-brown-light/80">
+                                Moderator / Host: {circle.moderator}
+                              </p>
+                            </div>
+                            
+                            <p className="text-sm font-medium text-brand-brown-light leading-relaxed mb-6 whitespace-pre-wrap">
+                              {circle.description}
+                            </p>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="bg-brand-bg-alt p-4 rounded-2xl border border-brand-border-light space-y-3 text-xs font-bold text-brand-text">
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-[10px] text-brand-brown-light/70 text-left">Schedule</span>
+                                  <span className="text-[11px] font-bold text-brand-text truncate leading-none mt-0.5">{circle.schedule}</span>
+                                </div>
+                              </div>
+
+                              {circle.bookName && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <BookOpen className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Book / Text Covered</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.bookName}{circle.bookAuthor ? ` (by ${circle.bookAuthor})` : ''}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {circle.duration && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <Calendar className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Target Date</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.duration}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {circle.startDate && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <Clock className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Starting Date</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.startDate}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {circle.methodology && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <BookOpen className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">How it's done / Method</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.methodology}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {isJoined ? (
+                              <div className="space-y-2">
+                                <div className="w-full py-2.5 px-4 bg-green-50 border border-green-200 text-green-800 text-xs font-bold uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-sm">
+                                  Active Focus Set ✓
+                                </div>
+                                {circle.joinLink && (
+                                  <a
+                                    href={circle.joinLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full py-2.5 px-4 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-bold uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                                  >
+                                    Go to Community Link <ExternalLink className="w-4 h-4" />
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                onClick={handleJoinCircleClick}
+                                className="w-full py-3 px-4 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-bold uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                              >
+                                Join Circle & Set Active Focus <ArrowRight className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Upcoming Circles */}
+            {circles.filter(c => c.status === 'upcoming').length > 0 && (
+              <div>
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-brand-border pb-4 gap-4">
+                  <div>
+                    <h2 className="text-2xl font-serif font-bold text-brand-brown">Upcoming Circles</h2>
+                    <p className="text-brand-brown-light text-sm mt-1">Get ready for these upcoming study circles.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                  {circles.filter(c => c.status === 'upcoming').map((circle) => {
+                    const bookNameOrTitle = circle.bookName || circle.title;
+                    const isJoined = activeLearner?.currentFocuses?.some(f => 
+                      f.title.toLowerCase() === bookNameOrTitle.toLowerCase()
+                    );
+
+                    const handleJoinCircleClick = () => {
+                      if (!activeLearner) {
+                        if (onLoginRequest) {
+                          onLoginRequest();
+                        }
+                        return;
+                      }
+                      if (onJoinCircle) {
+                        onJoinCircle(circle);
+                      }
+                    };
+
+                    return (
+                      <div key={circle.id} className={`p-6 rounded-3xl shadow-sm border transition-all group flex flex-col justify-between ${
+                        isJoined 
+                          ? 'bg-brand-offwhite/65 border-brand-border border-dashed opacity-75' 
+                          : 'bg-brand-white border-brand-border hover:shadow-md'
+                      }`}>
+                        <div className="flex flex-col h-full justify-between">
+                          <div>
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm bg-brand-beige text-brand-brown">
+                                <Users className="w-6 h-6" />
+                              </div>
+                              <div className="flex flex-col gap-1 items-end">
+                                <span className="px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border bg-amber-50 text-amber-800 border-amber-200 text-right">
+                                  {circle.category || 'Study Circle'}
+                                </span>
+                                <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-right">
+                                  {circle.format || 'Onsite'}
+                                </span>
+                                {circle.subject && (
+                                  <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-right">
+                                    {circle.subject}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-col gap-1 mb-3">
+                              <h3 className="font-serif text-xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
+                                {circle.title}
+                              </h3>
+                              <p className="text-[11px] font-extrabold uppercase tracking-wider text-brand-brown-light/80">
+                                Moderator / Host: {circle.moderator}
+                              </p>
+                            </div>
+                            
+                            <p className="text-sm font-medium text-brand-brown-light leading-relaxed mb-6 whitespace-pre-wrap">
+                              {circle.description}
+                            </p>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="bg-brand-bg-alt p-4 rounded-2xl border border-brand-border-light space-y-3 text-xs font-bold text-brand-text">
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-[10px] text-brand-brown-light/70 text-left">Schedule</span>
+                                  <span className="text-[11px] font-bold text-brand-text truncate leading-none mt-0.5">{circle.schedule}</span>
+                                </div>
+                              </div>
+
+                              {circle.bookName && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <BookOpen className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Book / Text Covered</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.bookName}{circle.bookAuthor ? ` (by ${circle.bookAuthor})` : ''}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {circle.duration && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <Calendar className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Target Date</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.duration}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {circle.startDate && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <Clock className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Starting Date</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.startDate}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {circle.methodology && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <BookOpen className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">How it's done / Method</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.methodology}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {isJoined ? (
+                              <div className="space-y-2">
+                                <div className="w-full py-2.5 px-4 bg-green-50 border border-green-200 text-green-800 text-xs font-bold uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-sm">
+                                  Active Focus Set ✓
+                                </div>
+                                {circle.joinLink && (
+                                  <a
+                                    href={circle.joinLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full py-2.5 px-4 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-bold uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                                  >
+                                    Go to Community Link <ExternalLink className="w-4 h-4" />
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                onClick={handleJoinCircleClick}
+                                className="w-full py-3 px-4 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-bold uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                              >
+                                Join Circle & Set Active Focus <ArrowRight className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Past Circles */}
+            {circles.filter(c => c.status === 'past').length > 0 && (
+              <div className="opacity-75">
+                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-brand-border pb-4 gap-4">
+                  <div>
+                    <h2 className="text-2xl font-serif font-bold text-brand-brown">Past Circles</h2>
+                    <p className="text-brand-brown-light text-sm mt-1">Study circles that have successfully concluded.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {circles.filter(c => c.status === 'past').map((circle) => {
+                    const bookNameOrTitle = circle.bookName || circle.title;
+                    const isJoined = activeLearner?.currentFocuses?.some(f => 
+                      f.title.toLowerCase() === bookNameOrTitle.toLowerCase()
+                    );
+
+                    const handleJoinCircleClick = () => {
+                      if (!activeLearner) {
+                        if (onLoginRequest) {
+                          onLoginRequest();
+                        }
+                        return;
+                      }
+                      if (onJoinCircle) {
+                        onJoinCircle(circle);
+                      }
+                    };
+
+                    return (
+                      <div key={circle.id} className={`p-6 rounded-3xl shadow-sm border transition-all group flex flex-col justify-between ${
+                        isJoined 
+                          ? 'bg-brand-offwhite/65 border-brand-border border-dashed opacity-75' 
+                          : 'bg-brand-white border-brand-border hover:shadow-md'
+                      }`}>
+                        <div className="flex flex-col h-full justify-between">
+                          <div>
+                            <div className="flex items-start justify-between mb-4">
+                              <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm bg-brand-beige text-brand-brown">
+                                <Users className="w-6 h-6" />
+                              </div>
+                              <div className="flex flex-col gap-1 items-end">
+                                <span className="px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-lg border bg-amber-50 text-amber-800 border-amber-200 text-right">
+                                  {circle.category || 'Study Circle'}
+                                </span>
+                                <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded bg-indigo-50 text-indigo-700 border border-indigo-200 text-right">
+                                  {circle.format || 'Onsite'}
+                                </span>
+                                {circle.subject && (
+                                  <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider rounded bg-emerald-50 text-emerald-700 border border-emerald-200 text-right">
+                                    {circle.subject}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="flex flex-col gap-1 mb-3">
+                              <h3 className="font-serif text-xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
+                                {circle.title}
+                              </h3>
+                              <p className="text-[11px] font-extrabold uppercase tracking-wider text-brand-brown-light/80">
+                                Moderator / Host: {circle.moderator}
+                              </p>
+                            </div>
+                            
+                            <p className="text-sm font-medium text-brand-brown-light leading-relaxed mb-6 whitespace-pre-wrap">
+                              {circle.description}
+                            </p>
+                          </div>
+
+                          <div className="space-y-4">
+                            <div className="bg-brand-bg-alt p-4 rounded-2xl border border-brand-border-light space-y-3 text-xs font-bold text-brand-text">
+                              <div className="flex items-center gap-2">
+                                <Clock className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                <div className="flex flex-col min-w-0">
+                                  <span className="text-[9px] font-bold uppercase tracking-wider text-[10px] text-brand-brown-light/70 text-left">Schedule</span>
+                                  <span className="text-[11px] font-bold text-brand-text truncate leading-none mt-0.5">{circle.schedule}</span>
+                                </div>
+                              </div>
+
+                              {circle.bookName && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <BookOpen className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Book / Text Covered</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.bookName}{circle.bookAuthor ? ` (by ${circle.bookAuthor})` : ''}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {circle.duration && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <Calendar className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Target Date</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.duration}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {circle.startDate && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <Clock className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">Starting Date</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.startDate}</span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {circle.methodology && (
+                                <div className="flex items-center gap-2 border-t border-brand-border/30 pt-2">
+                                  <BookOpen className="w-4 h-4 text-brand-brown/60 shrink-0" />
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-brand-brown-light/70 text-left">How it's done / Method</span>
+                                    <span className="text-[11px] font-bold text-brand-text leading-tight mt-0.5">{circle.methodology}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            {isJoined ? (
+                              <div className="space-y-2">
+                                <div className="w-full py-2.5 px-4 bg-green-50 border border-green-200 text-green-800 text-xs font-bold uppercase tracking-widest rounded-xl flex items-center justify-center gap-2 shadow-sm">
+                                  Active Focus Set ✓
+                                </div>
+                                {circle.joinLink && (
+                                  <a
+                                    href={circle.joinLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-full py-2.5 px-4 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-bold uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                                  >
+                                    Go to Community Link <ExternalLink className="w-4 h-4" />
+                                  </a>
+                                )}
+                              </div>
+                            ) : (
+                              <button
+                                onClick={handleJoinCircleClick}
+                                className="w-full py-3 px-4 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-bold uppercase tracking-widest rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"
+                              >
+                                Join Circle & Set Active Focus <ArrowRight className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
           </motion.div>
         ) : (
           <motion.div
