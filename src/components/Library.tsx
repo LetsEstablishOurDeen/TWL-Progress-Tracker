@@ -1,14 +1,14 @@
-import React, { useState, useEffect, FormEvent } from 'react';
+import React, { useState, useEffect, useMemo, FormEvent } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { driveService, extractFileId } from '../services/driveService';
-import { Library as LibraryIcon, FileText, Upload, Link as LinkIcon, Trash2, ExternalLink, Loader2, AlertCircle, X, BookOpen, FileCheck, Award, MessageSquare, Compass, Info, ChevronDown, ChevronUp, Lock, Users } from 'lucide-react';
+import { Library as LibraryIcon, FileText, Upload, Link as LinkIcon, Trash2, ExternalLink, Loader2, AlertCircle, X, BookOpen, FileCheck, Award, MessageSquare, Compass, Info, ChevronDown, ChevronUp, Lock, Users, ArrowRight } from 'lucide-react';
 import { authService } from '../lib/auth';
 import { Learner, EditRequest } from '../types';
 import { requestService } from '../services/requestService';
 import { SUBJECTS } from '../constants';
 import { getLearnerBadges } from '../lib/badges';
 import { getLearnerStatus } from '../lib/status';
-import { toTitleCase } from '../utils';
+import { toTitleCase, formatDateDDMMYYYY } from '../utils';
 
 interface ArchiveItem {
   id: string; 
@@ -459,6 +459,27 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
   const filteredItems = processedItems;
   const hoveredItemObj = hoveredItem ? filteredItems.find(i => i.id === hoveredItem) : null;
 
+  const booksBySubject = useMemo(() => {
+    if (activeCategory !== 'books') return [];
+    const map = new Map<string, ArchiveItem[]>();
+    filteredItems.forEach(item => {
+      const subj = item.subject?.trim() || 'General / Other';
+      if (!map.has(subj)) map.set(subj, []);
+      map.get(subj)!.push(item);
+    });
+
+    const sortedSubjects = Array.from(map.keys()).sort((a, b) => {
+      if (a.startsWith('General')) return 1;
+      if (b.startsWith('General')) return -1;
+      return a.localeCompare(b);
+    });
+
+    return sortedSubjects.map(subj => ({
+      subject: subj,
+      items: map.get(subj)!
+    }));
+  }, [filteredItems, activeCategory]);
+
   if (isConnected === null) {
     return (
       <div className="flex flex-col items-center justify-center p-24 text-center">
@@ -704,148 +725,294 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
             </p>
           </div>
         ) : activeCategory === 'books' ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 p-6">
-            {filteredItems.map(item => (
-              <div 
-                key={item.id} 
-                className="group relative flex flex-col rounded-2xl border-2 border-brand-brown-dark bg-brand-brown-dark text-brand-offwhite shadow-lg transition-all duration-300 overflow-hidden cursor-pointer"
-                onClick={() => {
-                  if (window.matchMedia("(hover: none)").matches || window.innerWidth < 1024) {
-                    toggleExpand(item.id);
-                  }
-                }}
-                onMouseEnter={() => {
-                  if (!window.matchMedia("(hover: none)").matches && window.innerWidth >= 1024) {
-                    setHoveredItem(item.id);
-                  }
-                }}
-                onMouseMove={(e) => {
-                  if (!window.matchMedia("(hover: none)").matches && window.innerWidth >= 1024) {
-                    setMousePosition({ x: e.clientX, y: e.clientY });
-                  }
-                }}
-                onMouseLeave={() => {
-                  if (!window.matchMedia("(hover: none)").matches && window.innerWidth >= 1024) {
-                    setHoveredItem(null);
-                  }
-                }}
-              >
-                <div className="relative aspect-[3/4] p-4 flex flex-col">
-                  {/* Top Subject */}
-                  {item.subject && (
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-brand-offwhite/80 mb-2 truncate">
-                      {item.subject}
-                    </span>
-                  )}
-                  
-                  {/* Icon */}
-                  <div className="flex-1 flex items-center justify-center">
-                      <BookOpen className="w-16 h-16 text-brand-offwhite/20" />
+          <div>
+            {/* Desktop view (md and up): grid layout */}
+            <div className="hidden md:grid md:grid-cols-3 lg:grid-cols-4 gap-6 p-6">
+              {filteredItems.map(item => (
+                <div 
+                  key={item.id} 
+                  className="group relative flex flex-col rounded-2xl border-2 border-brand-brown-dark bg-brand-brown-dark text-brand-offwhite shadow-lg transition-all duration-300 overflow-hidden cursor-pointer"
+                  onClick={() => {
+                    if (window.matchMedia("(hover: none)").matches || window.innerWidth < 1024) {
+                      toggleExpand(item.id);
+                    }
+                  }}
+                  onMouseEnter={() => {
+                    if (!window.matchMedia("(hover: none)").matches && window.innerWidth >= 1024) {
+                      setHoveredItem(item.id);
+                    }
+                  }}
+                  onMouseMove={(e) => {
+                    if (!window.matchMedia("(hover: none)").matches && window.innerWidth >= 1024) {
+                      setMousePosition({ x: e.clientX, y: e.clientY });
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    if (!window.matchMedia("(hover: none)").matches && window.innerWidth >= 1024) {
+                      setHoveredItem(null);
+                    }
+                  }}
+                >
+                  <div className="relative aspect-[3/4] p-4 flex flex-col">
+                    {/* Top Subject */}
+                    {item.subject && (
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-brand-offwhite/80 mb-2 truncate">
+                        {item.subject}
+                      </span>
+                    )}
+                    
+                    {/* Icon */}
+                    <div className="flex-1 flex items-center justify-center">
+                        <BookOpen className="w-16 h-16 text-brand-offwhite/20" />
+                    </div>
                   </div>
-                </div>
-                
-                {/* Title area */}
-                <div className="px-4 pb-4">
-                  <h4 className="font-serif font-bold text-brand-offwhite text-base truncate">{item.name}</h4>
-                  {item.author && item.author !== 'Unknown Contribution' && <p className="text-xs text-brand-offwhite/70 truncate">by {item.author}</p>}
-                </div>
-                
-                {/* Overview area - animated tooltip for mobile */}
-                <AnimatePresence>
-                  {expandedItems[item.id] && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="absolute inset-0 bg-brand-brown-dark/95 backdrop-blur-md z-10 p-4 flex flex-col justify-center border-2 border-brand-brown-dark"
-                    >
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); toggleExpand(item.id); }}
-                        className="absolute top-2 right-2 p-1.5 bg-white/10 rounded-full hover:bg-white/20 transition-all active:scale-95 z-20"
+                  
+                  {/* Title area */}
+                  <div className="px-4 pb-4">
+                    <h4 className="font-serif font-bold text-brand-offwhite text-base truncate">{item.name}</h4>
+                    {item.author && item.author !== 'Unknown Contribution' && <p className="text-xs text-brand-offwhite/70 truncate">by {item.author}</p>}
+                  </div>
+                  
+                  {/* Overview area - animated tooltip for mobile */}
+                  <AnimatePresence>
+                    {expandedItems[item.id] && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="absolute inset-0 bg-brand-brown-dark/95 backdrop-blur-md z-10 p-4 flex flex-col justify-center border-2 border-brand-brown-dark"
                       >
-                        <X className="w-4 h-4 text-white" />
-                      </button>
-                      <div className="overflow-y-auto pr-2 mt-4 text-left">
-                        <div className="mb-2">
-                          <span className="text-[9px] font-mono tracking-widest font-extrabold text-brand-beige uppercase block mb-1">
-                            Full Book Title
-                          </span>
-                          <h5 className="font-serif font-bold text-sm text-brand-offwhite leading-snug">
-                            {item.name}
-                          </h5>
-                        </div>
-
-                        {item.overview && (
-                          <p className="text-xs text-brand-offwhite/85 mt-2 mb-2 italic leading-relaxed">
-                            "{item.overview}"
-                          </p>
-                        )}
-
-                        {(item.author || item.uploader || item.language) && (
-                          <div className="pt-2 mt-2 border-t border-white/10 text-[10px] text-brand-offwhite/60 space-y-1">
-                            {item.author && item.author !== 'Unknown Contribution' && (
-                              <p className="flex items-center justify-between gap-4">
-                                <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Author:</span>
-                                <span className="text-right truncate max-w-[125px] font-medium">{item.author}</span>
-                              </p>
-                            )}
-                            {item.uploader && (
-                              <p className="flex items-center justify-between gap-4">
-                                <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Uploader:</span>
-                                <span className="text-right truncate max-w-[120px] font-medium">{item.uploader}</span>
-                              </p>
-                            )}
-                            {item.language && (
-                              <p className="flex items-center justify-between gap-4">
-                                <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Language:</span>
-                                <span className="text-right font-medium">{item.language}</span>
-                              </p>
-                            )}
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); toggleExpand(item.id); }}
+                          className="absolute top-2 right-2 p-1.5 bg-white/10 rounded-full hover:bg-white/20 transition-all active:scale-95 z-20"
+                        >
+                          <X className="w-4 h-4 text-white" />
+                        </button>
+                        <div className="overflow-y-auto pr-2 mt-4 text-left">
+                          <div className="mb-2">
+                            <span className="text-[9px] font-mono tracking-widest font-extrabold text-brand-beige uppercase block mb-1">
+                              Full Book Title
+                            </span>
+                            <h5 className="font-serif font-bold text-sm text-brand-offwhite leading-snug">
+                              {item.name}
+                            </h5>
                           </div>
+
+                          {item.overview && (
+                            <p className="text-xs text-brand-offwhite/85 mt-2 mb-2 italic leading-relaxed">
+                              "{item.overview}"
+                            </p>
+                          )}
+
+                          {(item.author || item.uploader || item.language) && (
+                            <div className="pt-2 mt-2 border-t border-white/10 text-[10px] text-brand-offwhite/60 space-y-1">
+                              {item.author && item.author !== 'Unknown Contribution' && (
+                                <p className="flex items-center justify-between gap-4">
+                                  <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Author:</span>
+                                  <span className="text-right truncate max-w-[125px] font-medium">{item.author}</span>
+                                </p>
+                              )}
+                              {item.uploader && (
+                                <p className="flex items-center justify-between gap-4">
+                                  <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Uploader:</span>
+                                  <span className="text-right truncate max-w-[120px] font-medium">{item.uploader}</span>
+                                </p>
+                              )}
+                              {item.language && (
+                                <p className="flex items-center justify-between gap-4">
+                                  <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Language:</span>
+                                  <span className="text-right font-medium">{item.language}</span>
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  
+                  {/* Footer */}
+                  <div className="p-3 bg-black/10 border-t border-white/10 flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1 min-w-0 flex shrink-0 items-center gap-1.5">
+                        {renderLinks(item.webViewLink)}
+                        {isAdmin && onMakeCircle && activeCategory === 'books' && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onMakeCircle(item); }}
+                            className="shrink-0 text-[10px] bg-green-900/40 border border-green-500/30 px-2.5 py-1 rounded font-bold uppercase tracking-wider text-green-100 hover:bg-green-800/60 transition-all whitespace-nowrap h-[26px] flex items-center"
+                            title="Make a Reading Circle for this book"
+                          >
+                            <span className="flex items-center gap-1"><Users className="w-3 h-3" />Circle</span>
+                          </button>
                         )}
                       </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-                
-                {/* Footer */}
-                <div className="p-3 bg-black/10 border-t border-white/10 flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex-1 min-w-0 flex shrink-0 items-center gap-1.5">
-                      {renderLinks(item.webViewLink)}
-                      {isAdmin && onMakeCircle && activeCategory === 'books' && (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onMakeCircle(item); }}
-                          className="shrink-0 text-[10px] bg-green-900/40 border border-green-500/30 px-2.5 py-1 rounded font-bold uppercase tracking-wider text-green-100 hover:bg-green-800/60 transition-all whitespace-nowrap h-[26px] flex items-center"
-                          title="Make a Reading Circle for this book"
-                        >
-                          <span className="flex items-center gap-1"><Users className="w-3 h-3" />Circle</span>
+                      {isAdmin && (
+                        <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmItem(item); }} className="text-brand-offwhite/50 hover:text-red-300 shrink-0 ml-1">
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       )}
                     </div>
-                    {isAdmin && (
-                      <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmItem(item); }} className="text-brand-offwhite/50 hover:text-red-300 shrink-0 ml-1">
-                        <Trash2 className="w-4 h-4" />
+                    
+                    {onAddToFocus && !activeLearner?.isPaused && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAddToFocus(item);
+                        }}
+                        className="w-full text-[10px] bg-brand-brown text-brand-offwhite border border-brand-brown py-1.5 rounded font-bold uppercase tracking-wider hover:bg-brand-brown/85 whitespace-nowrap transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                        title="Add this book to your Active Focus"
+                      >
+                        <Compass className="w-3.5 h-3.5" />
+                        <span>Focus</span>
                       </button>
                     )}
                   </div>
-                  
-                  {onAddToFocus && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onAddToFocus(item);
-                      }}
-                      className="w-full text-[10px] bg-brand-brown text-brand-offwhite border border-brand-brown py-1.5 rounded font-bold uppercase tracking-wider hover:bg-brand-brown/85 whitespace-nowrap transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
-                      title="Add this book to your Active Focus"
-                    >
-                      <Compass className="w-3.5 h-3.5" />
-                      <span>Focus</span>
-                    </button>
-                  )}
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            {/* Mobile view (< md): divided into subjects with horizontal scrolling lists */}
+            <div className="block md:hidden p-4 space-y-6">
+              {booksBySubject.map(({ subject, items }) => (
+                <div key={subject} className="space-y-3">
+                  <div className="flex items-center justify-between border-b border-brand-border/60 pb-2">
+                    <h3 className="font-serif font-bold text-base text-brand-text flex items-center gap-2">
+                      <span>{subject}</span>
+                      <span className="text-xs font-mono font-bold text-brand-brown bg-brand-beige/50 px-2.5 py-0.5 rounded-full border border-brand-border/40">
+                        {items.length} {items.length === 1 ? 'book' : 'books'}
+                      </span>
+                    </h3>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-brand-brown-light flex items-center gap-1">
+                      Swipe <ArrowRight className="w-3 h-3" />
+                    </span>
+                  </div>
+
+                  <div className="flex overflow-x-auto gap-4 pb-3 pt-1 -mx-1 px-1 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                    {items.map(item => (
+                      <div key={item.id} className="w-[220px] shrink-0 snap-start">
+                        <div 
+                          className="group relative flex flex-col rounded-2xl border-2 border-brand-brown-dark bg-brand-brown-dark text-brand-offwhite shadow-lg transition-all duration-300 overflow-hidden cursor-pointer h-full"
+                          onClick={() => {
+                            if (window.matchMedia("(hover: none)").matches || window.innerWidth < 1024) {
+                              toggleExpand(item.id);
+                            }
+                          }}
+                        >
+                          <div className="relative aspect-[3/4] p-4 flex flex-col">
+                            {item.subject && (
+                              <span className="text-[10px] font-bold uppercase tracking-widest text-brand-offwhite/80 mb-2 truncate">
+                                {item.subject}
+                              </span>
+                            )}
+                            <div className="flex-1 flex items-center justify-center">
+                              <BookOpen className="w-14 h-14 text-brand-offwhite/20" />
+                            </div>
+                          </div>
+                          
+                          <div className="px-4 pb-3 flex-1">
+                            <h4 className="font-serif font-bold text-brand-offwhite text-sm line-clamp-2">{item.name}</h4>
+                            {item.author && item.author !== 'Unknown Contribution' && <p className="text-xs text-brand-offwhite/70 truncate mt-0.5">by {item.author}</p>}
+                          </div>
+                          
+                          <AnimatePresence>
+                            {expandedItems[item.id] && (
+                              <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="absolute inset-0 bg-brand-brown-dark/95 backdrop-blur-md z-10 p-4 flex flex-col justify-center border-2 border-brand-brown-dark"
+                              >
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); toggleExpand(item.id); }}
+                                  className="absolute top-2 right-2 p-1.5 bg-white/10 rounded-full hover:bg-white/20 transition-all active:scale-95 z-20"
+                                >
+                                  <X className="w-4 h-4 text-white" />
+                                </button>
+                                <div className="overflow-y-auto pr-2 mt-4 text-left">
+                                  <div className="mb-2">
+                                    <span className="text-[9px] font-mono tracking-widest font-extrabold text-brand-beige uppercase block mb-1">
+                                      Full Book Title
+                                    </span>
+                                    <h5 className="font-serif font-bold text-sm text-brand-offwhite leading-snug">
+                                      {item.name}
+                                    </h5>
+                                  </div>
+
+                                  {item.overview && (
+                                    <p className="text-xs text-brand-offwhite/85 mt-2 mb-2 italic leading-relaxed">
+                                      "{item.overview}"
+                                    </p>
+                                  )}
+
+                                  {(item.author || item.uploader || item.language) && (
+                                    <div className="pt-2 mt-2 border-t border-white/10 text-[10px] text-brand-offwhite/60 space-y-1">
+                                      {item.author && item.author !== 'Unknown Contribution' && (
+                                        <p className="flex items-center justify-between gap-4">
+                                          <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Author:</span>
+                                          <span className="text-right truncate max-w-[125px] font-medium">{item.author}</span>
+                                        </p>
+                                      )}
+                                      {item.uploader && (
+                                        <p className="flex items-center justify-between gap-4">
+                                          <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Uploader:</span>
+                                          <span className="text-right truncate max-w-[120px] font-medium">{item.uploader}</span>
+                                        </p>
+                                      )}
+                                      {item.language && (
+                                        <p className="flex items-center justify-between gap-4">
+                                          <span className="font-mono text-[9px] tracking-wider text-brand-beige/80 uppercase">Language:</span>
+                                          <span className="text-right font-medium">{item.language}</span>
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                          
+                          <div className="p-3 bg-black/10 border-t border-white/10 flex flex-col gap-2 mt-auto">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex-1 min-w-0 flex shrink-0 items-center gap-1.5">
+                                {renderLinks(item.webViewLink)}
+                                {isAdmin && onMakeCircle && activeCategory === 'books' && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); onMakeCircle(item); }}
+                                    className="shrink-0 text-[10px] bg-green-900/40 border border-green-500/30 px-2.5 py-1 rounded font-bold uppercase tracking-wider text-green-100 hover:bg-green-800/60 transition-all whitespace-nowrap h-[26px] flex items-center"
+                                    title="Make a Reading Circle for this book"
+                                  >
+                                    <span className="flex items-center gap-1"><Users className="w-3 h-3" />Circle</span>
+                                  </button>
+                                )}
+                              </div>
+                              {isAdmin && (
+                                <button onClick={(e) => { e.stopPropagation(); setDeleteConfirmItem(item); }} className="text-brand-offwhite/50 hover:text-red-300 shrink-0 ml-1">
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                            
+                            {onAddToFocus && !activeLearner?.isPaused && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onAddToFocus(item);
+                                }}
+                                className="w-full text-[10px] bg-brand-brown text-brand-offwhite border border-brand-brown py-1.5 rounded font-bold uppercase tracking-wider hover:bg-brand-brown/85 whitespace-nowrap transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-95"
+                                title="Add this book to your Active Focus"
+                              >
+                                <Compass className="w-3.5 h-3.5" />
+                                <span>Focus</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
             
             {/* Tooltip */}
             {hoveredItemObj && (
@@ -961,7 +1128,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
                         Uploader: <span className="font-semibold">{item.uploader || 'Lounge Admin'}</span>
                       </span>
                       <span>
-                        • Shared on: {new Date(item.createdTime).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                        • Shared on: {formatDateDDMMYYYY(item.createdTime)}
                       </span>
                       {item.size && (
                          <span>
@@ -991,7 +1158,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
                 </div>
                 
                 <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
-                  {onAddToFocus && (
+                  {onAddToFocus && !activeLearner?.isPaused && (
                     <button
                       onClick={() => onAddToFocus(item)}
                       className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold uppercase tracking-wider text-brand-offwhite bg-brand-brown hover:bg-brand-brown/95 border border-brand-brown/80 rounded-xl transition-all h-10 shadow-sm whitespace-nowrap active:scale-95"

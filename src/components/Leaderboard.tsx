@@ -11,15 +11,6 @@ import { getLearnerStatus, STATUS_TIERS, getLeaderboardRowStyle } from '../lib/s
 type Category = 'overall' | EditRequest['type'];
 
 const getDomainItemsForLeaderboard = (learner: Learner, type: string) => {
-  const getCleanTitles = (items: string[]) => items.map(item => {
-    if (item.toLowerCase().includes('research papers/article')) return 'Research Paper / Article';
-    let clean = item;
-    clean = clean.replace(/^\[Article\]\s*/i, '');
-    clean = clean.replace(/^\[Research Paper\]\s*/i, '');
-    const match = clean.match(/^(.+?)(?:\s*\([^)]+\))?$/);
-    return match ? match[1].trim() : clean;
-  });
-
   let items: string[] = [];
   if (type === 'book') items = learner.booksCompleted || [];
   else if (type === 'presentation') items = learner.presentationsGiven || [];
@@ -37,7 +28,31 @@ const getDomainItemsForLeaderboard = (learner: Learner, type: string) => {
     if (type === 'research papers/article' && learner.completedArticlesModule) items = ['Research Paper / Article'];
   }
 
-  return getCleanTitles(items); 
+  return items.map(item => {
+    let clean = item;
+    let link: string | undefined = undefined;
+    
+    // Extract [Link: url] if exists
+    const linkMatch = clean.match(/\[Link:\s*([^\]]+)\]/);
+    if (linkMatch) {
+      link = linkMatch[1].trim();
+      clean = clean.replace(/\[Link:\s*[^\]]+\]/g, '').trim();
+    }
+    
+    // Clean overview/description if exists
+    clean = clean.replace(/\(Overview:[^)]+\)/gi, '').trim();
+
+    if (clean.toLowerCase().includes('research papers/article')) {
+      return { title: 'Research Paper / Article', link };
+    }
+    
+    clean = clean.replace(/^\[Article\]\s*/i, '');
+    clean = clean.replace(/^\[Research Paper\]\s*/i, '');
+    const match = clean.match(/^(.+?)(?:\s*\([^)]+\))?$/);
+    const finalTitle = match ? match[1].trim() : clean;
+
+    return { title: finalTitle, link };
+  });
 };
 
 export function Leaderboard({ learners }: { learners: Learner[] }) {
@@ -46,10 +61,12 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
 
   const sortedLearners = useMemo(() => {
-    return [...learners].sort((a, b) => {
-      if (activeCategory === 'overall') return getOverallPoints(b) - getOverallPoints(a);
-      return getDomainValue(b, activeCategory) - getDomainValue(a, activeCategory);
-    }).slice(0, 10);
+    return [...learners]
+      .filter(l => !l.isPaused)
+      .sort((a, b) => {
+        if (activeCategory === 'overall') return getOverallPoints(b) - getOverallPoints(a);
+        return getDomainValue(b, activeCategory) - getDomainValue(a, activeCategory);
+      }).slice(0, 10);
   }, [learners, activeCategory]);
 
   const getScore = (learner: Learner) => {
@@ -212,10 +229,24 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
                             <ul className="space-y-2">
                               {getDomainItemsForLeaderboard(learner, selectedDomain).map((item, idx) => {
                                 const title = typeof item === 'string' ? item : item['title'] || '';
+                                const link = typeof item === 'string' ? null : item['link'];
                                 return (
-                                  <li key={idx} className="text-sm font-medium text-brand-text bg-brand-white p-3 sm:p-4 rounded-xl border border-brand-border shadow-sm flex items-start gap-2">
-                                    <span className="w-1.5 h-1.5 bg-brand-brown/40 rounded-full shrink-0 mt-1.5"></span>
-                                    <span>{title}</span>
+                                  <li key={idx} className="text-sm font-medium text-brand-text bg-brand-white p-3 sm:p-4 rounded-xl border border-brand-border shadow-sm flex items-center justify-between gap-2">
+                                    <div className="flex items-start gap-2">
+                                      <span className="w-1.5 h-1.5 bg-brand-brown/40 rounded-full shrink-0 mt-1.5"></span>
+                                      <span>{title}</span>
+                                    </div>
+                                    {link && (
+                                      <a 
+                                        href={link} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer" 
+                                        className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 transition-colors rounded-md shrink-0 flex items-center gap-1 shadow-sm"
+                                      >
+                                        <span>Watch/View</span>
+                                        <span className="text-xs">🔗</span>
+                                      </a>
+                                    )}
                                   </li>
                                 );
                               })}

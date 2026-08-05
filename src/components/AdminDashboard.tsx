@@ -7,7 +7,7 @@ import { reminderService } from '../services/reminderService';
 import { learnerService } from '../services/learnerService';
 import { motion, AnimatePresence } from 'motion/react';
 import { APP_DOMAINS } from '../constants';
-import { getOverallPoints, getDomainValue, toTitleCase } from '../utils';
+import { getOverallPoints, getDomainValue, toTitleCase, formatDateDDMMYYYY } from '../utils';
 import { 
   BarChart, 
   Bar, 
@@ -25,9 +25,12 @@ import {
 
 import { AdminNoticeboard } from './AdminNoticeboard';
 import { AdminCircles } from './AdminCircles';
+import { AdminModules } from './AdminModules';
+import { AdminLogs } from './AdminLogs';
 
 import { messageService } from '../services/messageService';
 import { AdminMessaging } from './AdminMessaging';
+import { logService } from '../services/logService';
 
 export function AdminDashboard({ 
   learners, 
@@ -45,12 +48,16 @@ export function AdminDashboard({
   onRemove: (id: string) => void,
   onUpdate: (id: string, l: Partial<Learner>) => void,
   onViewProfile: (id: string) => void,
-  initialTab?: 'all' | 'pending' | 'reports' | 'updates' | 'reminders' | 'notices' | 'circles' | 'messages',
+  initialTab?: 'all' | 'pending' | 'reports' | 'updates' | 'reminders' | 'notices' | 'circles' | 'messages' | 'modules' | 'logs',
   pendingCircleItem?: any | null
 }) {
   const pendingCount = learners.filter(l => !l.isApproved).length;
-  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'reports' | 'updates' | 'reminders' | 'notices' | 'circles' | 'messages'>(initialTab || 'all');
+  const [activeTab, setActiveTab] = useState<'all' | 'pending' | 'reports' | 'updates' | 'reminders' | 'notices' | 'circles' | 'messages' | 'modules' | 'logs'>(initialTab || 'all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [decliningReminderId, setDecliningReminderId] = useState<string | null>(null);
+  const [declineMessage, setDeclineMessage] = useState('');
+  const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
+  const [rejectMessage, setRejectMessage] = useState('');
   const [requests, setRequests] = useState<EditRequest[]>([]);
   const [reminders, setReminders] = useState<FocusReminder[]>([]);
   const [unreadMessages, setUnreadMessages] = useState<Record<string, number>>({});
@@ -133,21 +140,40 @@ export function AdminDashboard({
 
         if (request.isFocus) {
           const currentFocuses = learner.currentFocuses || [];
+          const newFocuses = [
+            ...currentFocuses,
+            {
+              id: request.id,
+              domain: reqType,
+              title: request.details.title || 'Untitled Focus',
+              author: request.details.author,
+              createdAt: new Date().toISOString(),
+              estimatedDuration: request.details.estimatedDuration,
+              location: request.details.location,
+              isLoungeModule: request.details.isLoungeModule,
+              moduleId: request.details.moduleId,
+              isResearchPaper: request.details.isResearchPaper,
+              totalPages: request.details.totalPages,
+              averagePagesPerDay: request.details.averagePagesPerDay,
+              bookSubmissionMethod: request.details.bookSubmissionMethod
+            }
+          ];
+
+          if (reqType === 'book' && request.details.location === 'personal' && request.details.bookSubmissionMethod === 'overview') {
+            newFocuses.push({
+              id: request.id + '-pres',
+              domain: 'presentation',
+              title: `Book Overview: ${request.details.title || 'Untitled Book'}`,
+              author: learner.fullName,
+              createdAt: new Date().toISOString(),
+              estimatedDuration: request.details.presentationTargetDate,
+              location: 'lounge',
+              isLoungeModule: false
+            });
+          }
+
           updates = {
-            currentFocuses: [
-              ...currentFocuses,
-              {
-                id: request.id,
-                domain: reqType,
-                title: request.details.title || 'Untitled Focus',
-                author: request.details.author,
-                createdAt: new Date().toISOString(),
-                estimatedDuration: request.details.estimatedDuration,
-                location: request.details.location,
-                isLoungeModule: request.details.isLoungeModule,
-                isResearchPaper: request.details.isResearchPaper
-              }
-            ]
+            currentFocuses: newFocuses
           };
         } else if (request.isLibrarySubmission) {
           updates = {
@@ -155,17 +181,41 @@ export function AdminDashboard({
           };
         } else if (reqType === 'book') {
           let displayTitle = request.details.author ? `${request.details.title} by ${request.details.author}` : request.details.title;
+          if (request.details.circleTitle) {
+            displayTitle += ` [Lounge Circle: ${request.details.circleTitle}]`;
+          }
           if (request.details.hasFile) displayTitle += ' [Document Uploaded]';
           const overviewText = request.details.documentOverview || request.details.overview || request.details.description;
           if (overviewText) {
             displayTitle += ` (Overview: ${overviewText})`;
           }
+
+          const currentFocuses = learner.currentFocuses || [];
+          const newFocuses = [...currentFocuses];
+          if (request.details.location === 'personal' && request.details.bookSubmissionMethod === 'overview') {
+            newFocuses.push({
+              id: request.id + '-pres',
+              domain: 'presentation',
+              title: `Book Overview: ${request.details.title || 'Untitled Book'}`,
+              author: learner.fullName,
+              createdAt: new Date().toISOString(),
+              estimatedDuration: request.details.presentationTargetDate,
+              location: 'lounge',
+              isLoungeModule: false
+            });
+          }
+
           updates = { 
-            booksCompleted: [...(learner.booksCompleted || []), `${displayTitle} (${request.details.duration || 'Completed'})`] 
+            booksCompleted: [...(learner.booksCompleted || []), `${displayTitle} (${request.details.duration || 'Completed'})`],
+            currentFocuses: newFocuses
           };
         } else if (reqType === 'presentation') {
+          let presTitle = `${request.details.title} (${formatDateDDMMYYYY(request.details.completedAt || new Date())})`;
+          if (request.details.link) {
+            presTitle += ` [Link: ${request.details.link}]`;
+          }
           updates = { 
-            presentationsGiven: [...(learner.presentationsGiven || []), `${request.details.title} (${request.details.completedAt || new Date().toISOString().split('T')[0]})`] 
+            presentationsGiven: [...(learner.presentationsGiven || []), presTitle] 
           };
         } else if (reqType === 'task') {
           updates = { 
@@ -178,6 +228,9 @@ export function AdminDashboard({
           const saveKey = reqType === 'research papers/article' ? 'articles' : reqType;
           
           let displayTitle = request.details.author ? `${request.details.title} by ${request.details.author}` : request.details.title;
+          if (request.details.circleTitle && reqType === 'talaqqi') {
+            displayTitle += ` [Lounge Circle: ${request.details.circleTitle}]`;
+          }
           if (reqType === 'research papers/article') {
             const prefix = request.details.isResearchPaper ? '[Research Paper] ' : '[Article] ';
             displayTitle = prefix + displayTitle;
@@ -244,6 +297,39 @@ export function AdminDashboard({
         return updates;
       });
       await requestService.updateRequestStatus(request.id, 'approved', request.learnerName, (request as any).docPath);
+      await logService.addLog(
+        request.learnerId,
+        request.learnerName,
+        'Approve Request',
+        `Approved request for ${request.type}: "${request.details?.title || 'Untitled'}"`
+      );
+      
+      if (request.details?.circleId && request.type === 'book') {
+        try {
+          const { circleService } = await import('../services/circleService');
+          const allCircles = await circleService.getCircles();
+          const targetCircle = allCircles.find(c => c.id === request.details.circleId);
+          if (targetCircle) {
+            const currentCompletions = targetCircle.completedLearners || [];
+            if (!currentCompletions.some(cl => cl.learnerId === request.learnerId)) {
+              const updatedCompletions = [
+                ...currentCompletions,
+                {
+                  learnerId: request.learnerId,
+                  name: request.learnerName,
+                  date: formatDateDDMMYYYY(request.details.completedAt || new Date())
+                }
+              ];
+              await circleService.updateCircle(targetCircle.id, {
+                completedLearners: updatedCompletions
+              });
+              console.log("Successfully synced book update to past study circle:", targetCircle.id);
+            }
+          }
+        } catch (circleErr) {
+          console.error("Failed to sync book update to past study circle:", circleErr);
+        }
+      }
     } catch (err) {
       console.error("Failed to approve request:", err);
     } finally {
@@ -255,7 +341,7 @@ export function AdminDashboard({
     }
   };
 
-  const handleRejectRequest = async (request: EditRequest) => {
+  const handleRejectRequest = async (request: EditRequest, reason?: string) => {
     try {
       if (request.details?.fileLink) {
         try {
@@ -268,7 +354,13 @@ export function AdminDashboard({
           console.warn("Could not delete associated Google Drive file on request rejection:", err);
         }
       }
-      await requestService.updateRequestStatus(request.id, 'rejected', request.learnerName, (request as any).docPath);
+      await requestService.updateRequestStatus(request.id, 'rejected', request.learnerName, (request as any).docPath, reason);
+      await logService.addLog(
+        request.learnerId,
+        request.learnerName,
+        'Reject Request',
+        `Rejected request for ${request.type}: "${request.details?.title || 'Untitled'}"${reason ? ` (Reason: ${reason})` : ''}`
+      );
     } catch (err) {
       console.error("Failed to reject request:", err);
     }
@@ -299,7 +391,7 @@ export function AdminDashboard({
       const d = new Date(l.joinedAt);
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; // YYYY-MM
       if (!growthMap[key]) {
-        growthMap[key] = { label: d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }), count: 0, timestamp: new Date(d.getFullYear(), d.getMonth(), 1).getTime() };
+        growthMap[key] = { label: formatDateDDMMYYYY(new Date(d.getFullYear(), d.getMonth(), 1)), count: 0, timestamp: new Date(d.getFullYear(), d.getMonth(), 1).getTime() };
       }
       growthMap[key].count += 1;
     });
@@ -492,14 +584,26 @@ export function AdminDashboard({
                 Circles
               </button>
               <button 
+                onClick={() => setActiveTab('modules')}
+                className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'modules' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+              >
+                Modules
+              </button>
+              <button 
                 onClick={() => setActiveTab('messages')}
                 className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'messages' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
               >
                 Messages
                 {totalUnreadMessages > 0 && <span className="bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-black animate-pulse">{totalUnreadMessages}</span>}
               </button>
+              <button 
+                onClick={() => setActiveTab('logs')}
+                className={`px-4 py-1.5 md:py-0 text-xs font-bold uppercase tracking-wider rounded-lg transition-all active:scale-95 flex items-center gap-2 ${activeTab === 'logs' ? 'bg-brand-white text-brand-brown shadow-sm' : 'text-brand-brown-light hover:text-brand-brown'}`}
+              >
+                Logs
+              </button>
             </div>
-            {activeTab !== 'reports' && activeTab !== 'updates' && activeTab !== 'reminders' && activeTab !== 'notices' && activeTab !== 'circles' && activeTab !== 'messages' && (
+            {activeTab !== 'reports' && activeTab !== 'updates' && activeTab !== 'reminders' && activeTab !== 'notices' && activeTab !== 'circles' && activeTab !== 'messages' && activeTab !== 'modules' && activeTab !== 'logs' && (
               <div className="relative w-full sm:max-w-xs flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-brown-light w-4 h-4" />
                 <input 
@@ -699,17 +803,24 @@ export function AdminDashboard({
                                           {req.details.author && <span className="text-brand-brown-light font-normal italic"> by {req.details.author}</span>}
                                         </span>
                                       </p>
+                                      {req.details.bookSubmissionMethod && (
+                                        <div className="mt-2 mb-1">
+                                          <span className="inline-block px-2 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md border text-amber-800 bg-amber-100 border-amber-300">
+                                            {req.details.bookSubmissionMethod === 'overview' ? 'Live Overview Session Requested' : 'Written Form Submitted'}
+                                          </span>
+                                        </div>
+                                      )}
                                       <div className="flex items-center gap-2 mt-1">
-                                        {!req.isFocus && req.type !== 'task' && (
+                                        {!req.isFocus && req.type !== 'task' && req.details.bookSubmissionMethod !== 'overview' && (
                                           <p className="text-xs text-brand-brown-light flex items-center gap-2">
-                                            <span>Completed: {req.details.completedAt}</span>
+                                            <span>Completed: {formatDateDDMMYYYY(req.details.completedAt)}</span>
                                             <span className="w-1 h-1 bg-brand-border rounded-full"></span>
                                             <span>Duration: {req.details.duration}</span>
                                           </p>
                                         )}
                                         {req.isFocus && (
                                           <p className="text-xs text-brand-brown-light flex items-center gap-2">
-                                            <span>Target: {req.details.estimatedDuration ? new Date(req.details.estimatedDuration).toLocaleDateString() : 'unknown'}</span>
+                                            <span>Target: {req.details.estimatedDuration ? formatDateDDMMYYYY(req.details.estimatedDuration) : 'unknown'}</span>
                                             <span className="w-1 h-1 bg-brand-border rounded-full"></span>
                                             <span>Location: {req.details.location === 'personal' ? 'Personal (Outside)' : 'Inside Lounge'}</span>
                                           </p>
@@ -776,22 +887,58 @@ export function AdminDashboard({
                                       )}
                                     </div>
                                  </div>
-                                 <div className="flex items-center gap-3 w-full md:w-auto shrink-0 justify-end">
-                                    <button 
-                                      onClick={() => handleApproveRequest(req)}
-                                      disabled={processingRequests.has(req.id)}
-                                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-green-700 shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                      <Check className="w-4 h-4" />
-                                      {processingRequests.has(req.id) ? 'Approving...' : 'Approve'}
-                                    </button>
-                                    <button 
-                                      onClick={() => handleRejectRequest(req)}
-                                      className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-offwhite text-red-600 border border-red-100 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-red-50 active:scale-95 transition-all"
-                                    >
-                                      <X className="w-4 h-4" />
-                                      Reject
-                                    </button>
+                                 <div className="flex flex-col items-end gap-3 w-full md:w-auto shrink-0 justify-end">
+                                    {rejectingRequestId !== req.id && (
+                                      <div className="flex items-center gap-3 w-full md:w-auto">
+                                        <button 
+                                          onClick={() => handleApproveRequest(req)}
+                                          disabled={processingRequests.has(req.id)}
+                                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-green-700 shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                          <Check className="w-4 h-4" />
+                                          {processingRequests.has(req.id) ? 'Approving...' : 'Approve'}
+                                        </button>
+                                        <button 
+                                          onClick={() => {
+                                            setRejectingRequestId(req.id);
+                                            setRejectMessage('');
+                                          }}
+                                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-brand-offwhite text-red-600 border border-red-100 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-red-50 active:scale-95 transition-all"
+                                        >
+                                          <X className="w-4 h-4" />
+                                          Reject
+                                        </button>
+                                      </div>
+                                    )}
+                                    {rejectingRequestId === req.id && (
+                                      <div className="flex flex-col gap-2 w-full mt-2 md:mt-0 md:min-w-[250px]">
+                                        <textarea
+                                          value={rejectMessage}
+                                          onChange={(e) => setRejectMessage(e.target.value)}
+                                          placeholder="Reason for rejecting..."
+                                          className="w-full px-3 py-2 text-xs border border-brand-border rounded-lg bg-brand-white focus:outline-none focus:ring-1 focus:ring-red-500 min-h-[60px]"
+                                        />
+                                        <div className="flex gap-2">
+                                          <button
+                                            onClick={async () => {
+                                              if (!rejectMessage.trim()) return;
+                                              await handleRejectRequest(req, rejectMessage);
+                                              setRejectingRequestId(null);
+                                            }}
+                                            disabled={!rejectMessage.trim() || processingRequests.has(req.id)}
+                                            className="flex-1 px-3 py-1.5 bg-red-600 text-white hover:bg-red-700 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                                          >
+                                            Submit Rejection
+                                          </button>
+                                          <button
+                                            onClick={() => setRejectingRequestId(null)}
+                                            className="px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors"
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      </div>
+                                    )}
                                  </div>
                                </motion.div>
                              ))}
@@ -844,14 +991,14 @@ export function AdminDashboard({
                           <div className="flex items-center gap-2 mt-1">
                             {!req.isFocus && req.type !== 'task' && (
                               <p className="text-xs text-brand-brown-light flex items-center gap-2">
-                                <span>Completed: {req.details.completedAt}</span>
+                                <span>Completed: {formatDateDDMMYYYY(req.details.completedAt)}</span>
                                 <span className="w-1 h-1 bg-brand-border rounded-full"></span>
                                 <span>Duration: {req.details.duration}</span>
                               </p>
                             )}
                             {req.isFocus && (
                               <p className="text-xs text-brand-brown-light flex items-center gap-2">
-                                <span>Target: {req.details.estimatedDuration ? new Date(req.details.estimatedDuration).toLocaleDateString() : 'unknown'}</span>
+                                <span>Target: {req.details.estimatedDuration ? formatDateDDMMYYYY(req.details.estimatedDuration) : 'unknown'}</span>
                                 <span className="w-1 h-1 bg-brand-border rounded-full"></span>
                                 <span>Location: {req.details.location === 'personal' ? 'Personal (Outside)' : 'Inside Lounge'}</span>
                               </p>
@@ -918,22 +1065,58 @@ export function AdminDashboard({
                           )}
                         </div>
                      </div>
-                     <div className="flex items-center gap-3 w-full md:w-auto">
-                        <button 
-                          onClick={() => handleApproveRequest(req)}
-                          disabled={processingRequests.has(req.id)}
-                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-green-700 shadow-md active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <Check className="w-4 h-4" />
-                          {processingRequests.has(req.id) ? 'Approving...' : 'Approve'}
-                        </button>
-                        <button 
-                          onClick={() => handleRejectRequest(req.id)}
-                          className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-brand-offwhite text-red-600 border border-red-100 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-red-50 active:scale-95 transition-all"
-                        >
-                          <X className="w-4 h-4" />
-                          Reject
-                        </button>
+                     <div className="flex flex-col items-end gap-3 w-full md:w-auto shrink-0 justify-end">
+                        {rejectingRequestId !== req.id && (
+                          <div className="flex items-center gap-3 w-full md:w-auto">
+                            <button 
+                              onClick={() => handleApproveRequest(req)}
+                              disabled={processingRequests.has(req.id)}
+                              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-green-700 shadow-md active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Check className="w-4 h-4" />
+                              {processingRequests.has(req.id) ? 'Approving...' : 'Approve'}
+                            </button>
+                            <button 
+                              onClick={() => {
+                                setRejectingRequestId(req.id);
+                                setRejectMessage('');
+                              }}
+                              className="flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-brand-offwhite text-red-600 border border-red-100 rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-red-50 active:scale-95 transition-all"
+                            >
+                              <X className="w-4 h-4" />
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                        {rejectingRequestId === req.id && (
+                          <div className="flex flex-col gap-2 w-full mt-2 md:mt-0 md:min-w-[250px]">
+                            <textarea
+                              value={rejectMessage}
+                              onChange={(e) => setRejectMessage(e.target.value)}
+                              placeholder="Reason for rejecting..."
+                              className="w-full px-3 py-2 text-xs border border-brand-border rounded-lg bg-brand-white focus:outline-none focus:ring-1 focus:ring-red-500 min-h-[60px]"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={async () => {
+                                  if (!rejectMessage.trim()) return;
+                                  await handleRejectRequest(req, rejectMessage);
+                                  setRejectingRequestId(null);
+                                }}
+                                disabled={!rejectMessage.trim() || processingRequests.has(req.id)}
+                                className="flex-1 px-3 py-1.5 bg-red-600 text-white hover:bg-red-700 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                              >
+                                Submit Rejection
+                              </button>
+                              <button
+                                onClick={() => setRejectingRequestId(null)}
+                                className="px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                      </div>
                    </motion.div>
                  ))}
@@ -978,7 +1161,10 @@ export function AdminDashboard({
                      
                      let statusBg = "bg-gray-150 border-gray-300 text-gray-700";
                      let statusText = "Pending Learner Response";
-                     if (isAnswered) {
+                     if (reminder.type === 'abandon') {
+                       statusBg = "bg-rose-100 text-rose-800 border-rose-300 text-[10px] font-black";
+                       statusText = "🚨 Abandoned / Dropped Focus";
+                     } else if (isAnswered) {
                        if (responseType === 'struggling') {
                          statusBg = "bg-red-50 text-red-700 border-red-200 text-[10px]";
                          statusText = "🚨 Struggling / Needs Support";
@@ -1000,11 +1186,23 @@ export function AdminDashboard({
                      return (
                        <div 
                          key={reminder.id}
-                         className={`p-5 rounded-2xl border ${isAnswered && !isRead ? 'bg-amber-50/20 border-amber-300 shadow-md' : 'bg-brand-white border-brand-border shadow-sm'} flex flex-col md:flex-row md:items-start justify-between gap-6 transition-all`}
+                         className={`p-5 rounded-2xl border ${isAnswered && !isRead ? (reminder.type === 'abandon' ? 'bg-rose-50/10 border-rose-300 shadow-md' : 'bg-amber-50/20 border-amber-300 shadow-md') : 'bg-brand-white border-brand-border shadow-sm'} flex flex-col md:flex-row md:items-start justify-between gap-6 transition-all`}
                        >
                          <div className="flex items-start gap-4 flex-1">
-                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${reminder.type === 'deadline' ? 'bg-orange-100 text-orange-600' : 'bg-brand-beige text-brand-brown'}`}>
-                             {reminder.type === 'deadline' ? <Calendar className="w-5 h-5" /> : <MessageSquare className="w-5 h-5" />}
+                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                             reminder.type === 'deadline' 
+                               ? 'bg-orange-100 text-orange-600' 
+                               : reminder.type === 'abandon'
+                               ? 'bg-rose-100 text-rose-600'
+                               : 'bg-brand-beige text-brand-brown'
+                           }`}>
+                             {reminder.type === 'deadline' ? (
+                               <Calendar className="w-5 h-5" />
+                             ) : reminder.type === 'abandon' ? (
+                               <AlertTriangle className="w-5 h-5" />
+                             ) : (
+                               <MessageSquare className="w-5 h-5" />
+                             )}
                            </div>
                            <div className="space-y-2 flex-1">
                              <div className="flex flex-wrap items-center gap-2">
@@ -1025,19 +1223,27 @@ export function AdminDashboard({
                              </div>
 
                              <div className="text-sm bg-brand-bg-alt/50 border border-brand-border-light p-3 rounded-xl">
-                               <p className="text-xs text-brand-brown-light/80 italic font-mono mb-1">Question sent to learner:</p>
+                               <p className="text-xs text-brand-brown-light/80 italic font-mono mb-1">
+                                 {reminder.type === 'abandon' ? 'System Notification / Action:' : 'Question sent to learner:'}
+                               </p>
                                <p className="text-brand-brown font-serif italic text-sm">"{reminder.questionText}"</p>
                              </div>
 
                              {isAnswered && (
-                               <div className="text-sm bg-brand-beige/25 border border-brand-border/40 p-3 rounded-xl">
-                                 <p className="text-xs text-brand-brown-light/85 font-semibold mb-1">Learner Response:</p>
+                               <div className={`text-sm border p-3 rounded-xl ${
+                                 reminder.type === 'abandon'
+                                   ? 'bg-rose-50/10 border-rose-150'
+                                   : 'bg-brand-beige/25 border-brand-border/40'
+                               }`}>
+                                 <p className="text-xs text-brand-brown-light/85 font-semibold mb-1">
+                                   {reminder.type === 'abandon' ? 'Abandonment Details:' : 'Learner Response:'}
+                                 </p>
                                  <p className="text-brand-brown font-medium italic text-sm">
                                    "{reminder.responseText}"
                                  </p>
                                  {reminder.newTargetDate && (
                                    <p className="text-xs text-blue-700 font-semibold mt-2">
-                                      Rescheduled expected completion: {new Date(reminder.newTargetDate).toLocaleDateString()}
+                                     Rescheduled expected completion: {formatDateDDMMYYYY(reminder.newTargetDate)}
                                    </p>
                                  )}
                                </div>
@@ -1047,20 +1253,80 @@ export function AdminDashboard({
 
                          <div className="flex flex-row md:flex-col items-end justify-between md:justify-start gap-3 shrink-0 w-full md:w-auto border-t md:border-t-0 border-brand-border-light pt-3 md:pt-0">
                            <span className="text-[10px] font-mono text-brand-brown-light">
-                             Sent: {new Date(reminder.createdAt).toLocaleDateString()}
+                             Sent: {formatDateDDMMYYYY(reminder.createdAt)}
                            </span>
-                           {isAnswered && !isRead && (
-                             <button
-                               onClick={() => reminderService.markAsRead(reminder.id, 'admin')}
-                               className="px-4 py-2 bg-brand-white hover:bg-green-50 border border-brand-border hover:border-green-300 text-brand-brown hover:text-green-700 text-xs font-bold uppercase tracking-wider rounded-xl transition-colors shadow-sm flex items-center gap-1.5"
-                             >
-                               <Check className="w-3.5 h-3.5" />
-                               Acknowledge
-                             </button>
+                           {isAnswered && !isRead && decliningReminderId !== reminder.id && (
+                             <div className="flex flex-col gap-2 w-full md:w-auto">
+                               <button
+                                 onClick={() => reminderService.markAsRead(reminder.id, 'admin')}
+                                 className={`px-4 py-2 bg-brand-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors shadow-sm flex items-center gap-1.5 justify-center border ${
+                                   reminder.type === 'abandon'
+                                     ? 'hover:bg-rose-50 border-brand-border hover:border-rose-300 text-brand-brown hover:text-rose-700'
+                                     : 'hover:bg-green-50 border-brand-border hover:border-green-300 text-brand-brown hover:text-green-700'
+                                 }`}
+                               >
+                                 <Check className="w-3.5 h-3.5" />
+                                 {reminder.type === 'abandon' ? 'Acknowledge Abandonment' : 'Acknowledge'}
+                               </button>
+                               {reminder.type !== 'abandon' && (
+                                 <button
+                                   onClick={() => {
+                                     setDecliningReminderId(reminder.id);
+                                     setDeclineMessage('');
+                                   }}
+                                   className="px-4 py-2 bg-brand-white hover:bg-red-50 border border-brand-border hover:border-red-300 text-brand-brown hover:text-red-700 text-xs font-bold uppercase tracking-wider rounded-xl transition-colors shadow-sm flex items-center gap-1.5 justify-center"
+                                 >
+                                   <X className="w-3.5 h-3.5" />
+                                   Decline
+                                 </button>
+                               )}
+                             </div>
                            )}
-                           {isAnswered && isRead && (
-                             <span className="text-[10px] font-bold uppercase tracking-wider text-green-600 flex items-center gap-1 bg-green-50 border border-green-100 px-2 py-0.5 rounded">
-                               <Check className="w-3 h-3" /> Acknowledged
+                           
+                           {decliningReminderId === reminder.id && (
+                             <div className="flex flex-col gap-2 w-full mt-2 md:mt-0 md:min-w-[250px]">
+                               <textarea
+                                 value={declineMessage}
+                                 onChange={(e) => setDeclineMessage(e.target.value)}
+                                 placeholder="Reason for declining..."
+                                 className="w-full px-3 py-2 text-xs border border-brand-border rounded-lg bg-brand-white focus:outline-none focus:ring-1 focus:ring-red-500 min-h-[60px]"
+                               />
+                               <div className="flex gap-2">
+                                 <button
+                                   onClick={async () => {
+                                     if (!declineMessage.trim()) return;
+                                     await reminderService.declineReminder(reminder.id, declineMessage);
+                                     setDecliningReminderId(null);
+                                   }}
+                                   disabled={!declineMessage.trim()}
+                                   className="flex-1 px-3 py-1.5 bg-red-600 text-white hover:bg-red-700 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors shadow-sm disabled:opacity-50"
+                                 >
+                                   Submit
+                                 </button>
+                                 <button
+                                   onClick={() => setDecliningReminderId(null)}
+                                   className="px-3 py-1.5 bg-gray-100 text-gray-700 hover:bg-gray-200 text-[10px] font-bold uppercase tracking-wider rounded-lg transition-colors"
+                                 >
+                                   Cancel
+                                 </button>
+                               </div>
+                             </div>
+                           )}
+
+                           {isAnswered && isRead && reminder.status === 'declined' && (
+                             <div className="flex flex-col items-end gap-1">
+                               <span className="text-[10px] font-bold uppercase tracking-wider text-red-600 flex items-center gap-1 bg-red-50 border border-red-100 px-2 py-0.5 rounded">
+                                 <X className="w-3 h-3" /> Declined
+                               </span>
+                             </div>
+                           )}
+                           {isAnswered && isRead && reminder.status !== 'declined' && (
+                             <span className={`text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 px-2 py-0.5 rounded border ${
+                               reminder.type === 'abandon'
+                                 ? 'text-rose-700 bg-rose-50 border-rose-100'
+                                 : 'text-green-600 bg-green-50 border-green-100'
+                             }`}>
+                               <Check className="w-3 h-3" /> {reminder.type === 'abandon' ? 'Abandonment Acknowledged' : 'Acknowledged'}
                              </span>
                            )}
                          </div>
@@ -1074,10 +1340,14 @@ export function AdminDashboard({
           <AdminNoticeboard />
         ) : activeTab === 'circles' ? (
           <AdminCircles pendingCircleItem={pendingCircleItem} />
+        ) : activeTab === 'modules' ? (
+          <AdminModules />
         ) : activeTab === 'messages' ? (
           <div className="p-6">
             <AdminMessaging learners={learners} unreadCounts={unreadMessages} />
           </div>
+        ) : activeTab === 'logs' ? (
+          <AdminLogs />
         ) : (
           <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -1144,6 +1414,13 @@ export function AdminDashboard({
                         title="Edit Profile"
                       >
                         Edit
+                      </button>
+                      <button 
+                        onClick={() => onUpdate(learner.id, { isPaused: !learner.isPaused })}
+                        className={`${learner.isPaused ? 'text-amber-600 hover:text-amber-700' : 'text-brand-brown/50 hover:text-brand-brown'} font-bold text-xs uppercase transition-colors tracking-wider ml-2`}
+                        title={learner.isPaused ? "Resume Profile" : "Pause Profile"}
+                      >
+                        {learner.isPaused ? "Resume" : "Pause"}
                       </button>
                       {learnerToDelete === learner.id ? (
                         <div className="inline-flex items-center space-x-2 ml-2">

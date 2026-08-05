@@ -37,7 +37,7 @@ export const reminderService = {
       })) as FocusReminder[];
       callback(reminders);
     }, (error) => {
-      handleFirestoreError(error, 'subscribeToAll', REMINDERS_COLLECTION);
+      console.warn(`Firestore subscription notice during subscribeToAll at ${REMINDERS_COLLECTION}:`, error);
     });
   },
 
@@ -57,7 +57,7 @@ export const reminderService = {
       reminders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       callback(reminders);
     }, (error) => {
-      handleFirestoreError(error, 'subscribeToLearner', REMINDERS_COLLECTION);
+      console.warn(`Firestore subscription notice during subscribeToLearner at ${REMINDERS_COLLECTION}:`, error);
     });
   },
 
@@ -125,6 +125,21 @@ export const reminderService = {
       await updateDoc(docRef, updates);
     } catch (error) {
       handleFirestoreError(error, 'markAsRead', `${REMINDERS_COLLECTION}/${reminderId}`);
+    }
+  },
+
+  // Admin decline a reminder alert with message
+  async declineReminder(reminderId: string, adminMessage: string) {
+    try {
+      const docRef = doc(db, REMINDERS_COLLECTION, reminderId);
+      await updateDoc(docRef, {
+        status: 'declined',
+        adminMessage,
+        adminRead: true,
+        learnerRead: false // So the learner sees the decline
+      });
+    } catch (error) {
+      handleFirestoreError(error, 'declineReminder', `${REMINDERS_COLLECTION}/${reminderId}`);
     }
   },
 
@@ -204,6 +219,20 @@ export const reminderService = {
         const diffTime = targetDate.getTime() - now.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
+        let pagesTrackingText = '';
+        if (focus.domain === 'book' && focus.totalPages) {
+          const startDate = new Date(focus.createdAt || now.toISOString());
+          startDate.setHours(0,0,0,0);
+          targetDate.setHours(0,0,0,0);
+          const totalDurationDays = Math.ceil((targetDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (totalDurationDays > 0) {
+            const daysPassed = Math.ceil((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+            const progressRatio = Math.max(0, Math.min(1, daysPassed / totalDurationDays));
+            const expectedPages = Math.round(progressRatio * focus.totalPages);
+            pagesTrackingText = ` By now you should be around ${expectedPages} pages in (out of ${focus.totalPages} total pages).`;
+          }
+        }
+
         // 2a. Check if expected date is close (<= 3 days) -> Trigger deadline reminder
         if (diffDays <= 3) {
           // Check if we've already generated a 'deadline' reminder for this focus which was created within the last 5 days
@@ -219,6 +248,9 @@ export const reminderService = {
               questionText = `Assalamu Alaikum! Your active focus on "${focus.title}" was expected to be completed by ${targetDateStr}. `;
             }
             questionText += `How is your progress going? Let us know if you have completed the goal or need some help/extra time.`;
+            if (pagesTrackingText) {
+              questionText += pagesTrackingText;
+            }
 
             await this.addReminder({
               learnerId,
@@ -251,6 +283,9 @@ export const reminderService = {
             if (!hasRecentReminder) {
               let domainLabel = (focus.domain || 'focus').toUpperCase();
               let promptQuestion = `Dear Learner, you have been focused on "${focus.title}" (${domainLabel}) for over a week now. How has your experience been so far? Are you learning valuable insights? Tell us about your current status!`;
+              if (pagesTrackingText) {
+                promptQuestion += pagesTrackingText;
+              }
 
               await this.addReminder({
                 learnerId,

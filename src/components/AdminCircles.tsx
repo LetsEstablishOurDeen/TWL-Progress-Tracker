@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, Loader2, Users, Clock, Tag, Edit } from 'lucide-react';
 import { LoungeCircle, circleService } from '../services/circleService';
 import { SUBJECTS } from '../constants';
+import { formatDateDDMMYYYY } from '../utils';
 
 export function AdminCircles({ pendingCircleItem }: { pendingCircleItem?: any }) {
   const [circles, setCircles] = useState<LoungeCircle[]>([]);
@@ -252,6 +253,7 @@ export function AdminCircles({ pendingCircleItem }: { pendingCircleItem?: any })
                 className="w-full px-4 py-3 bg-white border border-brand-border rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-brown text-sm"
               >
                 <option value="Book Reading">Book Reading</option>
+                <option value="Guided Studies">Guided Studies</option>
                 <option value="Language Practice">Language Practice</option>
                 <option value="Memorization">Memorization</option>
                 <option value="Peer Discussion">Peer Discussion</option>
@@ -431,12 +433,12 @@ export function AdminCircles({ pendingCircleItem }: { pendingCircleItem?: any })
                  </span>
                  {circle.duration && (
                    <span className="text-[10px] font-bold uppercase tracking-wider bg-orange-50 text-orange-700 px-2 py-0.5 rounded border border-orange-200">
-                     Duration: {circle.duration}
+                     Duration: {formatDateDDMMYYYY(circle.duration)}
                    </span>
                  )}
                  {circle.startDate && (
                    <span className="text-[10px] font-bold uppercase tracking-wider bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded border border-yellow-200">
-                     Starts: {circle.startDate}
+                     Starts: {formatDateDDMMYYYY(circle.startDate)}
                    </span>
                  )}
                  {circle.methodology && (

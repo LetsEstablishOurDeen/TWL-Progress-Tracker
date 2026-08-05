@@ -1,4 +1,7 @@
 import { EditRequest, FocusReminder } from '../types';
+import { LoungeModule } from './moduleService';
+import { LoungeCircle } from './circleService';
+import { Notice } from './noticeService';
 
 export interface AppNotification {
   id: string;
@@ -227,5 +230,39 @@ export const notificationService = {
     initialRemindersLoaded = false;
     knownRequestStatuses.clear();
     knownReminderIds.clear();
+  },
+
+  /**
+   * Monitor for new lounge updates (modules, circles, notices) and notify if they appeared after last checked timestamp.
+   */
+  processLoungeUpdatesSnapshot(modules: LoungeModule[], circles: LoungeCircle[], notices: Notice[]) {
+    const lastChecked = parseInt(localStorage.getItem('lastCheckedLoungeUpdates') || '0', 10);
+    const now = Date.now();
+
+    const newModules = modules.filter(m => m.createdAt > lastChecked);
+    const newCircles = circles.filter(c => c.createdAt > lastChecked);
+    const newNotices = notices.filter(n => n.createdAt > lastChecked);
+
+    const totalCount = newModules.length + newCircles.length + newNotices.length;
+
+    if (totalCount > 0) {
+      let message = "";
+      if (totalCount <= 5) {
+        const items = [
+          ...newModules.map(m => `Module: ${m.title}`),
+          ...newCircles.map(c => `Circle: ${c.title}`),
+          ...newNotices.map(n => `Notice: ${n.title}`)
+        ];
+        message = `New updates in the lounge:\n${items.join('\n')}`;
+      } else {
+        message = `You have ${totalCount} new updates in the lounge. Check them out!`;
+      }
+
+      this.notify("✨ New Updates in Wisdom Lounge", message, 'general');
+      localStorage.setItem('lastCheckedLoungeUpdates', now.toString());
+    } else if (lastChecked === 0) {
+      // First time app opens, set the timestamp
+      localStorage.setItem('lastCheckedLoungeUpdates', now.toString());
+    }
   }
 };

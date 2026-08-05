@@ -24,6 +24,8 @@ export const messageService = {
       // Sort in memory to avoid composite index limits
       messages.sort((a, b) => a.createdAt - b.createdAt);
       callback(messages);
+    }, (error) => {
+      console.warn("Firestore subscribeToLearnerMessages notice:", error?.message || error);
     });
   },
 
@@ -73,6 +75,8 @@ export const messageService = {
         }
       });
       callback(counts);
+    }, (error) => {
+      console.warn("Firestore subscribeToUnreadAdminMessages notice:", error?.message || error);
     });
   },
   
@@ -88,6 +92,8 @@ export const messageService = {
          return data.sender === 'admin' && data.read === false;
       }).length;
       callback(unreadCount);
+    }, (error) => {
+      console.warn("Firestore subscribeToUnreadLearnerMessages notice:", error?.message || error);
     });
   }
 };

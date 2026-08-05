@@ -1,7 +1,7 @@
 export const APP_DOMAINS = [
   // Core Domains
   { id: 'books', label: 'Books', type: 'book', icon: 'BookOpen' },
-  { id: 'presentations', label: 'Presentations', type: 'presentation', icon: 'Mic' },
+  { id: 'presentations', label: 'Sessions/Presentations', type: 'presentation', icon: 'Mic' },
   { id: 'tasks', label: 'Tasks', type: 'task', icon: 'CheckCircle2' },
   { id: 'talaqqi', label: 'Guided Studies', type: 'talaqqi', icon: 'Users' },
   

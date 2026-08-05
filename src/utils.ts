@@ -82,6 +82,35 @@ export const getModulePoints = (learner: Learner, type: string) => {
   return count * getDomainMultiplier(type);
 };
 
+export const isTargetDateExceeded = (dateInput: string | undefined | null): boolean => {
+  if (!dateInput) return false;
+  let rawDate = dateInput.trim();
+  const dLower = rawDate.toLowerCase();
+  
+  if (dLower === '2 months') rawDate = '2026-08-14';
+  else if (dLower === '30 days') rawDate = '2026-07-14';
+
+  const isDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (isDateRegex.test(rawDate)) {
+    const targetDate = new Date(rawDate);
+    if (!isNaN(targetDate.getTime())) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      targetDate.setHours(0, 0, 0, 0);
+      return targetDate < today;
+    }
+  } else {
+    const targetDate = new Date(rawDate);
+    if (!isNaN(targetDate.getTime())) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      targetDate.setHours(0, 0, 0, 0);
+      return targetDate < today;
+    }
+  }
+  return false;
+};
+
 export const getOverallPoints = (learner: Learner) => {
   let pts = 0;
   APP_DOMAINS.forEach(d => {
@@ -91,13 +120,21 @@ export const getOverallPoints = (learner: Learner) => {
   if (learner.currentFocuses) {
     // 2 points per active focus for initiative
     pts += learner.currentFocuses.length * 2;
+
+    // Deduct 5 wisdom points per focus whose target date has been exceeded
+    learner.currentFocuses.forEach(f => {
+      const targetStr = f.estimatedDuration || f.presentationTargetDate;
+      if (isTargetDateExceeded(targetStr)) {
+        pts -= 5;
+      }
+    });
   }
   
   if (learner.librarySubmissionsCount) {
     pts += learner.librarySubmissionsCount * 1; // +1 point upon approval of each submission
   }
   
-  return pts;
+  return Math.max(0, pts);
 };
 
 export const toTitleCase = (str: string | undefined | null): string => {
@@ -106,4 +143,35 @@ export const toTitleCase = (str: string | undefined | null): string => {
     .toLowerCase()
     .trim()
     .replace(/\b\w/g, char => char.toUpperCase());
+};
+
+export const formatDateDDMMYYYY = (dateInput: string | number | Date | undefined | null): string => {
+  if (!dateInput) return 'unknown';
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return String(dateInput);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+export const displayToNativeDate = (dateStr: string): string => {
+  // Parses dd/mm/yyyy to yyyy-mm-dd
+  const parts = dateStr.split('/');
+  if (parts.length !== 3) return dateStr;
+  return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+};
+
+export const nativeToDisplayDate = (dateStr: string): string => {
+  // Parses yyyy-mm-dd to dd/mm/yyyy
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+};
+
+export const formatDateFull = (dateInput: string | number | Date | undefined | null): string => {
+  if (!dateInput) return 'unknown';
+  const date = new Date(dateInput);
+  if (isNaN(date.getTime())) return String(dateInput);
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 };

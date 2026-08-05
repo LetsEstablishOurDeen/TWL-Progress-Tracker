@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Megaphone, Info, Flame, Bell, Calendar, Plus, Trash2, Loader2 } from 'lucide-react';
 import { Notice, noticeService } from '../services/noticeService';
+import { formatDateDDMMYYYY } from '../utils';
 
 export function AdminNoticeboard() {
   const [notices, setNotices] = useState<Notice[]>([]);
@@ -40,7 +41,7 @@ export function AdminNoticeboard() {
     else if (iconType === 'calendar') { iconBg = 'bg-emerald-50'; iconBorder = 'border-emerald-100'; }
     
     const d = new Date();
-    const dateStr = d.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+    const dateStr = formatDateDDMMYYYY(d);
 
     await noticeService.addNotice({
       title,
@@ -127,7 +128,7 @@ export function AdminNoticeboard() {
            <div key={notice.id} className="bg-white p-6 rounded-2xl border border-brand-border flex justify-between items-start gap-4">
              <div>
                <h3 className="font-serif text-lg font-bold">{notice.title}</h3>
-               <span className="text-xs text-brand-brown-light">{notice.date}</span>
+               <span className="text-xs text-brand-brown-light">{formatDateDDMMYYYY(notice.date)}</span>
                <p className="text-sm mt-2">{notice.content}</p>
              </div>
              {deleteConfirmId === notice.id ? (

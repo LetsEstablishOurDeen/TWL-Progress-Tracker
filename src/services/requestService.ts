@@ -59,14 +59,28 @@ export const requestService = {
         status: request.status || 'pending',
         requestedAt: new Date().toISOString()
       });
-      return await addDoc(colRef, sanitizedPayload);
+      const docRef = await addDoc(colRef, sanitizedPayload);
+      try {
+        const { logService } = await import('./logService');
+        const actionType = request.isFocus ? 'Start Focus' : 'Submit Request';
+        const actionText = request.isFocus ? 'Started active focus on' : 'Submitted completion request for';
+        await logService.addLog(
+          request.learnerId,
+          request.learnerName,
+          actionType,
+          `${actionText} ${request.type}: "${request.details?.title || 'Untitled'}"`
+        );
+      } catch (logErr) {
+        console.error("Failed to log request submission:", logErr);
+      }
+      return docRef;
     } catch (e) {
       console.error("Failed to add request to database:", e);
       throw e;
     }
   },
 
-  async updateRequestStatus(id: string, status: 'approved' | 'rejected', learnerName?: string, docPath?: string) {
+  async updateRequestStatus(id: string, status: 'approved' | 'rejected', learnerName?: string, docPath?: string, rejectionReason?: string) {
     let docRef;
     if (docPath) {
       docRef = doc(db, docPath);
@@ -83,7 +97,11 @@ export const requestService = {
         throw new Error(`Request not found for ID: ${id}`);
       }
     }
-    return await updateDoc(docRef, { status });
+    const updateData: any = { status };
+    if (rejectionReason) {
+      updateData.rejectionReason = rejectionReason;
+    }
+    return await updateDoc(docRef, updateData);
   },
 
   async deleteRequest(id: string, learnerName?: string, docPath?: string) {
@@ -139,6 +157,8 @@ export const requestService = {
         return timeB - timeA;
       });
       callback(requests);
+    }, (error) => {
+      console.warn("Firestore subscribeToRequests notice:", error?.message || error);
     });
   }
 };

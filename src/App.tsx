@@ -9,6 +9,10 @@ import { LoungeUpdates } from './components/LoungeUpdates';
 import { Library } from './components/Library';
 
 import { authService } from './lib/auth';
+import { noticeService } from './services/noticeService';
+import { circleService } from './services/circleService';
+import { moduleService } from './services/moduleService';
+import { notificationService } from './services/notificationService';
 
 type ViewMode = 'learner' | 'admin' | 'leaderboard' | 'updates' | 'library';
 
@@ -24,7 +28,7 @@ export default function App() {
   const isAdmin = user?.email === ADMIN_EMAIL;
   const [activeLearner, setActiveLearner] = useState<Learner | null>(null);
   const [pendingEnrollment, setPendingEnrollment] = useState<{title: string, category: string, duration?: string, speaker?: string, targetDomain?: string} | null>(null);
-  const [updatesInitialTab, setUpdatesInitialTab] = useState<'modules' | 'circles' | 'general'>('modules');
+  const [updatesInitialTab, setUpdatesInitialTab] = useState<'modules' | 'circles' | 'schedule' | 'general'>('schedule');
   const [adminInitialTab, setAdminInitialTab] = useState<'all' | 'pending' | 'reports' | 'updates' | 'reminders' | 'notices' | 'circles' | 'messages' | undefined>(undefined);
   const [pendingCircleItem, setPendingCircleItem] = useState<any>(null);
 
@@ -37,7 +41,7 @@ export default function App() {
     if (viewMode === 'updates' && !activeLearner) {
       setViewMode('learner');
     }
-    if (viewMode === 'library' && !activeLearner && !isAdmin) {
+    if ((viewMode === 'library' || viewMode === 'leaderboard') && !activeLearner && !isAdmin) {
       setViewMode('learner');
     }
   }, [viewMode, activeLearner, isAdmin]);
@@ -67,7 +71,22 @@ export default function App() {
 
   useEffect(() => {
     if (activeLearner) {
-        localStorage.setItem('wisdom_lounge_learner_id', activeLearner.id);
+      localStorage.setItem('wisdom_lounge_learner_id', activeLearner.id);
+      
+      // Check for updates
+      const checkUpdates = async () => {
+        try {
+          const [modules, circles, notices] = await Promise.all([
+            moduleService.getModules(),
+            circleService.getCircles(),
+            noticeService.getNotices()
+          ]);
+          notificationService.processLoungeUpdatesSnapshot(modules, circles, notices);
+        } catch (error) {
+          console.error("Failed to check lounge updates", error);
+        }
+      };
+      checkUpdates();
     } else {
         localStorage.removeItem('wisdom_lounge_learner_id');
     }
@@ -149,7 +168,7 @@ export default function App() {
               {activeLearner && (
                 <button 
                   onClick={() => {
-                    setUpdatesInitialTab('modules');
+                    setUpdatesInitialTab('schedule');
                     setViewMode('updates');
                   }}
                   className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${viewMode === 'updates' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
@@ -157,13 +176,15 @@ export default function App() {
                   Lounge Updates
                 </button>
               )}
-              <button 
-                onClick={() => setViewMode('leaderboard')}
-                className={`px-3 sm:px-4 py-2 flex items-center space-x-1 sm:space-x-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${viewMode === 'leaderboard' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
-              >
-                <Trophy className="w-4 h-4 hidden sm:block" />
-                <span>Leaderboard</span>
-              </button>
+              {(activeLearner || isAdmin) && (
+                <button 
+                  onClick={() => setViewMode('leaderboard')}
+                  className={`px-3 sm:px-4 py-2 flex items-center space-x-1 sm:space-x-2 rounded-lg text-xs sm:text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap ${viewMode === 'leaderboard' ? 'bg-brand-brown text-brand-offwhite shadow-md' : 'text-brand-brown-light hover:text-brand-brown'}`}
+                >
+                  <Trophy className="w-4 h-4 hidden sm:block" />
+                  <span>Leaderboard</span>
+                </button>
+              )}
               {(activeLearner || isAdmin) && (
                 <button 
                   onClick={() => setViewMode('library')}
@@ -268,6 +289,7 @@ export default function App() {
               setUpdatesInitialTab('circles');
               setViewMode('updates');
             }}
+            isAdmin={isAdmin}
           />
         )}
         {viewMode === 'leaderboard' && (
@@ -327,18 +349,37 @@ export default function App() {
                 title: module.batch || module.title, 
                 category: module.category || 'book', 
                 duration: targetDate, 
-                speaker: module.speaker || 'Sana Amjad' 
+                speaker: module.speaker || 'Sana Amjad',
+                isLoungeModule: true,
+                moduleId: module.id
               });
               setViewMode('learner');
             }}
             onJoinCircle={(circle) => {
               let domain = 'book';
               let targetDomain = 'book';
-              if (circle.subject === 'Seerah' || circle.subject === 'seerah') {
-                targetDomain = 'seerah';
-              } else if (circle.subject === 'Quranic Studies' || circle.subject === 'quranic studies') {
-                targetDomain = 'tafsir';
+              
+              if (circle.category === 'Guided Studies') {
+                domain = 'talaqqi';
+                targetDomain = 'talaqqi';
+              } else if (circle.category === 'Peer Discussion' || circle.category === 'Reflective Discourse' || circle.category === 'Language Practice' || circle.category === 'Memorization') {
+                domain = 'talaqqi';
+                targetDomain = 'talaqqi';
               }
+
+              if (circle.category !== 'Book Reading') {
+                if (circle.subject === 'Seerah' || circle.subject === 'seerah') {
+                  targetDomain = 'seerah';
+                  domain = 'seerah';
+                } else if (circle.subject === 'Quranic Studies' || circle.subject === 'quranic studies') {
+                  targetDomain = 'tafsir';
+                  domain = 'tafsir';
+                } else if (circle.subject === 'Dowra e Quran' || circle.subject === 'dowra') {
+                  targetDomain = 'dowra';
+                  domain = 'dowra';
+                }
+              }
+
               setPendingEnrollment({
                 title: circle.bookName || circle.title,
                 category: domain,

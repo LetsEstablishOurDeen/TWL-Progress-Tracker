@@ -31,7 +31,7 @@ export const learnerService = {
       })) as Learner[];
       callback(learners);
     }, (error) => {
-      handleFirestoreError(error);
+      console.warn("Firestore subscribeToLearners notice:", error?.message || error);
     });
   },
 

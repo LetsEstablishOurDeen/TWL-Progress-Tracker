@@ -18,6 +18,7 @@ export interface LoungeCircle {
   startDate?: string; // e.g. 2024-08-01 or TBD
   status?: 'ongoing' | 'upcoming' | 'past';
   createdAt: number;
+  completedLearners?: { learnerId: string; name: string; date: string }[];
 }
 
 const COLLECTION_NAME = 'lounge_circles';

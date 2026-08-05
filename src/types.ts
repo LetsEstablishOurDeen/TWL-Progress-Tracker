@@ -4,6 +4,7 @@ export interface Learner {
   phoneNumber?: string; // Phone number registered with TWL
   password?: string;
   isApproved: boolean;
+  isPaused?: boolean;
   booksCompleted: string[];
   presentationsGiven: string[];
   tasksCompleted: number;
@@ -20,8 +21,13 @@ export interface Learner {
     estimatedDuration?: string;
     location?: 'lounge' | 'personal';
     isLoungeModule?: boolean;
+    moduleId?: string;
     sessionAttendance?: Record<string, 'attended' | 'missed'>;
     isResearchPaper?: boolean;
+    bookSubmissionMethod?: 'overview' | 'written';
+    presentationTargetDate?: string;
+    totalPages?: number;
+    averagePagesPerDay?: number;
   }[];
   completedTafsirModule?: boolean;
   completedSeerahModule?: boolean;
@@ -29,6 +35,14 @@ export interface Learner {
   completedArticlesModule?: boolean;
   isProfilePublic?: boolean;
   librarySubmissionsCount?: number;
+  bucketList?: {
+    id: string;
+    domain: string; // 'book', 'presentation', 'task', etc.
+    title: string;
+    author?: string;
+    notes?: string;
+    createdAt: string;
+  }[];
 }
 
 export interface StatusTier {
@@ -56,6 +70,9 @@ export interface EditRequest {
     estimatedDuration?: string;
     location?: 'lounge' | 'personal';
     isLoungeModule?: boolean;
+    moduleId?: string;
+    circleId?: string;
+    circleTitle?: string;
     community?: string;
     link?: string;
     hasFile?: boolean;
@@ -71,8 +88,14 @@ export interface EditRequest {
     objective?: string;
     materialOwnership?: 'own' | 'someone_else';
     language?: string;
+    submissionMethod?: 'overview' | 'written';
+    bookSubmissionMethod?: 'overview' | 'written';
+    presentationTargetDate?: string;
+    totalPages?: number;
+    averagePagesPerDay?: number;
   };
   status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
   requestedAt: string;
 }
 
@@ -85,13 +108,24 @@ export interface FocusReminder {
   focusDomain: string;
   targetDate: string;
   createdAt: string;
-  type: 'deadline' | 'progress';
-  status: 'pending' | 'answered';
+  type: 'deadline' | 'progress' | 'abandon';
+  status: 'pending' | 'answered' | 'declined';
+  adminMessage?: string;
   questionText: string;
   responseText?: string;
-  responseType?: 'on_track' | 'completed' | 'rescheduled' | 'struggling';
+  responseType?: 'on_track' | 'completed' | 'rescheduled' | 'struggling' | 'abandoned';
   newTargetDate?: string;
   respondedAt?: string;
   adminRead: boolean;
   learnerRead: boolean;
 }
+
+export interface LogEntry {
+  id: string;
+  learnerId: string;
+  learnerName: string;
+  action: string;
+  details: string;
+  timestamp: string;
+}
+

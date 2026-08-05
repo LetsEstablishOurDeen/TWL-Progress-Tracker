@@ -2,6 +2,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { Learner } from '../types';
 import { X, Save, Plus, Trash2 } from 'lucide-react';
 import { APP_DOMAINS, ISLAMIC_BOOKS } from '../constants';
+import { formatDateDDMMYYYY } from '../utils';
 
 interface ManageLearnerModalProps {
   learner: Learner | null;
@@ -199,13 +200,13 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
 
             {/* Presentations */}
             <div className="space-y-2">
-              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">Presentations Given</label>
+              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">Sessions / Presentations Given</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={newPresentation}
                   onChange={(e) => setNewPresentation(e.target.value)}
-                  placeholder="Enter presentation topic..."
+                  placeholder="Enter session or presentation topic..."
                   className="flex-1 px-4 py-2 bg-brand-offwhite border border-brand-border rounded-xl text-sm"
                 />
                 <button
@@ -276,7 +277,7 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
                           <span className="text-[10px] text-brand-brown-light uppercase tracking-wider">
                             Domain: {focus.domain} | Target: {focus.estimatedDuration
                               ? (/^\d{4}-\d{2}-\d{2}$/.test(focus.estimatedDuration) && !isNaN(new Date(focus.estimatedDuration).getTime())
-                                ? new Date(focus.estimatedDuration).toLocaleDateString()
+                                ? formatDateDDMMYYYY(focus.estimatedDuration)
                                 : focus.estimatedDuration)
                               : 'N/A'}
                           </span>
