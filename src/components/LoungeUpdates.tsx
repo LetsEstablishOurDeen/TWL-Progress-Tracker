@@ -389,7 +389,7 @@ export function LoungeUpdates({
             </div>
           </div>
           <div className="flex flex-col gap-1 mb-3">
-            <h3 className="font-serif text-xl sm:text-2xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
+            <h3 className="font-sans text-xl sm:text-2xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
               {module.title}
             </h3>
             {('tag' in module) && module.tag && (
@@ -580,7 +580,7 @@ export function LoungeUpdates({
            <Bell className="w-96 h-96 text-brand-beige" />
         </div>
         <div className="relative z-10 w-full flex flex-col items-center text-center max-w-3xl mx-auto gap-4 text-brand-offwhite">
-          <h2 className="font-serif text-3xl md:text-5xl font-bold tracking-tight">Wisdom Lounge Updates</h2>
+          <h2 className="font-sans text-3xl md:text-5xl font-bold tracking-tight">Wisdom Lounge Updates</h2>
           <p className="text-brand-beige/80 text-sm md:text-base font-medium leading-relaxed">
             Stay informed about upcoming modules, events, and important general announcements. Enroll in new sessions or check out the latest news.
           </p>
@@ -636,7 +636,7 @@ export function LoungeUpdates({
                   <div>
                     <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-brand-border pb-4 gap-4">
                       <div>
-                        <h2 className="text-2xl font-serif font-bold text-brand-brown">Ongoing Modules</h2>
+                        <h2 className="text-2xl font-sans font-bold text-brand-brown">Ongoing Modules</h2>
                         <p className="text-brand-brown-light text-sm mt-1">Currently active modules. Enrollment is closed.</p>
                       </div>
                     </div>
@@ -651,7 +651,7 @@ export function LoungeUpdates({
                   <div>
                     <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-brand-border pb-4 gap-4">
                       <div>
-                        <h2 className="text-2xl font-serif font-bold text-brand-brown">Upcoming Modules</h2>
+                        <h2 className="text-2xl font-sans font-bold text-brand-brown">Upcoming Modules</h2>
                         <p className="text-brand-brown-light text-sm mt-1">Enrollment is open for the following upcoming modules.</p>
                       </div>
                     </div>
@@ -666,7 +666,7 @@ export function LoungeUpdates({
                   <div className="opacity-75">
                     <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-brand-border pb-4 gap-4">
                       <div>
-                        <h2 className="text-2xl font-serif font-bold text-brand-brown">Past Modules</h2>
+                        <h2 className="text-2xl font-sans font-bold text-brand-brown">Past Modules</h2>
                         <p className="text-brand-brown-light text-sm mt-1">Modules that have previously concluded.</p>
                       </div>
                     </div>
@@ -697,7 +697,7 @@ export function LoungeUpdates({
               {/* Ongoing Circles */}
               <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-brand-border pb-4 gap-4">
                 <div>
-                  <h2 className="text-2xl font-serif font-bold text-brand-brown">Ongoing Study & Reflection Circles</h2>
+                  <h2 className="text-2xl font-sans font-bold text-brand-brown">Ongoing Study & Reflection Circles</h2>
                   <p className="text-brand-brown-light text-sm mt-1">Informal study assemblies, reading circles, and peer discussion groups held inside the Wisdom Lounge.</p>
                 </div>
               </div>
@@ -759,7 +759,7 @@ export function LoungeUpdates({
                             </div>
                             
                             <div className="flex flex-col gap-1 mb-3">
-                              <h3 className="font-serif text-xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
+                              <h3 className="font-sans text-xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
                                 {circle.title}
                               </h3>
                               <p className="text-[11px] font-extrabold uppercase tracking-wider text-brand-brown-light/80">
@@ -864,7 +864,7 @@ export function LoungeUpdates({
               <div>
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-brand-border pb-4 gap-4">
                   <div>
-                    <h2 className="text-2xl font-serif font-bold text-brand-brown">Upcoming Circles</h2>
+                    <h2 className="text-2xl font-sans font-bold text-brand-brown">Upcoming Circles</h2>
                     <p className="text-brand-brown-light text-sm mt-1">Get ready for these upcoming study circles.</p>
                   </div>
                 </div>
@@ -915,7 +915,7 @@ export function LoungeUpdates({
                             </div>
                             
                             <div className="flex flex-col gap-1 mb-3">
-                              <h3 className="font-serif text-xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
+                              <h3 className="font-sans text-xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
                                 {circle.title}
                               </h3>
                               <p className="text-[11px] font-extrabold uppercase tracking-wider text-brand-brown-light/80">
@@ -1020,7 +1020,7 @@ export function LoungeUpdates({
               <div className="opacity-75">
                 <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-brand-border pb-4 gap-4">
                   <div>
-                    <h2 className="text-2xl font-serif font-bold text-brand-brown">Past Circles</h2>
+                    <h2 className="text-2xl font-sans font-bold text-brand-brown">Past Circles</h2>
                     <p className="text-brand-brown-light text-sm mt-1">Study circles that have successfully concluded.</p>
                   </div>
                 </div>
@@ -1071,7 +1071,7 @@ export function LoungeUpdates({
                             </div>
                             
                             <div className="flex flex-col gap-1 mb-3">
-                              <h3 className="font-serif text-xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
+                              <h3 className="font-sans text-xl font-bold text-brand-text leading-tight group-hover:text-brand-brown transition-colors">
                                 {circle.title}
                               </h3>
                               <p className="text-[11px] font-extrabold uppercase tracking-wider text-brand-brown-light/80">
@@ -1199,7 +1199,7 @@ export function LoungeUpdates({
             <div className="bg-brand-white p-6 md:p-8 rounded-3xl border border-brand-border shadow-sm">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-brand-border-light/60">
                 <div>
-                  <h2 className="text-2xl font-serif font-bold text-brand-brown">Lounge Schedule</h2>
+                  <h2 className="text-2xl font-sans font-bold text-brand-brown">Lounge Schedule</h2>
                   <p className="text-brand-brown-light text-sm mt-1">
                     Synchronized dates of all modules and schedules of all circles in one visual calendar.
                   </p>
@@ -1214,7 +1214,7 @@ export function LoungeUpdates({
                   >
                     <ChevronLeft className="w-5 h-5" />
                   </button>
-                  <span className="font-serif font-bold text-brand-text text-base md:text-lg min-w-[140px] text-center">
+                  <span className="font-sans font-bold text-brand-text text-base md:text-lg min-w-[140px] text-center">
                     {monthNames[scheduleMonth]} {scheduleYear}
                   </span>
                   <button 
@@ -1377,7 +1377,7 @@ export function LoungeUpdates({
                           <div className="space-y-4">
                             <div className="pb-3 border-b border-brand-border-light/60">
                               <span className="text-[10px] font-black uppercase tracking-wider text-brand-brown-light/80 block">Selected Date</span>
-                              <h3 className="font-serif text-lg font-bold text-brand-brown">
+                              <h3 className="font-sans text-lg font-bold text-brand-brown">
                                 {formatDateFull(selectedDateStr)}
                               </h3>
                             </div>
@@ -1413,7 +1413,7 @@ export function LoungeUpdates({
                                         </span>
                                         <span className="text-[10px] font-medium font-mono text-brand-brown-light">{evt.time}</span>
                                       </div>
-                                      <h4 className="font-serif font-bold text-brand-text leading-snug mb-1">
+                                      <h4 className="font-sans font-bold text-brand-text leading-snug mb-1">
                                         {evt.title}
                                       </h4>
                                       <p className="text-[10px] font-extrabold text-brand-brown-light/80 uppercase tracking-wide mb-3">
@@ -1441,7 +1441,7 @@ export function LoungeUpdates({
                   ) : (
                     <div className="flex flex-col items-center justify-center text-center py-16 my-auto">
                       <CalendarDays className="w-12 h-12 text-brand-brown/30 mb-3" />
-                      <h4 className="font-serif font-bold text-brand-text text-base">Select a Day</h4>
+                      <h4 className="font-sans font-bold text-brand-text text-base">Select a Day</h4>
                       <p className="text-brand-brown-light text-xs max-w-[200px] mt-1">
                         Select any highlighted day on the calendar to view scheduled assemblies.
                       </p>
@@ -1455,7 +1455,7 @@ export function LoungeUpdates({
                 {filteredEvents.length === 0 ? (
                   <div className="bg-brand-bg-alt p-12 rounded-3xl border border-dashed border-brand-border text-center py-16">
                     <Calendar className="w-12 h-12 text-brand-brown-light/30 mx-auto mb-4" />
-                    <h3 className="text-lg font-serif font-bold text-brand-brown mb-1">No Scheduled Events</h3>
+                    <h3 className="text-lg font-sans font-bold text-brand-brown mb-1">No Scheduled Events</h3>
                     <p className="text-brand-brown-light text-sm max-w-md mx-auto mb-6">
                       There are no matching events scheduled in {monthNames[scheduleMonth]} {scheduleYear} for your selected filters.
                     </p>
@@ -1487,7 +1487,7 @@ export function LoungeUpdates({
                           <div key={`agenda-day-${d}`} className="flex gap-6 md:gap-8 items-start relative group">
                             {/* Date Badge */}
                             <div className="flex flex-col items-center justify-center w-[90px] shrink-0 bg-brand-beige/20 border border-brand-border rounded-2xl p-2.5 z-10 shadow-sm">
-                              <span className="text-2xl font-serif font-bold text-brand-brown leading-none">{d}</span>
+                              <span className="text-2xl font-sans font-bold text-brand-brown leading-none">{d}</span>
                               <span className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light mt-1">{dayName}</span>
                             </div>
 
@@ -1515,7 +1515,7 @@ export function LoungeUpdates({
                                         <span className="text-[10px] font-medium font-mono text-brand-brown-light">{evt.time}</span>
                                       </div>
                                       
-                                      <h4 className="font-serif font-bold text-xl text-brand-text leading-tight">
+                                      <h4 className="font-sans font-bold text-xl text-brand-text leading-tight">
                                         {evt.title}
                                       </h4>
                                       
@@ -1559,7 +1559,7 @@ export function LoungeUpdates({
           >
              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 border-b border-brand-border pb-4 gap-4">
                 <div>
-                  <h2 className="text-2xl font-serif font-bold text-brand-brown">General Noticeboard</h2>
+                  <h2 className="text-2xl font-sans font-bold text-brand-brown">General Noticeboard</h2>
                   <p className="text-brand-brown-light text-sm mt-1">Important updates and information for all learners.</p>
                 </div>
               </div>
@@ -1590,7 +1590,7 @@ export function LoungeUpdates({
                       </div>
                       <div className="flex-1">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                           <h3 className="font-serif text-xl font-bold text-brand-text">{update.title}</h3>
+                           <h3 className="font-sans text-xl font-bold text-brand-text">{update.title}</h3>
                            <span className="text-xs font-mono font-medium text-brand-brown-light px-3 py-1 bg-brand-bg-alt rounded-md border border-brand-border-light whitespace-nowrap">{formatDateDDMMYYYY(update.date)}</span>
                         </div>
                         <p className="text-brand-brown-light text-sm md:text-base leading-relaxed whitespace-pre-wrap">
@@ -1622,14 +1622,14 @@ export function LoungeUpdates({
                 </div>
                 {!activeLearner ? (
                   <>
-                    <h3 className="font-serif text-2xl font-bold text-brand-text mb-2">Login Required</h3>
+                    <h3 className="font-sans text-2xl font-bold text-brand-text mb-2">Login Required</h3>
                     <p className="text-brand-brown-light text-sm">
                       Please log in or create a Wisdom Profile to enroll in <span className="font-bold text-brand-text">{enrollmentModule.title}</span>.
                     </p>
                   </>
                 ) : (
                   <>
-                    <h3 className="font-serif text-2xl font-bold text-brand-text mb-2">Confirm Enrollment</h3>
+                    <h3 className="font-sans text-2xl font-bold text-brand-text mb-2">Confirm Enrollment</h3>
                     <p className="text-brand-brown-light text-sm mb-4">
                       You are about to set <span className="font-bold text-brand-text">{enrollmentModule.title}</span> as an active focus on your Learner Dashboard.
                     </p>
@@ -1740,7 +1740,7 @@ export function LoungeUpdates({
                   </span>
                   <span className="text-xs font-mono font-semibold">{selectedEvent.time}</span>
                 </div>
-                <h3 className="font-serif text-2xl font-bold leading-tight">{selectedEvent.title}</h3>
+                <h3 className="font-sans text-2xl font-bold leading-tight">{selectedEvent.title}</h3>
               </div>
 
               {/* Modal Body */}
@@ -1750,11 +1750,11 @@ export function LoungeUpdates({
                   <div className="grid grid-cols-2 gap-4 bg-brand-bg-alt p-4 rounded-2xl border border-brand-border-light">
                     <div>
                       <span className="text-[9px] font-black uppercase tracking-widest text-brand-brown-light/70 block">Host / Speaker</span>
-                      <span className="font-serif text-base font-bold text-brand-brown block mt-0.5">{selectedEvent.speaker}</span>
+                      <span className="font-sans text-base font-bold text-brand-brown block mt-0.5">{selectedEvent.speaker}</span>
                     </div>
                     <div>
                       <span className="text-[9px] font-black uppercase tracking-widest text-brand-brown-light/70 block">Location</span>
-                      <span className="font-serif text-base font-bold text-brand-brown block mt-0.5">{selectedEvent.location}</span>
+                      <span className="font-sans text-base font-bold text-brand-brown block mt-0.5">{selectedEvent.location}</span>
                     </div>
                   </div>
 

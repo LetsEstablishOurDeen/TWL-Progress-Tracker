@@ -108,7 +108,7 @@ export function AdminLogs() {
       {/* Header Panel */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="font-serif text-2xl font-bold text-brand-text flex items-center gap-2">
+          <h2 className="font-sans text-2xl font-bold text-brand-text flex items-center gap-2">
             <Activity className="w-6 h-6 text-brand-brown" />
             Learner Activity Logs
           </h2>

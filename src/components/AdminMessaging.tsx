@@ -72,7 +72,7 @@ export function AdminMessaging({ learners, unreadCounts }: { learners: Learner[]
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-brand-brown-light/60">
             <MessageSquare className="w-12 h-12 mb-4" />
-            <p className="text-lg font-serif">Select a learner to start messaging</p>
+            <p className="text-lg font-sans">Select a learner to start messaging</p>
           </div>
         )}
       </div>

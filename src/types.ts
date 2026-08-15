@@ -24,6 +24,9 @@ export interface Learner {
     moduleId?: string;
     sessionAttendance?: Record<string, 'attended' | 'missed'>;
     isResearchPaper?: boolean;
+    isSeries?: boolean;
+    seriesCount?: number;
+    seriesArticleTitles?: string;
     bookSubmissionMethod?: 'overview' | 'written';
     presentationTargetDate?: string;
     totalPages?: number;
@@ -80,6 +83,9 @@ export interface EditRequest {
     documentOverview?: string;
     overview?: string;
     isResearchPaper?: boolean;
+    isSeries?: boolean;
+    seriesCount?: number;
+    seriesArticleTitles?: string;
     isOnline?: boolean;
     source?: string;
     ustadName?: string;

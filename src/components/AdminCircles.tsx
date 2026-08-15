@@ -182,7 +182,7 @@ export function AdminCircles({ pendingCircleItem }: { pendingCircleItem?: any })
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="font-serif text-2xl font-bold text-brand-text">Manage Ongoing Lounge Circles</h2>
+        <h2 className="font-sans text-2xl font-bold text-brand-text">Manage Ongoing Lounge Circles</h2>
         <button
           onClick={toggleAddingForm}
           className="bg-brand-brown text-white px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-brand-brown-dark transition-colors"
@@ -193,7 +193,7 @@ export function AdminCircles({ pendingCircleItem }: { pendingCircleItem?: any })
 
       {isAdding && (
         <form onSubmit={handleCreate} className="bg-brand-offwhite p-6 rounded-2xl border border-brand-border mb-8 space-y-4">
-          <h3 className="font-serif text-lg font-bold text-brand-text mb-2">
+          <h3 className="font-sans text-lg font-bold text-brand-text mb-2">
             {editingCircle ? 'Edit Lounge Circle Details' : 'Add New Lounge Circle'}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -400,7 +400,7 @@ export function AdminCircles({ pendingCircleItem }: { pendingCircleItem?: any })
            <div key={circle.id} className="bg-white p-6 rounded-2xl border border-brand-border flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
              <div className="space-y-2 flex-1">
                <div className="flex items-center gap-2 flex-wrap">
-                 <h3 className="font-serif text-lg font-bold text-brand-text">{circle.title}</h3>
+                 <h3 className="font-sans text-lg font-bold text-brand-text">{circle.title}</h3>
                  <span className="text-[10px] font-bold uppercase tracking-wider bg-brand-beige text-brand-brown px-2 py-0.5 rounded border border-brand-border/40">
                    {circle.category}
                  </span>

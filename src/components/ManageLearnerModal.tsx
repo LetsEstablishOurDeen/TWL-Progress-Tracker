@@ -93,7 +93,7 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-brand-brown/40 backdrop-blur-sm">
       <div className="bg-brand-white w-full max-w-2xl max-h-[90vh] rounded-3xl shadow-2xl border border-brand-border overflow-hidden flex flex-col">
         <div className="px-6 py-4 bg-brand-beige border-b border-brand-border flex items-center justify-between shrink-0">
-          <h3 className="font-serif text-xl font-bold text-brand-text">
+          <h3 className="font-sans text-xl font-bold text-brand-text">
             {learner ? 'Edit Learner Profile' : 'Enroll New Learner'}
           </h3>
           <button onClick={onClose} className="p-2 hover:bg-brand-border rounded-full transition-colors">
@@ -252,7 +252,7 @@ export function ManageLearnerModal({ learner, onClose, onSave }: ManageLearnerMo
                     {currentFocuses.map((focus, i) => (
                       <div key={focus.id || i} className="flex items-center justify-between bg-brand-bg-alt px-3 py-2 rounded-xl border border-brand-border-light text-xs font-medium text-brand-brown">
                         <div className="flex flex-col">
-                          <span className="font-serif font-bold text-brand-text flex items-center gap-2">
+                          <span className="font-sans font-bold text-brand-text flex items-center gap-2">
                             {focus.title}
                             {focus.domain === 'task' && focus.estimatedDuration && (() => {
                               if (/^\d{4}-\d{2}-\d{2}$/.test(focus.estimatedDuration)) {

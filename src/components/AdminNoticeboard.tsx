@@ -73,7 +73,7 @@ export function AdminNoticeboard() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="font-serif text-2xl font-bold text-brand-text">Manage Noticeboard</h2>
+        <h2 className="font-sans text-2xl font-bold text-brand-text">Manage Noticeboard</h2>
         <button
           onClick={() => setIsAdding(!isAdding)}
           className="bg-brand-brown text-white px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wider flex items-center gap-2 hover:bg-brand-brown-dark transition-colors"
@@ -127,7 +127,7 @@ export function AdminNoticeboard() {
         {notices.map(notice => (
            <div key={notice.id} className="bg-white p-6 rounded-2xl border border-brand-border flex justify-between items-start gap-4">
              <div>
-               <h3 className="font-serif text-lg font-bold">{notice.title}</h3>
+               <h3 className="font-sans text-lg font-bold">{notice.title}</h3>
                <span className="text-xs text-brand-brown-light">{formatDateDDMMYYYY(notice.date)}</span>
                <p className="text-sm mt-2">{notice.content}</p>
              </div>

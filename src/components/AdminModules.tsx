@@ -199,7 +199,7 @@ export function AdminModules() {
     <div className="p-6 space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h2 className="font-serif text-2xl font-bold text-brand-text">Lounge Modules</h2>
+          <h2 className="font-sans text-2xl font-bold text-brand-text">Lounge Modules</h2>
           <p className="text-sm text-brand-brown-light">Define ongoing, upcoming, and past modules, configure fees, timelines, and assign individual session dates.</p>
         </div>
         {!isAdding && (
@@ -218,7 +218,7 @@ export function AdminModules() {
       {isAdding && (
         <form onSubmit={handleCreate} className="bg-brand-bg-header border border-brand-border rounded-2xl p-6 space-y-6">
           <div className="flex justify-between items-center pb-4 border-b border-brand-border">
-            <h3 className="font-serif text-lg font-bold text-brand-text">
+            <h3 className="font-sans text-lg font-bold text-brand-text">
               {editingModule ? 'Edit Lounge Module' : 'Create New Lounge Module'}
             </h3>
             <button
@@ -623,13 +623,13 @@ export function AdminModules() {
               </div>
 
               <div>
-                <h4 className="font-serif text-lg font-bold text-brand-text leading-tight">{mod.title}</h4>
+                <h4 className="font-sans text-lg font-bold text-brand-text leading-tight">{mod.title}</h4>
                 <p className="text-xs text-brand-brown font-semibold italic mt-0.5">{mod.batch}</p>
                 {mod.tag && <p className="text-xs text-brand-brown-light/80 mt-1 font-medium">{mod.tag}</p>}
               </div>
 
               {mod.synopsis && (
-                <p className="text-xs text-brand-brown-light leading-relaxed font-serif italic line-clamp-3">
+                <p className="text-xs text-brand-brown-light leading-relaxed font-sans italic line-clamp-3">
                   "{mod.synopsis}"
                 </p>
               )}
@@ -690,7 +690,7 @@ export function AdminModules() {
         {modules.length === 0 && (
           <div className="col-span-full bg-brand-bg-header border border-brand-border rounded-2xl p-12 text-center">
             <Calendar className="w-12 h-12 text-brand-border mx-auto mb-3" />
-            <h4 className="font-serif font-bold text-brand-text mb-1">No Modules Found</h4>
+            <h4 className="font-sans font-bold text-brand-text mb-1">No Modules Found</h4>
             <p className="text-xs text-brand-brown-light max-w-sm mx-auto">Click "Add Module" at the top to create your first Lounge Module and assign dates.</p>
           </div>
         )}

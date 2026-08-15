@@ -20,6 +20,7 @@ import { messageService } from '../services/messageService';
 import { ChatWidget } from './Messaging';
 import { circleService, LoungeCircle } from '../services/circleService';
 import { moduleService, LoungeModule } from '../services/moduleService';
+import { CelebrationCardModal, CelebrationCardData } from './CelebrationCardModal';
 
 import { 
   Radar, 
@@ -138,6 +139,10 @@ export function LearnerDashboard({
   const [allLearnerRequests, setAllLearnerRequests] = useState<EditRequest[]>([]);
   const [allApprovedSubjects, setAllApprovedSubjects] = useState<string[]>([]);
 
+  // Celebration Card Modal state
+  const [isCelebrationCardOpen, setIsCelebrationCardOpen] = useState(false);
+  const [celebrationCardData, setCelebrationCardData] = useState<CelebrationCardData | undefined>(undefined);
+
   // Reminder Response State
   const [activeReplyReminderId, setActiveReplyReminderId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
@@ -170,6 +175,9 @@ export function LearnerDashboard({
   const [bucketItemLink, setBucketItemLink] = useState('');
   const [bucketItemOverview, setBucketItemOverview] = useState('');
   const [bucketItemIsResearchPaper, setBucketItemIsResearchPaper] = useState(false);
+  const [bucketItemIsSeries, setBucketItemIsSeries] = useState(false);
+  const [bucketItemSeriesCount, setBucketItemSeriesCount] = useState(2);
+  const [bucketItemSeriesTitles, setBucketItemSeriesTitles] = useState('');
   const [bucketItemIsOnline, setBucketItemIsOnline] = useState(false);
   const [bucketItemSource, setBucketItemSource] = useState('');
   const [bucketItemUstadName, setBucketItemUstadName] = useState('');
@@ -276,6 +284,7 @@ export function LearnerDashboard({
         return !bucketItemTitle.trim() || !bucketItemAuthor.trim();
       }
     } else if (bucketItemDomain === 'research papers/article') {
+      if (bucketItemIsSeries && (!bucketItemSeriesCount || bucketItemSeriesCount < 2)) return true;
       return !bucketItemTitle.trim();
     } else if (bucketItemDomain === 'talaqqi') {
       return !bucketItemTitle.trim() || !bucketItemUstadName.trim() || (bucketItemIsOnline && !bucketItemSource.trim()) || (bucketItemHasCommunity && !bucketItemCommunity.trim());
@@ -340,7 +349,7 @@ export function LearnerDashboard({
       setUnreadMessages(count);
     });
     return () => unsub();
-  }, [activeLearner]);
+  }, [activeLearner?.id]);
 
   // Sync permissions and subscribe to new notifications (for in-app toasts & audio)
   useEffect(() => {
@@ -462,6 +471,9 @@ export function LearnerDashboard({
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [requestOverview, setRequestOverview] = useState('');
   const [requestIsResearchPaper, setRequestIsResearchPaper] = useState(false);
+  const [requestIsSeries, setRequestIsSeries] = useState(false);
+  const [requestSeriesCount, setRequestSeriesCount] = useState(2);
+  const [requestSeriesTitles, setRequestSeriesTitles] = useState('');
   const [requestIsOnline, setRequestIsOnline] = useState(false);
   const [requestSource, setRequestSource] = useState('');
   const [requestUstadName, setRequestUstadName] = useState('');
@@ -510,7 +522,7 @@ export function LearnerDashboard({
       });
       return () => unsubscribe();
     }
-  }, [activeLearner]);
+  }, [activeLearner?.id]);
 
   useEffect(() => {
     if (activeLearner) {
@@ -526,7 +538,7 @@ export function LearnerDashboard({
       });
       return () => unsubscribe();
     }
-  }, [activeLearner, activeLearner?.currentFocuses]);
+  }, [activeLearner?.id]);
 
   const handleSubmitRequest = async (e: FormEvent) => {
     e.preventDefault();
@@ -645,6 +657,9 @@ export function LearnerDashboard({
           documentOverview: requestDocumentOverview || undefined,
           overview: requestOverview || undefined,
           isResearchPaper: normType === 'research papers/article' ? requestIsResearchPaper : undefined,
+          isSeries: normType === 'research papers/article' ? requestIsSeries : undefined,
+          seriesCount: (normType === 'research papers/article' && requestIsSeries) ? Math.max(2, requestSeriesCount) : undefined,
+          seriesArticleTitles: (normType === 'research papers/article' && requestIsSeries) ? requestSeriesTitles.trim() : undefined,
           submissionMethod: !['task'].includes(normType) ? submissionMethod || undefined : undefined,
           bookSubmissionMethod: normType === 'book' && requestLocation === 'personal' ? (submissionMethod || undefined) : undefined,
           presentationTargetDate: normType === 'book' && requestLocation === 'personal' && submissionMethod === 'overview' ? (requestPresentationTargetDate || undefined) : undefined,
@@ -681,6 +696,9 @@ export function LearnerDashboard({
       setRequestSubject('');
       setIsCustomSubject(false);
       setRequestIsResearchPaper(false);
+      setRequestIsSeries(false);
+      setRequestSeriesCount(2);
+      setRequestSeriesTitles('');
     } catch (err) {
       console.error("Submit request failed:", err);
       setError("Failed to submit request: " + (err instanceof Error ? err.message : String(err)));
@@ -794,6 +812,9 @@ export function LearnerDashboard({
   const [focusLink, setFocusLink] = useState('');
   const [focusOverview, setFocusOverview] = useState('');
   const [focusIsResearchPaper, setFocusIsResearchPaper] = useState(false);
+  const [focusIsSeries, setFocusIsSeries] = useState(false);
+  const [focusSeriesCount, setFocusSeriesCount] = useState(2);
+  const [focusSeriesTitles, setFocusSeriesTitles] = useState('');
   const [focusIsOnline, setFocusIsOnline] = useState(false);
   const [focusSource, setFocusSource] = useState('');
   const [focusUstadName, setFocusUstadName] = useState('');
@@ -820,6 +841,9 @@ export function LearnerDashboard({
       setBucketItemLink('');
       setBucketItemOverview('');
       setBucketItemIsResearchPaper(false);
+      setBucketItemIsSeries(false);
+      setBucketItemSeriesCount(2);
+      setBucketItemSeriesTitles('');
       setBucketItemIsOnline(false);
       setBucketItemSource('');
       setBucketItemUstadName('');
@@ -957,6 +981,9 @@ export function LearnerDashboard({
           link: normDomain === 'research papers/article' ? focusLink : undefined,
           overview: normDomain === 'research papers/article' ? focusOverview : undefined,
           isResearchPaper: normDomain === 'research papers/article' ? focusIsResearchPaper : undefined,
+          isSeries: normDomain === 'research papers/article' ? focusIsSeries : undefined,
+          seriesCount: (normDomain === 'research papers/article' && focusIsSeries) ? Math.max(2, focusSeriesCount) : undefined,
+          seriesArticleTitles: (normDomain === 'research papers/article' && focusIsSeries) ? focusSeriesTitles.trim() : undefined,
           isOnline: normDomain === 'talaqqi' ? focusIsOnline : undefined,
           source: normDomain === 'talaqqi' ? focusSource : undefined,
           ustadName: focusUstadName ? toTitleCase(focusUstadName) : undefined,
@@ -984,6 +1011,9 @@ export function LearnerDashboard({
       setFocusLink('');
       setFocusOverview('');
       setFocusIsResearchPaper(false);
+      setFocusIsSeries(false);
+      setFocusSeriesCount(2);
+      setFocusSeriesTitles('');
       setSuccess("Focus approval request submitted!");
       if (activeBucketItemToRemoveId && activeLearner.bucketList) {
         const remainingBucket = activeLearner.bucketList.filter(item => item.id !== activeBucketItemToRemoveId);
@@ -1043,6 +1073,9 @@ export function LearnerDashboard({
         link: bucketItemDomain === 'research papers/article' ? bucketItemLink.trim() || undefined : undefined,
         overview: bucketItemDomain === 'research papers/article' ? bucketItemOverview.trim() || undefined : undefined,
         isResearchPaper: bucketItemDomain === 'research papers/article' ? bucketItemIsResearchPaper : undefined,
+        isSeries: bucketItemDomain === 'research papers/article' ? bucketItemIsSeries : undefined,
+        seriesCount: (bucketItemDomain === 'research papers/article' && bucketItemIsSeries) ? Math.max(2, bucketItemSeriesCount) : undefined,
+        seriesArticleTitles: (bucketItemDomain === 'research papers/article' && bucketItemIsSeries) ? bucketItemSeriesTitles.trim() : undefined,
         isOnline: bucketItemDomain === 'talaqqi' ? bucketItemIsOnline : undefined,
         source: (bucketItemDomain === 'talaqqi' && bucketItemIsOnline) ? bucketItemSource.trim() || undefined : undefined,
         ustadName: bucketItemDomain === 'talaqqi' ? bucketItemUstadName.trim() || undefined : undefined,
@@ -1065,6 +1098,9 @@ export function LearnerDashboard({
       setBucketItemLink('');
       setBucketItemOverview('');
       setBucketItemIsResearchPaper(false);
+      setBucketItemIsSeries(false);
+      setBucketItemSeriesCount(2);
+      setBucketItemSeriesTitles('');
       setBucketItemIsOnline(false);
       setBucketItemSource('');
       setBucketItemUstadName('');
@@ -1112,6 +1148,9 @@ export function LearnerDashboard({
     setFocusLink(item.link || '');
     setFocusOverview(item.overview || '');
     setFocusIsResearchPaper(item.isResearchPaper || false);
+    setFocusIsSeries((item as any).isSeries || false);
+    setFocusSeriesCount((item as any).seriesCount || 2);
+    setFocusSeriesTitles((item as any).seriesArticleTitles || '');
     setFocusIsOnline(item.isOnline || false);
     setFocusSource(item.source || '');
     setFocusUstadName(item.ustadName || item.author || '');
@@ -1183,7 +1222,7 @@ export function LearnerDashboard({
     
     // Always update to current so we only show once
     localStorage.setItem(storageKey, currentBadgeCount.toString());
-  }, [activeBadges.length, activeLearner]);
+  }, [activeBadges.length, activeLearner?.id]);
 
   useEffect(() => {
     if (upgradeData?.isAnimating) {
@@ -1522,7 +1561,7 @@ export function LearnerDashboard({
                 </span>
                 <span className="text-[10px] font-black uppercase tracking-widest text-brand-beige">Live Notification</span>
               </div>
-              <h4 className="font-serif text-sm font-bold text-brand-offwhite">{activeToast.title}</h4>
+              <h4 className="font-sans text-sm font-bold text-brand-offwhite">{activeToast.title}</h4>
               <p className="text-xs text-brand-offwhite/85 mt-1 leading-relaxed">{activeToast.body}</p>
             </div>
             <div className="pl-3 border-l border-brand-brown-light/30 self-center flex flex-col gap-1.5 shrink-0">
@@ -1578,7 +1617,7 @@ export function LearnerDashboard({
                        className="flex flex-col items-center absolute inset-0 justify-center"
                      >
                        <span className="text-xs font-bold uppercase tracking-widest text-brand-brown-light mb-4">Previous Status</span>
-                       <h3 className="font-serif text-3xl font-black text-brand-brown opacity-60 leading-tight px-4">{upgradeData.previous}</h3>
+                       <h3 className="font-sans text-3xl font-black text-brand-brown opacity-60 leading-tight px-4">{upgradeData.previous}</h3>
                      </motion.div>
                   )}
                   {upgradeAnimationStep >= 1 && (
@@ -1597,7 +1636,7 @@ export function LearnerDashboard({
                          <Trophy className="w-20 h-20 text-yellow-500 mb-6 drop-shadow-xl" />
                        </motion.div>
                        <span className="text-[11px] font-black uppercase tracking-[0.3em] text-green-600 mb-4 animate-pulse">Status Upgraded</span>
-                       <h3 className="font-serif text-[2.5rem] font-black leading-none bg-clip-text text-transparent bg-gradient-to-r from-brand-brown-dark via-brand-brown to-amber-600 drop-shadow-sm px-2">{upgradeData.current}</h3>
+                       <h3 className="font-sans text-[2.5rem] font-black leading-none bg-clip-text text-transparent bg-gradient-to-r from-brand-brown-dark via-brand-brown to-amber-600 drop-shadow-sm px-2">{upgradeData.current}</h3>
                        
                        {upgradeAnimationStep === 2 && (
                          <motion.div
@@ -1638,7 +1677,7 @@ export function LearnerDashboard({
             </button>
           </div>
 
-          <h2 className="font-serif text-2xl font-bold mb-2 text-brand-text text-center">
+          <h2 className="font-sans text-2xl font-bold mb-2 text-brand-text text-center">
             {authMode === 'signin' ? 'Welcome Back' : 'Enter The Lounge'}
           </h2>
           <p className="text-brand-brown-light mb-6 text-center text-sm font-medium">
@@ -1919,7 +1958,7 @@ export function LearnerDashboard({
           {activeSubTab === 'settings' && (
             <div className="space-y-6">
               <div className="bg-brand-white border border-brand-border rounded-[2rem] p-6 sm:p-8 shadow-sm space-y-4">
-                <h3 className="font-serif text-2xl font-bold text-brand-text flex items-center gap-2">
+                <h3 className="font-sans text-2xl font-bold text-brand-text flex items-center gap-2">
                   <Settings className="w-6 h-6 text-brand-brown animate-spin-slow" />
                   Wisdom Lounge Settings
                 </h3>
@@ -1931,7 +1970,7 @@ export function LearnerDashboard({
                 {/* Public Profile Setting */}
                 <div className="bg-brand-bg-alt border border-brand-border rounded-3xl p-6 relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                   <div className="flex-1 space-y-2">
-                    <h4 className="font-serif text-lg font-bold text-brand-text flex items-center gap-1.5">
+                    <h4 className="font-sans text-lg font-bold text-brand-text flex items-center gap-1.5">
                       <Eye className="w-5 h-5 text-brand-brown-light" />
                       Public Learnings Profile
                     </h4>
@@ -1972,7 +2011,7 @@ export function LearnerDashboard({
                         devicePermission === 'granted' ? 'bg-green-500 animate-pulse' :
                         devicePermission === 'denied' ? 'bg-red-400' : 'bg-amber-400 shadow-sm'
                       }`} />
-                      <h4 className="font-serif text-lg font-bold text-brand-text flex items-center gap-1.5">
+                      <h4 className="font-sans text-lg font-bold text-brand-text flex items-center gap-1.5">
                         Device Notification Center
                       </h4>
                     </div>
@@ -2060,7 +2099,7 @@ export function LearnerDashboard({
                     </div>
                     <div>
                       <p className="text-[10px] font-bold uppercase tracking-widest text-brand-brown-light mb-1">Current Status</p>
-                      <h4 className="font-serif text-2xl font-bold text-brand-text mb-2">{currentStatus.name}</h4>
+                      <h4 className="font-sans text-2xl font-bold text-brand-text mb-2">{currentStatus.name}</h4>
                       <ul className="space-y-1">
                         {currentStatus.perks.map((perk, idx) => (
                           <li key={idx} className="text-xs font-medium text-brand-brown flex items-center gap-2 group/perk">
@@ -2085,7 +2124,7 @@ export function LearnerDashboard({
                       <div className="flex justify-between items-end mb-2">
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-widest text-brand-brown-light mb-1">Next Tier</p>
-                          <h4 className="font-serif text-lg font-bold text-brand-text">{statusProgress.next.name}</h4>
+                          <h4 className="font-sans text-lg font-bold text-brand-text">{statusProgress.next.name}</h4>
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-bold text-brand-brown">{statusProgress.badgesNeeded} Badge{statusProgress.badgesNeeded !== 1 ? 's' : ''} Needed</p>
@@ -2150,7 +2189,7 @@ export function LearnerDashboard({
                         <Bell className="w-4 h-4 text-amber-300 animate-bounce" />
                       </div>
                       <div>
-                        <h4 className="font-serif text-base sm:text-lg font-bold text-amber-200 leading-snug">
+                        <h4 className="font-sans text-base sm:text-lg font-bold text-amber-200 leading-snug">
                           Progress Checks & Gentle Alerts
                         </h4>
                         <p className="text-[11px] text-brand-beige/70 font-medium">
@@ -2229,7 +2268,7 @@ export function LearnerDashboard({
                                 </span>
                               </div>
 
-                              <p className="text-sm font-medium leading-relaxed font-serif text-brand-beige/95 italic">
+                              <p className="text-sm font-medium leading-relaxed font-sans text-brand-beige/95 italic">
                                 "{reminder.questionText}"
                               </p>
 
@@ -2267,7 +2306,7 @@ export function LearnerDashboard({
                                       return (
                                         <div className="mt-2.5 p-3 bg-brand-beige/10 border border-brand-beige/20 rounded-xl space-y-1 text-xs">
                                           <p className="text-amber-200 font-bold uppercase tracking-wider text-[10px]">📊 Page Tracking & Progress Plan</p>
-                                          <p className="text-brand-beige/90 font-serif italic text-sm">
+                                          <p className="text-brand-beige/90 font-sans italic text-sm">
                                             By now you should be around <span className="text-amber-300 font-extrabold text-base not-italic">{expectedPages}</span> pages in (out of {focus.totalPages} total pages).
                                           </p>
                                           <p className="text-[10px] text-brand-beige/65">
@@ -2455,7 +2494,7 @@ export function LearnerDashboard({
                                   </span>
                                 </div>
 
-                                <p className="font-serif italic text-xs text-brand-offwhite">
+                                <p className="font-sans italic text-xs text-brand-offwhite">
                                   "{pastR.questionText}"
                                 </p>
 
@@ -2500,7 +2539,7 @@ export function LearnerDashboard({
                             const { displayTitle } = getModuleDisplayAndBatch(focus.title);
                             return (
                               <>
-                                <h4 className="font-serif text-xl sm:text-2xl font-bold text-brand-offwhite mb-2 leading-tight">
+                                <h4 className="font-sans text-xl sm:text-2xl font-bold text-brand-offwhite mb-2 leading-tight">
                                   {displayTitle}
                                 </h4>
                                 {focus.author && (
@@ -2542,6 +2581,7 @@ export function LearnerDashboard({
                             {focus.domain === 'research papers/article' && (
                               <p className="text-[10px] font-bold text-amber-200 bg-amber-500/20 inline-block px-2 py-1 rounded-md border border-amber-500/30 tracking-wider uppercase">
                                 {focus.isResearchPaper ? '📑 Research Paper' : '📰 Article Study'}
+                                {focus.isSeries ? ` · 📚 Series (${focus.seriesCount || 2} Pieces)` : ''}
                               </p>
                             )}
                             {focus.estimatedDuration && (() => {
@@ -2723,7 +2763,7 @@ export function LearnerDashboard({
                   </div>
                 ) : (
                   <div className="py-2">
-                    <h4 className="font-serif text-2xl text-brand-beige border-b border-brand-beige/20 border-dashed pb-1 inline-block">
+                    <h4 className="font-sans text-2xl text-brand-beige border-b border-brand-beige/20 border-dashed pb-1 inline-block">
                       No active focuses. Establish your path!
                     </h4>
                   </div>
@@ -2736,7 +2776,7 @@ export function LearnerDashboard({
           <div className="bg-brand-white p-6 sm:p-8 rounded-3xl border border-brand-border shadow-sm mt-8 relative overflow-hidden group">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div>
-                <h3 className="font-serif text-2xl font-bold text-brand-text flex items-center gap-2">
+                <h3 className="font-sans text-2xl font-bold text-brand-text flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-amber-500 animate-pulse shrink-0" />
                   <span>My Bucket List</span>
                 </h3>
@@ -2770,7 +2810,7 @@ export function LearnerDashboard({
                     >
                       <div>
                         <div className="flex justify-between items-start gap-2 mb-2">
-                          <h4 className="font-serif text-lg font-bold text-brand-text leading-tight">
+                          <h4 className="font-sans text-lg font-bold text-brand-text leading-tight">
                             {item.title}
                           </h4>
                           <span className="text-[9px] font-black uppercase tracking-widest text-brand-brown-light bg-brand-beige/25 px-2 py-1 rounded border border-brand-border">
@@ -2833,7 +2873,7 @@ export function LearnerDashboard({
                   <Clock className="w-5 h-5 animate-pulse" />
                 </div>
                 <div>
-                  <h4 className="font-serif text-lg font-bold text-orange-950">Pending Approval</h4>
+                  <h4 className="font-sans text-lg font-bold text-orange-950">Pending Approval</h4>
                   <p className="text-orange-700/80 text-xs font-medium uppercase tracking-wider">The wisdom lounge is reviewing your progress</p>
                 </div>
               </div>
@@ -2853,25 +2893,6 @@ export function LearnerDashboard({
             </div>
           )}
 
-          {/* Stats Cards Section */}
-          <div className="space-y-4">
-            <h3 className="font-serif text-2xl font-bold text-brand-text mb-4 px-2">Core Domains</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8 pr-[45px]">
-              {APP_DOMAINS.filter(d => ['book', 'presentation', 'task'].includes(d.type)).map((domain, idx) => {
-                const Icon = { BookOpen, Mic, CheckCircle2 }[domain.icon as any] as any || BookOpen;
-                return (
-                  <StatsCard 
-                    key={`domain-${domain.id}`}
-                    title={`Completed ${domain.label}`} 
-                    value={getDomainValue(activeLearner, domain.type)} 
-                    icon={<Icon className="w-6 h-6 text-brand-brown" />}
-                    variant={idx === 0 ? "primary" : idx === 1 ? "secondary" : "default"}
-                  />
-                );
-              })}
-            </div>
-          </div>
-
           {/* Charts Section */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             <div className="bg-brand-white p-8 rounded-[2.5rem] shadow-[0_10px_40px_-15px_rgba(0,0,0,0.05)] border border-brand-border group transition-all hover:shadow-[0_20px_60px_-20px_rgba(0,0,0,0.1)]">
@@ -2880,7 +2901,7 @@ export function LearnerDashboard({
                   <LayoutDashboard className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-serif text-2xl font-bold text-brand-text">Wisdom Balance</h3>
+                  <h3 className="font-sans text-2xl font-bold text-brand-text">Wisdom Balance</h3>
                   <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">Domains & Modules overview</p>
                 </div>
               </div>
@@ -2908,7 +2929,7 @@ export function LearnerDashboard({
                   <BarChart3 className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-serif text-2xl font-bold text-brand-text">Activity Distribution</h3>
+                  <h3 className="font-sans text-2xl font-bold text-brand-text">Activity Distribution</h3>
                   <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">Contribution breakdown</p>
                 </div>
               </div>
@@ -2919,7 +2940,7 @@ export function LearnerDashboard({
                     <YAxis dataKey="name" type="category" tick={{ fill: '#5A4633', fontSize: 11, fontWeight: 600 }} width={120} axisLine={false} tickLine={false} />
                     <Tooltip 
                       cursor={{ fill: 'rgba(235, 229, 219, 0.4)', radius: 12 }} 
-                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -10px rgba(0,0,0,0.1)', fontFamily: 'serif', padding: '12px 16px' }} 
+                      contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -10px rgba(0,0,0,0.1)', fontFamily: 'Inter, sans-serif', padding: '12px 16px' }} 
                     />
                     <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={25}>
                       {activityData.map((entry, index) => (
@@ -2940,7 +2961,7 @@ export function LearnerDashboard({
                   <Flame className="w-6 h-6 animate-pulse" />
                 </div>
                 <div>
-                  <h3 className="font-serif text-2xl font-bold text-brand-text flex items-center gap-2">
+                  <h3 className="font-sans text-2xl font-bold text-brand-text flex items-center gap-2">
                     Momentum Timeline
                     {timelineActivities.some(r => r.status === 'approved' && !r.isFocus) && (
                       <span className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-500 text-brand-offwhite text-[9px] font-black uppercase tracking-widest animate-[bounce_1.5s_infinite]">
@@ -2953,7 +2974,7 @@ export function LearnerDashboard({
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 self-start sm:self-center">
+              <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
                 <span className="text-xs font-bold text-brand-brown-light bg-brand-white/80 backdrop-blur-sm px-3 py-1.5 rounded-full border border-brand-border-light shadow-sm flex items-center gap-1.5 font-mono">
                   <Activity className="w-3.5 h-3.5 text-brand-brown" />
                   {timelineActivities.filter(r => r.status === 'approved' && !r.isFocus).length} Accomplishments
@@ -2966,7 +2987,7 @@ export function LearnerDashboard({
                 <div className="w-16 h-16 bg-brand-bg-alt rounded-full flex items-center justify-center mb-4 border border-brand-border-light">
                   <Sparkles className="w-8 h-8 text-brand-brown-light opacity-65" />
                 </div>
-                <h4 className="font-serif italic text-lg font-bold text-brand-text mb-1">Your Momentum Feed is Quiet</h4>
+                <h4 className="font-sans italic text-lg font-bold text-brand-text mb-1">Your Momentum Feed is Quiet</h4>
                 <p className="text-xs max-w-md opacity-75">
                   When you submit updates for tasks, presentations, or books, they will display on this interactive layout to map your spiritual and intellectual progress!
                 </p>
@@ -3018,10 +3039,12 @@ export function LearnerDashboard({
                       } else if (act.type === 'task') {
                         pts = act.details?.count || 1;
                       } else if (['seerah', 'research papers/article', 'tafsir', 'dowra'].includes(act.type)) {
-                        if (act.type === 'research papers/article' && act.details?.isResearchPaper) {
-                          pts = 30; // Scholarly Research Paper gets 30 points
+                        if (act.type === 'research papers/article') {
+                          const base = act.details?.isResearchPaper ? 30 : 15;
+                          const pieces = act.details?.isSeries ? Math.max(2, Number(act.details?.seriesCount) || 2) : 1;
+                          pts = base * pieces;
                         } else {
-                          pts = 15; // Regular Article gets 15 points
+                          pts = 15;
                         }
                       }
 
@@ -3123,7 +3146,7 @@ export function LearnerDashboard({
 
                               {/* Title Info */}
                               <div className="space-y-1">
-                                <h4 className="font-serif text-sm font-bold text-brand-text leading-tight line-clamp-2">
+                                <h4 className="font-sans text-sm font-bold text-brand-text leading-tight line-clamp-2">
                                   {act.isFocus ? (
                                     <>
                                       {act.type === 'book' && `${isActiveFocus ? 'Active Focus Book Study' : 'Achieved Focus Book Study'}: "${toTitleCase(act.details?.title)}"`}
@@ -3213,22 +3236,47 @@ export function LearnerDashboard({
                                 </span>
                               </div>
 
-                              <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border shrink-0 ${
-                                act.isFocus
-                                  ? (isApproved 
-                                      ? (isActiveFocus ? 'bg-indigo-100/60 text-indigo-700 border-indigo-200/50' : 'bg-indigo-100/30 text-indigo-500/80 border-indigo-200/20') 
-                                      : isPending 
-                                      ? 'bg-amber-100/60 text-amber-700 border-amber-200/50' 
-                                      : 'bg-rose-100/60 text-rose-700 border-rose-250/50')
-                                  : (isApproved 
-                                      ? 'bg-emerald-550/10 text-emerald-700 border-emerald-500/20' 
-                                      : isPending
-                                      ? 'bg-amber-550/10 text-amber-700 border-amber-500/20'
-                                      : 'bg-rose-550/10 text-rose-700 border-rose-500/20')
-                              }`}>
-                                {act.isFocus 
-                                  ? (isApproved ? (isActiveFocus ? 'In Progress' : 'Completed') : isPending ? 'Focus In Review' : 'Cancelled')
-                                  : (isApproved ? 'Logged' : isPending ? 'In Review' : 'TBD')}
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {isApproved && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setCelebrationCardData({
+                                        learnerName: activeLearner?.fullName || 'Learner',
+                                        focusTitle: act.details?.title || domainLabel,
+                                        domain: domainLabel,
+                                        type: act.type,
+                                        pointsEarned: pts,
+                                        completedDate: act.details?.completedAt || act.requestedAt,
+                                        summaryNotes: act.details?.description || 'Milestone achieved with dedication and excellence!',
+                                        adminComment: 'Official milestone recorded in Lounge Records'
+                                      });
+                                      setIsCelebrationCardOpen(true);
+                                    }}
+                                    className="px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 transition-colors shadow-sm flex items-center gap-1"
+                                    title="View Celebration Card"
+                                  >
+                                    <Sparkles className="w-2.5 h-2.5 text-amber-700" /> Card
+                                  </button>
+                                )}
+                                <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border shrink-0 ${
+                                  act.isFocus
+                                    ? (isApproved 
+                                        ? (isActiveFocus ? 'bg-indigo-100/60 text-indigo-700 border-indigo-200/50' : 'bg-indigo-100/30 text-indigo-500/80 border-indigo-200/20') 
+                                        : isPending 
+                                        ? 'bg-amber-100/60 text-amber-700 border-amber-200/50' 
+                                        : 'bg-rose-100/60 text-rose-700 border-rose-250/50')
+                                    : (isApproved 
+                                        ? 'bg-emerald-550/10 text-emerald-700 border-emerald-500/20' 
+                                        : isPending
+                                        ? 'bg-amber-550/10 text-amber-700 border-amber-500/20'
+                                        : 'bg-rose-550/10 text-rose-700 border-rose-500/20')
+                                }`}>
+                                  {act.isFocus 
+                                    ? (isApproved ? (isActiveFocus ? 'In Progress' : 'Completed') : isPending ? 'Focus In Review' : 'Cancelled')
+                                    : (isApproved ? 'Logged' : isPending ? 'In Review' : 'TBD')}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -3249,7 +3297,7 @@ export function LearnerDashboard({
                   <Medal className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-serif text-xl font-bold text-brand-text">Wisdom Badges Directory</h3>
+                  <h3 className="font-sans text-xl font-bold text-brand-text">Wisdom Badges Directory</h3>
                   <p className="text-xs text-brand-brown-light font-medium">Track earned honors, scholarly milestones, and lounge achievements</p>
                 </div>
               </div>
@@ -3340,7 +3388,7 @@ export function LearnerDashboard({
                 return (
                   <div key={categoryInfo.key} className="space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-brand-border-light pb-2.5">
-                      <h4 className="font-serif text-sm font-bold text-brand-brown flex items-center gap-2 uppercase tracking-wide">
+                      <h4 className="font-sans text-sm font-bold text-brand-brown flex items-center gap-2 uppercase tracking-wide">
                         <span>{categoryInfo.title}</span>
                       </h4>
                       <div className="flex items-center gap-2">
@@ -3420,7 +3468,41 @@ export function LearnerDashboard({
 
           {/* Detailed Lists */}
           <div className="space-y-4 mt-8">
-            <h3 className="font-serif text-2xl font-bold text-brand-text px-2">Detailed Activities</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-2 pb-2">
+              <div>
+                <h3 className="font-sans text-2xl font-bold text-brand-text flex items-center gap-3">
+                  Detailed Activities
+                </h3>
+                <p className="text-[10px] font-black uppercase tracking-widest text-brand-brown-light opacity-60">
+                  Total completed domain entries & verified milestones breakdown
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const latestApproved = timelineActivities.find(r => r.status === 'approved');
+                    setCelebrationCardData({
+                      learnerName: activeLearner?.fullName || 'Learner',
+                      focusTitle: latestApproved?.details?.title || 'Active Learning Focus',
+                      domain: latestApproved?.type ? (APP_DOMAINS.find(d => d.type === latestApproved.type)?.label || latestApproved.type) : 'Islamic Studies',
+                      type: latestApproved?.type || 'book',
+                      pointsEarned: 100,
+                      completedDate: latestApproved?.details?.completedAt || latestApproved?.requestedAt || new Date().toISOString(),
+                      summaryNotes: latestApproved?.details?.description || 'Dedication to knowledge and continuous reflection in study circles.',
+                      adminComment: 'Verified milestone achievement recorded in Lounge Records'
+                    });
+                    setIsCelebrationCardOpen(true);
+                  }}
+                  className="bg-amber-600 hover:bg-amber-700 text-stone-950 font-black uppercase tracking-wider text-[11px] px-3.5 py-2 rounded-full shadow-sm hover:shadow-md transition-all active:scale-95 flex items-center gap-1.5 border border-amber-400 cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                  <span>🎉 Celebration Card</span>
+                </button>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {APP_DOMAINS.map((domain) => {
                 let items: string[] = [];
@@ -3469,7 +3551,7 @@ export function LearnerDashboard({
                   className="bg-brand-white w-full max-w-lg max-h-[90vh] rounded-3xl shadow-2xl border border-brand-border overflow-hidden flex flex-col"
                 >
                   <div className="px-6 py-4 bg-brand-beige border-b border-brand-border flex items-center justify-between shrink-0">
-                    <h3 className="font-serif text-xl font-bold text-brand-text">Submit Learning Update</h3>
+                    <h3 className="font-sans text-xl font-bold text-brand-text">Submit Learning Update</h3>
                     <button onClick={() => setIsRequestModalOpen(false)} className="p-2 hover:bg-brand-border rounded-full transition-colors">
                       <X className="w-5 h-5 text-brand-brown" />
                     </button>
@@ -3542,17 +3624,99 @@ export function LearnerDashboard({
                       <>
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                            Title / Topic
+                            Title / Topic <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="text"
                             required
                             value={itemTitle}
                             onChange={(e) => setItemTitle(e.target.value)}
-                            placeholder="e.g. History of Fiqh"
-                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                            placeholder="e.g. History of Fiqh or Islamic Financial Ethics"
+                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
                           />
                         </div>
+
+                        {/* Series vs Single Selection */}
+                        <div className="bg-brand-bg-alt/80 p-4 rounded-2xl border border-brand-border/80 space-y-3">
+                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-text">
+                            Article Structure
+                          </label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setRequestIsSeries(false)}
+                              className={`p-3 rounded-xl border text-left transition-all ${
+                                !requestIsSeries 
+                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                  : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
+                              }`}
+                            >
+                              <div className="text-xs font-bold flex items-center gap-1.5">
+                                📄 Single Piece
+                              </div>
+                              <div className="text-[10px] opacity-80 mt-0.5">Standalone article / paper</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setRequestIsSeries(true)}
+                              className={`p-3 rounded-xl border text-left transition-all ${
+                                requestIsSeries 
+                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                  : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
+                              }`}
+                            >
+                              <div className="text-xs font-bold flex items-center gap-1.5">
+                                📚 Article Series
+                              </div>
+                              <div className="text-[10px] opacity-80 mt-0.5">Multiple related parts</div>
+                            </button>
+                          </div>
+
+                          {requestIsSeries && (
+                            <div className="mt-3 pt-3 border-t border-brand-border/60 space-y-3 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
+                              <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <label className="block text-xs font-bold uppercase tracking-wider text-amber-950">
+                                    Number of Article Pieces <span className="text-red-500">*</span>
+                                  </label>
+                                  <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-md border border-amber-300">
+                                    +{(requestIsResearchPaper ? 30 : 15) * Math.max(2, requestSeriesCount)} Pts Total
+                                  </span>
+                                </div>
+                                <input
+                                  type="number"
+                                  min={2}
+                                  max={100}
+                                  required={requestIsSeries}
+                                  value={requestSeriesCount}
+                                  onChange={(e) => setRequestSeriesCount(Math.max(2, parseInt(e.target.value) || 2))}
+                                  className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-sm font-bold text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                                <p className="text-[10px] text-amber-800/90 mt-1">
+                                  * Completing a series scales your score! Each piece adds +{requestIsResearchPaper ? 30 : 15} points.
+                                </p>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-amber-950 mb-1">
+                                  Titles / Names of Articles in Series (Optional)
+                                </label>
+                                <textarea
+                                  value={requestSeriesTitles}
+                                  onChange={(e) => setRequestSeriesTitles(e.target.value)}
+                                  placeholder="e.g. Part 1: Foundations, Part 2: Analysis, Part 3: Modern Applications"
+                                  rows={2}
+                                  className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-xs text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                                />
+                                <p className="text-[10px] text-amber-800/80 mt-0.5">
+                                  Optionally list the names of all articles in this series.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         <div className="space-y-4 my-2">
                           <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
@@ -3584,14 +3748,14 @@ export function LearnerDashboard({
                               type="checkbox"
                               checked={requestIsResearchPaper}
                               onChange={(e) => setRequestIsResearchPaper(e.target.checked)}
-                              className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown mt-0.5"
+                              className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown mt-0.5 cursor-pointer"
                             />
                             <div className="flex flex-col">
                               <label htmlFor="requestIsResearchPaper" className="text-xs font-bold uppercase tracking-wide text-brand-text cursor-pointer select-none">
                                 This is a Scholarly Research Paper
                               </label>
                               <span className="text-[10px] text-brand-brown-light leading-relaxed mt-0.5">
-                                Check this option if your work matches a full academic research paper rather than a brief article. Research papers grant more score (30 pts vs 15 pts).
+                                Check this option if your work matches a full academic research paper rather than a brief article. Research papers grant more score (30 pts vs 15 pts per piece).
                               </span>
                             </div>
                           </div>
@@ -4068,7 +4232,13 @@ export function LearnerDashboard({
                               </>
                             )}
                             <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
-                              Upload Notes / PDF / Presentation / Document (Optional, +1 pts)
+                              {requestType === 'research papers/article'
+                                ? 'Upload Article / Research Paper PDF or Study Notes (Optional, +1 pts)'
+                                : requestType === 'book'
+                                ? 'Upload Book PDF or Study Notes (Optional, +1 pts)'
+                                : requestType === 'presentation'
+                                ? 'Upload Presentation Slides / Document (Optional, +1 pts)'
+                                : 'Upload Notes / PDF / Presentation / Document (Optional, +1 pts)'}
                             </label>
                             <div className="flex items-center gap-3">
                               <label className="flex items-center gap-2 px-4 py-2 border border-brand-border rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer hover:bg-brand-offwhite transition-colors bg-brand-white shadow-sm">
@@ -4078,16 +4248,26 @@ export function LearnerDashboard({
                               </label>
                               {requestFile && <span className="text-xs text-brand-brown-light font-medium truncate max-w-[200px]">{requestFile.name}</span>}
                             </div>
-                            <p className="text-[10px] text-brand-brown-light mt-1">If uploaded, document will be submitted to the Central Library for points.</p>
+                            <p className="text-[10px] text-brand-brown-light mt-1.5 leading-relaxed">
+                              {requestType === 'research papers/article' ? (
+                                <span className="bg-amber-50 text-amber-900 border border-amber-200/80 px-2.5 py-1 rounded-md inline-block font-medium">
+                                  💡 <strong>What to upload:</strong> You can upload either the <strong>original Article / Research Paper PDF</strong> itself or your <strong>own study notes, summary, or analysis document</strong>.
+                                </span>
+                              ) : (
+                                'If uploaded, document will be submitted to the Central Library for points.'
+                              )}
+                            </p>
                             {requestFile && (
                               <div className="mt-3 space-y-3">
                                 {requestType !== 'book' && (
-                                  <div className="bg-brand-beige/30 p-3 rounded-xl border border-brand-border/40 space-y-2">
+                                  <div className="bg-brand-beige/30 p-3.5 rounded-xl border border-brand-border/40 space-y-2">
                                     <label className="block text-[11px] font-bold uppercase tracking-wider text-brand-brown">Material Attribution</label>
                                     <p className="text-[10px] text-brand-brown-light font-medium leading-tight">
-                                      Is this uploaded file your own prepared material (e.g. your notes, outlines, powerpoints) or is it someone else's work (e.g. classical book, third-party article)?
+                                      {requestType === 'research papers/article'
+                                        ? "Is this file your own prepared summary/notes or the original author's paper/article PDF?"
+                                        : "Is this uploaded file your own prepared material (e.g. your notes, outlines, powerpoints) or is it someone else's work (e.g. classical book, third-party article)?"}
                                     </p>
-                                    <div className="flex gap-4 pt-1">
+                                    <div className="flex flex-wrap gap-4 pt-1">
                                       <label className="flex items-center gap-1.5 cursor-pointer">
                                         <input
                                           type="radio"
@@ -4097,7 +4277,9 @@ export function LearnerDashboard({
                                           onChange={() => setMaterialOwnership('own')}
                                           className="text-brand-brown focus:ring-brand-brown focus:ring-offset-0 w-3.5 h-3.5"
                                         />
-                                        <span className="text-xs font-semibold text-brand-brown">My Own Material</span>
+                                        <span className="text-xs font-semibold text-brand-brown">
+                                          {requestType === 'research papers/article' ? 'My Own Notes / Writeup' : 'My Own Material'}
+                                        </span>
                                       </label>
                                       <label className="flex items-center gap-1.5 cursor-pointer">
                                         <input
@@ -4108,7 +4290,9 @@ export function LearnerDashboard({
                                           onChange={() => setMaterialOwnership('someone_else')}
                                           className="text-brand-brown focus:ring-brand-brown focus:ring-offset-0 w-3.5 h-3.5"
                                         />
-                                        <span className="text-xs font-semibold text-brand-brown">Someone Else's Material</span>
+                                        <span className="text-xs font-semibold text-brand-brown">
+                                          {requestType === 'research papers/article' ? "Original Paper / Article PDF" : "Someone Else's Material"}
+                                        </span>
                                       </label>
                                     </div>
                                   </div>
@@ -4121,7 +4305,11 @@ export function LearnerDashboard({
                                     required 
                                     rows={3} 
                                     className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown resize-none" 
-                                    placeholder="Provide a brief description of the document you are uploading..." 
+                                    placeholder={
+                                      requestType === 'research papers/article'
+                                        ? 'e.g., Attached is the published research paper PDF / my personal key takeaways outline...'
+                                        : 'Provide a brief description of the document you are uploading...'
+                                    } 
                                   />
                                 </div>
                               </div>
@@ -4274,7 +4462,7 @@ export function LearnerDashboard({
                   className="bg-brand-white w-full max-w-lg max-h-[90vh] rounded-3xl shadow-2xl border border-brand-border overflow-hidden flex flex-col"
                 >
                   <div className="px-6 py-4 bg-brand-beige border-b border-brand-border flex items-center justify-between shrink-0">
-                    <h3 className="font-serif text-xl font-bold text-brand-text">Set Learning Focus</h3>
+                    <h3 className="font-sans text-xl font-bold text-brand-text">Set Learning Focus</h3>
                     <button onClick={() => setIsFocusModalOpen(false)} className="p-2 hover:bg-brand-border rounded-full transition-colors">
                       <X className="w-5 h-5 text-brand-brown" />
                     </button>
@@ -4330,7 +4518,7 @@ export function LearnerDashboard({
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <span className="text-[10px] font-black uppercase tracking-widest text-green-700 block">Selected Lounge Circle</span>
-                                  <h4 className="font-serif text-base font-bold text-brand-text mt-0.5 truncate">{selectedCircle.title}</h4>
+                                  <h4 className="font-sans text-base font-bold text-brand-text mt-0.5 truncate">{selectedCircle.title}</h4>
                                 </div>
                               </div>
                               <button
@@ -4378,7 +4566,7 @@ export function LearnerDashboard({
                         ) : (
                           <div className="space-y-3">
                             <div className="border-b border-brand-border pb-2">
-                              <h4 className="font-serif text-base font-bold text-brand-text">Choose an Ongoing Circle to Join</h4>
+                              <h4 className="font-sans text-base font-bold text-brand-text">Choose an Ongoing Circle to Join</h4>
                               <p className="text-xs text-brand-brown-light mt-1">
                                 Book reading inside the Lounge must be registered by joining one of our active study circles. Select a group to prefill.
                               </p>
@@ -4482,17 +4670,99 @@ export function LearnerDashboard({
                       <>
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
-                            Title / Topic
+                            Title / Topic <span className="text-red-500">*</span>
                           </label>
                           <input
                             type="text"
                             required
                             value={focusTitle}
                             onChange={(e) => setFocusTitle(e.target.value)}
-                            placeholder="e.g. History of Fiqh"
-                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                            placeholder="e.g. History of Fiqh or Islamic Financial Ethics"
+                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
                           />
                         </div>
+
+                        {/* Series vs Single Selection */}
+                        <div className="bg-brand-bg-alt/80 p-4 rounded-2xl border border-brand-border/80 space-y-3 mt-3">
+                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-text">
+                            Article Structure
+                          </label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setFocusIsSeries(false)}
+                              className={`p-3 rounded-xl border text-left transition-all ${
+                                !focusIsSeries 
+                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                  : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
+                              }`}
+                            >
+                              <div className="text-xs font-bold flex items-center gap-1.5">
+                                📄 Single Piece
+                              </div>
+                              <div className="text-[10px] opacity-80 mt-0.5">Standalone article / paper</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setFocusIsSeries(true)}
+                              className={`p-3 rounded-xl border text-left transition-all ${
+                                focusIsSeries 
+                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                  : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
+                              }`}
+                            >
+                              <div className="text-xs font-bold flex items-center gap-1.5">
+                                📚 Article Series
+                              </div>
+                              <div className="text-[10px] opacity-80 mt-0.5">Multiple related parts</div>
+                            </button>
+                          </div>
+
+                          {focusIsSeries && (
+                            <div className="mt-3 pt-3 border-t border-brand-border/60 space-y-3 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
+                              <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <label className="block text-xs font-bold uppercase tracking-wider text-amber-950">
+                                    Number of Article Pieces <span className="text-red-500">*</span>
+                                  </label>
+                                  <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-md border border-amber-300">
+                                    +{(focusIsResearchPaper ? 30 : 15) * Math.max(2, focusSeriesCount)} Pts Total
+                                  </span>
+                                </div>
+                                <input
+                                  type="number"
+                                  min={2}
+                                  max={100}
+                                  required={focusIsSeries}
+                                  value={focusSeriesCount}
+                                  onChange={(e) => setFocusSeriesCount(Math.max(2, parseInt(e.target.value) || 2))}
+                                  className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-sm font-bold text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                                <p className="text-[10px] text-amber-800/90 mt-1">
+                                  * Completing a series scales your score! Each piece adds +{focusIsResearchPaper ? 30 : 15} points.
+                                </p>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-amber-950 mb-1">
+                                  Titles / Names of Articles in Series (Optional)
+                                </label>
+                                <textarea
+                                  value={focusSeriesTitles}
+                                  onChange={(e) => setFocusSeriesTitles(e.target.value)}
+                                  placeholder="e.g. Part 1: Foundations, Part 2: Analysis, Part 3: Modern Applications"
+                                  rows={2}
+                                  className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-xs text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                                />
+                                <p className="text-[10px] text-amber-800/80 mt-0.5">
+                                  Optionally list the names of all articles in this series.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         <div className="space-y-4 my-2">
                           <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
@@ -4524,14 +4794,14 @@ export function LearnerDashboard({
                               type="checkbox"
                               checked={focusIsResearchPaper}
                               onChange={(e) => setFocusIsResearchPaper(e.target.checked)}
-                              className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown mt-0.5"
+                              className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown mt-0.5 cursor-pointer"
                             />
                             <div className="flex flex-col">
                               <label htmlFor="focusIsResearchPaper" className="text-xs font-bold uppercase tracking-wide text-brand-text cursor-pointer select-none">
                                 This is a Scholarly Research Paper
                               </label>
                               <span className="text-[10px] text-brand-brown-light leading-relaxed mt-0.5">
-                                Check this option if your target work matches a full academic research paper rather than a brief article. Research papers grant more score (30 pts vs 15 pts).
+                                Check this option if your target work matches a full academic research paper rather than a brief article. Research papers grant more score (30 pts vs 15 pts per piece).
                               </span>
                             </div>
                           </div>
@@ -5074,7 +5344,7 @@ export function LearnerDashboard({
                   className="bg-brand-white w-full max-w-lg max-h-[90vh] rounded-3xl shadow-2xl border border-brand-border overflow-hidden flex flex-col"
                 >
                   <div className="px-6 py-4 bg-brand-beige border-b border-brand-border flex items-center justify-between shrink-0">
-                    <h3 className="font-serif text-xl font-bold text-brand-text flex items-center gap-2">
+                    <h3 className="font-sans text-xl font-bold text-brand-text flex items-center gap-2">
                       <Sparkles className="w-5 h-5 text-amber-500 animate-pulse" />
                       <span>Add to Bucket List</span>
                     </h3>
@@ -5205,7 +5475,7 @@ export function LearnerDashboard({
                                   <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                                   <div>
                                     <span className="text-[10px] font-black uppercase text-emerald-700 tracking-wider">Linked Archive Book</span>
-                                    <h4 className="font-serif text-base font-bold text-brand-text leading-tight mt-0.5">{selectedLibraryBook.title}</h4>
+                                    <h4 className="font-sans text-base font-bold text-brand-text leading-tight mt-0.5">{selectedLibraryBook.title}</h4>
                                     <p className="text-xs text-brand-brown-light italic mt-1">by {selectedLibraryBook.author}</p>
                                   </div>
                                 </div>
@@ -5317,6 +5587,87 @@ export function LearnerDashboard({
                           />
                         </div>
 
+                        {/* Series vs Single Selection */}
+                        <div className="bg-brand-bg-alt/80 p-4 rounded-2xl border border-brand-border/80 space-y-3">
+                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-text">
+                            Article Structure
+                          </label>
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setBucketItemIsSeries(false)}
+                              className={`p-3 rounded-xl border text-left transition-all ${
+                                !bucketItemIsSeries 
+                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                  : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
+                              }`}
+                            >
+                              <div className="text-xs font-bold flex items-center gap-1.5">
+                                📄 Single Piece
+                              </div>
+                              <div className="text-[10px] opacity-80 mt-0.5">Standalone article / paper</div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setBucketItemIsSeries(true)}
+                              className={`p-3 rounded-xl border text-left transition-all ${
+                                bucketItemIsSeries 
+                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                  : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
+                              }`}
+                            >
+                              <div className="text-xs font-bold flex items-center gap-1.5">
+                                📚 Article Series
+                              </div>
+                              <div className="text-[10px] opacity-80 mt-0.5">Multiple related parts</div>
+                            </button>
+                          </div>
+
+                          {bucketItemIsSeries && (
+                            <div className="mt-3 pt-3 border-t border-brand-border/60 space-y-3 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
+                              <div>
+                                <div className="flex items-center justify-between mb-1.5">
+                                  <label className="block text-xs font-bold uppercase tracking-wider text-amber-950">
+                                    Number of Article Pieces <span className="text-red-500">*</span>
+                                  </label>
+                                  <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-md border border-amber-300">
+                                    +{(bucketItemIsResearchPaper ? 30 : 15) * Math.max(2, bucketItemSeriesCount)} Pts Total
+                                  </span>
+                                </div>
+                                <input
+                                  type="number"
+                                  min={2}
+                                  max={100}
+                                  required={bucketItemIsSeries}
+                                  value={bucketItemSeriesCount}
+                                  onChange={(e) => setBucketItemSeriesCount(Math.max(2, parseInt(e.target.value) || 2))}
+                                  className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-sm font-bold text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                                <p className="text-[10px] text-amber-800/90 mt-1">
+                                  * Completing a series scales your score! Each piece adds +{bucketItemIsResearchPaper ? 30 : 15} points.
+                                </p>
+                              </div>
+
+                              <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-amber-950 mb-1">
+                                  Titles / Names of Articles in Series (Optional)
+                                </label>
+                                <textarea
+                                  value={bucketItemSeriesTitles}
+                                  onChange={(e) => setBucketItemSeriesTitles(e.target.value)}
+                                  placeholder="e.g. Part 1: Foundations, Part 2: Analysis, Part 3: Modern Applications"
+                                  rows={2}
+                                  className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-xs text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                                />
+                                <p className="text-[10px] text-amber-800/80 mt-0.5">
+                                  Optionally list the names of all articles in this series.
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
                         {/* Online Link */}
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
@@ -5355,7 +5706,7 @@ export function LearnerDashboard({
                           />
                           <div>
                             <span className="text-xs font-black uppercase text-brand-text block">Is Scholarly Research Paper?</span>
-                            <span className="text-[10px] text-brand-brown-light leading-normal block mt-0.5">Toggle if this is an academic research paper (worth 30 points on completion).</span>
+                            <span className="text-[10px] text-brand-brown-light leading-normal block mt-0.5">Toggle if this is an academic research paper (worth 30 points per piece on completion).</span>
                           </div>
                         </label>
                       </div>
@@ -5657,7 +6008,7 @@ export function LearnerDashboard({
                 <div className="p-6 bg-brand-beige border-b border-brand-border">
                   <div className="flex justify-between items-start mb-2">
                      <div>
-                       <h3 className="font-serif text-xl font-bold text-brand-text leading-tight">Session Tracker</h3>
+                       <h3 className="font-sans text-xl font-bold text-brand-text leading-tight">Session Tracker</h3>
                        <p className="text-brand-brown-light text-xs mt-1">
                          <span className="font-bold text-brand-brown">{currentFocusTracker?.title}</span>
                        </p>
@@ -5740,7 +6091,7 @@ export function LearnerDashboard({
                           >
                             <ChevronLeft className="w-5 h-5" />
                           </button>
-                          <span className="font-serif font-bold text-lg text-brand-text">
+                          <span className="font-sans font-bold text-lg text-brand-text">
                             {trackerMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}
                           </span>
                           <button 
@@ -5865,6 +6216,15 @@ export function LearnerDashboard({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Celebration Card Modal */}
+      {isCelebrationCardOpen && (
+        <CelebrationCardModal
+          isOpen={isCelebrationCardOpen}
+          onClose={() => setIsCelebrationCardOpen(false)}
+          data={celebrationCardData}
+        />
+      )}
     </div>
   );
 }
@@ -5901,7 +6261,7 @@ function StatsCard({ title, value, icon, variant = 'default' }: { title: string,
       </div>
       <p className={`text-[10px] font-black uppercase tracking-[0.2em] ${titleStyles[variant]} mb-2 relative z-10 break-words w-full`}>{title}</p>
       <div className="flex items-baseline gap-1 relative z-10">
-        <p className={`text-4xl sm:text-5xl font-serif font-black ${valueStyles[variant]} leading-none`}>{value}</p>
+        <p className={`text-4xl sm:text-5xl font-sans font-black ${valueStyles[variant]} leading-none`}>{value}</p>
         {typeof value === 'number' && <span className={`text-xs font-bold ${titleStyles[variant]} mb-1 opacity-60`}>pts</span>}
       </div>
     </div>
@@ -5911,7 +6271,12 @@ function StatsCard({ title, value, icon, variant = 'default' }: { title: string,
 function ListCard({ title, items, emptyText }: { title: string, items: string[], emptyText: string, key?: string }) {
   return (
     <div className="bg-brand-white p-6 rounded-2xl shadow-sm border border-brand-border flex flex-col h-full">
-      <h3 className="font-serif text-xl font-bold text-brand-text mb-4 pb-3 border-b border-brand-border-light">{title}</h3>
+      <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-brand-border-light">
+        <h3 className="font-sans text-xl font-bold text-brand-text">{title}</h3>
+        <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-mono text-xs font-bold shrink-0">
+          {items.length} {items.length === 1 ? 'completed' : 'completed'}
+        </span>
+      </div>
       {items.length === 0 ? (
         <p className="text-brand-brown-light text-sm italic">{emptyText}</p>
       ) : (

@@ -62,12 +62,18 @@ export default function App() {
     if (savedLearnerId && learners.length > 0) {
         const profile = learners.find(l => l.id === savedLearnerId);
         if (profile && profile.isApproved) {
-            setActiveLearner(profile);
+            // Only update activeLearner if the contents have actually changed
+            if (JSON.stringify(activeLearner) !== JSON.stringify(profile)) {
+                setActiveLearner(profile);
+            }
         } else if (profile && !profile.isApproved) {
             localStorage.removeItem('wisdom_lounge_learner_id');
+            if (activeLearner) {
+                setActiveLearner(null);
+            }
         }
     }
-  }, [user, learners]);
+  }, [user, learners, activeLearner]);
 
   useEffect(() => {
     if (activeLearner) {
@@ -90,7 +96,7 @@ export default function App() {
     } else {
         localStorage.removeItem('wisdom_lounge_learner_id');
     }
-  }, [activeLearner]);
+  }, [activeLearner?.id]);
 
   const handleAdminSignIn = async () => {
     try {
@@ -147,7 +153,7 @@ export default function App() {
                 </svg>
               </div>
               <div className="flex flex-col">
-                <span className="font-serif text-2xl font-bold tracking-tight text-brand-text leading-none">Wisdom Profile</span>
+                <span className="font-sans text-2xl font-bold tracking-tight text-brand-text leading-none">Wisdom Profile</span>
                 <span className="text-[10px] uppercase font-bold tracking-wider text-brand-brown-light mt-0.5">By The Wisdom Lounge</span>
               </div>
             </div>
@@ -265,7 +271,7 @@ export default function App() {
               <div className="w-16 h-16 bg-brand-beige rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <Users className="w-8 h-8 text-brand-brown" />
               </div>
-              <h2 className="font-serif text-3xl font-bold text-brand-text mb-4">Admin Access Required</h2>
+              <h2 className="font-sans text-3xl font-bold text-brand-text mb-4">Admin Access Required</h2>
               <p className="text-brand-brown-light mb-8">This section is restricted to registered Wisdom Lounge administrators. Please sign in with your authorized Google account.</p>
               <button 
                 onClick={handleAdminSignIn}

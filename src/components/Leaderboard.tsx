@@ -83,7 +83,7 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex flex-col gap-2">
-        <h1 className="font-serif text-4xl font-bold text-brand-text flex items-center gap-3">
+        <h1 className="font-sans text-4xl font-bold text-brand-text flex items-center gap-3">
           <Trophy className="text-yellow-500 w-8 h-8" />
           Leaderboard
           <div className="relative group cursor-help ml-2">
@@ -154,7 +154,7 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
                   className="flex items-center justify-between p-4 sm:p-6 cursor-pointer"
                 >
                   <div className="flex items-center gap-3 sm:gap-6 min-w-0">
-                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center font-bold font-serif text-base sm:text-xl shadow-sm border-2 shrink-0 ${
+                    <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl flex items-center justify-center font-bold font-sans text-base sm:text-xl shadow-sm border-2 shrink-0 ${
                       index === 0 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white border-yellow-700' : 
                       index === 1 ? 'bg-gradient-to-br from-slate-300 to-slate-500 text-white border-slate-400' : 
                       index === 2 ? 'bg-gradient-to-br from-orange-400 to-orange-700 text-white border-orange-800' : 
@@ -163,7 +163,7 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
                       {index === 0 ? <Trophy className="w-5 h-5 sm:w-6 sm:h-6" /> : index === 1 ? <Medal className="w-5 h-5 sm:w-6 sm:h-6" /> : index === 2 ? <Award className="w-5 h-5 sm:w-6 sm:h-6" /> : index + 1}
                     </div>
                     <div className="min-w-0">
-                      <div className="font-serif text-sm sm:text-lg font-bold text-brand-text flex flex-wrap items-center gap-1.5 sm:gap-3">
+                      <div className="font-sans text-sm sm:text-lg font-bold text-brand-text flex flex-wrap items-center gap-1.5 sm:gap-3">
                         <span className="truncate max-w-[120px] sm:max-w-[240px]">{learner.fullName}</span>
                         <span className="text-[8px] sm:text-[9px] bg-brand-brown/10 text-brand-brown px-1.5 sm:px-2 py-0.5 rounded-full font-black uppercase tracking-widest border border-brand-brown/20 shrink-0">
                           {getLearnerStatus(getLearnerBadges(learner).length).name}
@@ -188,7 +188,7 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
                   <div className="flex items-center gap-2 sm:gap-4 shrink-0 pl-2">
                     <div className="flex items-center gap-2 sm:gap-3 bg-brand-beige/30 px-3 sm:px-5 py-2 sm:py-3 rounded-xl sm:rounded-2xl border border-brand-border-light group-hover/card:bg-brand-white group-hover/card:shadow-md transition-all">
                       <div className="text-right">
-                        <p className="text-base sm:text-2xl font-serif font-black text-brand-brown leading-none">{getScore(learner)}</p>
+                        <p className="text-base sm:text-2xl font-sans font-black text-brand-brown leading-none">{getScore(learner)}</p>
                         <p className="text-[7px] sm:text-[8px] font-black uppercase tracking-widest text-brand-brown-light mt-1">{getCategoryLabel()}</p>
                       </div>
                       {(() => {
@@ -285,7 +285,7 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
                                   >
                                     <span className="text-2xl sm:text-3xl mb-1.5">{emoji}</span>
                                     <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-brand-brown-light leading-tight line-clamp-2 px-1">{domain.label}</span>
-                                    <span className="text-base sm:text-lg font-serif font-black text-brand-text leading-none mt-2">{count}</span>
+                                    <span className="text-base sm:text-lg font-sans font-black text-brand-text leading-none mt-2">{count}</span>
                                     <span className="text-[8.5px] sm:text-[9.5px] font-bold text-brand-brown/70 leading-none mt-1">{pts} points</span>
                                   </div>
                                 );
@@ -305,7 +305,7 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
 
       <div className="mt-8 sm:mt-12 bg-transparent">
         <div className="mb-6">
-            <h2 className="font-serif text-2xl font-bold text-brand-text flex items-center gap-2">
+            <h2 className="font-sans text-2xl font-bold text-brand-text flex items-center gap-2">
                Status Progression Path
             </h2>
             <p className="text-sm font-medium text-brand-brown-light mt-1">
@@ -334,7 +334,7 @@ export function Leaderboard({ learners }: { learners: Learner[] }) {
                       style={{ backgroundColor: rowBg }}
                       className="hover:brightness-95 transition-all"
                     >
-                      <td className="px-3 sm:px-4 py-4 font-serif font-bold text-brand-text sm:whitespace-nowrap break-words">
+                      <td className="px-3 sm:px-4 py-4 font-sans font-bold text-brand-text sm:whitespace-nowrap break-words">
                         {tier.name}
                       </td>
                       <td className="px-3 sm:px-4 py-4 text-center border-x border-brand-border/30">

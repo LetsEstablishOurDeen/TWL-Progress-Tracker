@@ -57,10 +57,13 @@ export const getModulePoints = (learner: Learner, type: string) => {
     }
     let pts = 0;
     list.forEach(item => {
-      if (item.includes('[Research Paper]')) {
-        pts += 30; // Scholarly Research Paper gets 30 points
+      let basePts = item.includes('[Research Paper]') ? 30 : 15;
+      const seriesMatch = item.match(/\[Series: (\d+) Articles\]/) || item.match(/\[Series: (\d+) Pieces\]/);
+      if (seriesMatch && seriesMatch[1]) {
+        const pieceCount = parseInt(seriesMatch[1], 10) || 1;
+        pts += basePts * pieceCount;
       } else {
-        pts += 15; // Regular Article gets 15 points
+        pts += basePts;
       }
       if (item.includes('[Document Uploaded]')) pts += 1;
     });

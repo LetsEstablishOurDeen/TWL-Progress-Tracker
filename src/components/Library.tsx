@@ -496,7 +496,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
           <div className="w-20 h-20 bg-brand-beige rounded-2xl flex items-center justify-center mx-auto mb-6">
             <LibraryIcon className="w-10 h-10 text-brand-brown" />
           </div>
-          <h2 className="font-serif text-3xl font-bold text-brand-text mb-4">Central Library</h2>
+          <h2 className="font-sans text-3xl font-bold text-brand-text mb-4">Central Library</h2>
           {isAdmin ? (
             <>
               <p className="text-brand-brown-light mb-8 max-w-lg mx-auto">
@@ -567,7 +567,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
       {/* Title & Actions bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-brand-text flex items-center gap-3">
+          <h1 className="font-sans text-3xl font-bold text-brand-text flex items-center gap-3">
             <LibraryIcon className="w-8 h-8 text-brand-brown" />
             Wisdom Archive
           </h1>
@@ -719,7 +719,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
             <div className="w-16 h-16 bg-brand-offwhite rounded-full flex items-center justify-center mx-auto mb-4">
               <FileText className="w-8 h-8 text-brand-border" />
             </div>
-            <h3 className="font-serif text-lg font-bold text-brand-text mb-1">No items in this category</h3>
+            <h3 className="font-sans text-lg font-bold text-brand-text mb-1">No items in this category</h3>
             <p className="text-xs text-brand-brown-light max-w-sm mx-auto mb-4">
               This repository is waiting for approved submissions or direct archives.
             </p>
@@ -769,7 +769,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
                   
                   {/* Title area */}
                   <div className="px-4 pb-4">
-                    <h4 className="font-serif font-bold text-brand-offwhite text-base truncate">{item.name}</h4>
+                    <h4 className="font-sans font-bold text-brand-offwhite text-base truncate">{item.name}</h4>
                     {item.author && item.author !== 'Unknown Contribution' && <p className="text-xs text-brand-offwhite/70 truncate">by {item.author}</p>}
                   </div>
                   
@@ -793,7 +793,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
                             <span className="text-[9px] font-mono tracking-widest font-extrabold text-brand-beige uppercase block mb-1">
                               Full Book Title
                             </span>
-                            <h5 className="font-serif font-bold text-sm text-brand-offwhite leading-snug">
+                            <h5 className="font-sans font-bold text-sm text-brand-offwhite leading-snug">
                               {item.name}
                             </h5>
                           </div>
@@ -876,7 +876,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
               {booksBySubject.map(({ subject, items }) => (
                 <div key={subject} className="space-y-3">
                   <div className="flex items-center justify-between border-b border-brand-border/60 pb-2">
-                    <h3 className="font-serif font-bold text-base text-brand-text flex items-center gap-2">
+                    <h3 className="font-sans font-bold text-base text-brand-text flex items-center gap-2">
                       <span>{subject}</span>
                       <span className="text-xs font-mono font-bold text-brand-brown bg-brand-beige/50 px-2.5 py-0.5 rounded-full border border-brand-border/40">
                         {items.length} {items.length === 1 ? 'book' : 'books'}
@@ -910,7 +910,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
                           </div>
                           
                           <div className="px-4 pb-3 flex-1">
-                            <h4 className="font-serif font-bold text-brand-offwhite text-sm line-clamp-2">{item.name}</h4>
+                            <h4 className="font-sans font-bold text-brand-offwhite text-sm line-clamp-2">{item.name}</h4>
                             {item.author && item.author !== 'Unknown Contribution' && <p className="text-xs text-brand-offwhite/70 truncate mt-0.5">by {item.author}</p>}
                           </div>
                           
@@ -933,7 +933,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
                                     <span className="text-[9px] font-mono tracking-widest font-extrabold text-brand-beige uppercase block mb-1">
                                       Full Book Title
                                     </span>
-                                    <h5 className="font-serif font-bold text-sm text-brand-offwhite leading-snug">
+                                    <h5 className="font-sans font-bold text-sm text-brand-offwhite leading-snug">
                                       {item.name}
                                     </h5>
                                   </div>
@@ -1028,7 +1028,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
                   <span className="text-[9px] font-mono tracking-widest font-extrabold text-brand-beige uppercase block mb-1">
                     Full Book Title
                   </span>
-                  <h5 className="font-serif font-bold text-sm text-brand-offwhite leading-snug">
+                  <h5 className="font-sans font-bold text-sm text-brand-offwhite leading-snug">
                     {hoveredItemObj.name}
                   </h5>
                 </div>
@@ -1083,7 +1083,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
                         href={item.webViewLink}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-serif font-bold text-brand-text hover:text-brand-brown hover:underline text-base md:text-lg shrink-0 max-w-[280px] sm:max-w-[420px] md:max-w-none truncate"
+                        className="font-sans font-bold text-brand-text hover:text-brand-brown hover:underline text-base md:text-lg shrink-0 max-w-[280px] sm:max-w-[420px] md:max-w-none truncate"
                       >
                         {item.name}
                       </a>
@@ -1196,7 +1196,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
         <div className="fixed inset-0 bg-brand-brown/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-brand-bg-alt rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-brand-border/60 bg-brand-white flex items-center justify-between shrink-0">
-              <h3 className="font-serif text-2xl font-bold text-brand-text">{isAdmin ? 'Upload Scholar Book' : 'Submit Scholar Book'}</h3>
+              <h3 className="font-sans text-2xl font-bold text-brand-text">{isAdmin ? 'Upload Scholar Book' : 'Submit Scholar Book'}</h3>
               <button onClick={() => setIsUploadModalOpen(false)} className="text-brand-brown-light hover:text-brand-brown transition-colors">
                 <X className="w-6 h-6" />
               </button>
@@ -1384,7 +1384,7 @@ export function Library({ isAdmin, activeLearner, onAddToFocus, onMakeCircle }: 
                 <AlertCircle className="w-6 h-6" />
               </div>
               <div className="space-y-1.5">
-                <h3 className="font-serif text-xl font-bold text-brand-text">Confirm Deletion</h3>
+                <h3 className="font-sans text-xl font-bold text-brand-text">Confirm Deletion</h3>
                 <p className="text-xs text-brand-brown-light leading-relaxed">
                   {!deleteConfirmItem.sourceRequest 
                     ? `Are you sure you want to permanently delete "${deleteConfirmItem.name}" from the Library archive?`

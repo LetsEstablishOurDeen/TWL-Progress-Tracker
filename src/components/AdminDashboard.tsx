@@ -1,7 +1,8 @@
 import { useState, useMemo, ReactNode, useEffect } from 'react';
 import { Learner, EditRequest, FocusReminder } from '../types';
-import { Plus, Edit2, Trash2, Search, CheckCircle2, BarChart3, Users as UsersIcon, BookOpen, Mic, Bell, Check, X, Calendar, AlertTriangle, MessageSquare, Database, RefreshCw, Folder, FolderOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Edit2, Trash2, Search, CheckCircle2, BarChart3, Users as UsersIcon, BookOpen, Mic, Bell, Check, X, Calendar, AlertTriangle, MessageSquare, Database, RefreshCw, Folder, FolderOpen, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
 import { ManageLearnerModal } from './ManageLearnerModal';
+import { CelebrationCardModal, CelebrationCardData } from './CelebrationCardModal';
 import { requestService } from '../services/requestService';
 import { reminderService } from '../services/reminderService';
 import { learnerService } from '../services/learnerService';
@@ -58,6 +59,9 @@ export function AdminDashboard({
   const [declineMessage, setDeclineMessage] = useState('');
   const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
   const [rejectMessage, setRejectMessage] = useState('');
+  const [isCelebrationCardOpen, setIsCelebrationCardOpen] = useState(false);
+  const [celebrationCardData, setCelebrationCardData] = useState<CelebrationCardData | undefined>(undefined);
+  const [isBetaCardPreview, setIsBetaCardPreview] = useState(false);
   const [requests, setRequests] = useState<EditRequest[]>([]);
   const [reminders, setReminders] = useState<FocusReminder[]>([]);
   const [unreadMessages, setUnreadMessages] = useState<Record<string, number>>({});
@@ -234,6 +238,13 @@ export function AdminDashboard({
           if (reqType === 'research papers/article') {
             const prefix = request.details.isResearchPaper ? '[Research Paper] ' : '[Article] ';
             displayTitle = prefix + displayTitle;
+            if (request.details.isSeries) {
+              const pieces = Math.max(2, request.details.seriesCount || 2);
+              displayTitle += ` [Series: ${pieces} Articles]`;
+              if (request.details.seriesArticleTitles?.trim()) {
+                displayTitle += ` (Titles: ${request.details.seriesArticleTitles.trim()})`;
+              }
+            }
             if (request.details.hasFile) {
               displayTitle += ' [Document Uploaded]';
             }
@@ -245,10 +256,14 @@ export function AdminDashboard({
             }
           }
           
+          const addedCount = (reqType === 'research papers/article' && request.details.isSeries)
+            ? Math.max(2, request.details.seriesCount || 2)
+            : (request.details.count || 1);
+
           updates = {
             moduleStats: {
               ...currentStats,
-              [saveKey]: (currentStats[saveKey] || 0) + (request.details.count || 1)
+              [saveKey]: (currentStats[saveKey] || 0) + addedCount
             },
             moduleItems: {
               ...currentItems,
@@ -329,6 +344,24 @@ export function AdminDashboard({
         } catch (circleErr) {
           console.error("Failed to sync book update to past study circle:", circleErr);
         }
+      }
+
+      // Automatically pop up Celebration Card for focus completion/update approval
+      if (!request.isFocus) {
+        setCelebrationCardData({
+          learnerName: request.learnerName || 'Learner',
+          focusTitle: request.details?.title || 'Completed Item',
+          domain: request.type,
+          type: request.type,
+          pointsEarned: 100,
+          completedDate: new Date().toISOString(),
+          targetDate: request.details?.estimatedDuration || request.details?.presentationTargetDate,
+          totalPages: request.details?.totalPages,
+          summaryNotes: request.details?.documentOverview || request.details?.overview || request.details?.description || 'Verified Focus Completion',
+          adminComment: 'Great perseverance and thorough reflection notes!'
+        });
+        setIsBetaCardPreview(false);
+        setIsCelebrationCardOpen(true);
       }
     } catch (err) {
       console.error("Failed to approve request:", err);
@@ -429,34 +462,49 @@ export function AdminDashboard({
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="font-serif text-3xl font-bold text-brand-text">Admin Center</h1>
+          <h1 className="font-sans text-3xl font-bold text-brand-text">Admin Center</h1>
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-brown-light mt-1">
             Lounge Management ({learners.length} learners)
           </p>
         </div>
-        <div className="flex bg-brand-brown rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 divide-x divide-brand-brown-dark">
-          <button 
-            onClick={handleAddNew}
-            className="text-brand-offwhite px-6 py-3 font-bold uppercase tracking-wider text-xs hover:bg-brand-brown-dark flex items-center space-x-2"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Enroll New Learner</span>
-          </button>
+        <div className="flex flex-wrap items-center gap-3">
           <button
+            type="button"
             onClick={() => {
-              const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(learners, null, 2));
-              const downloadAnchorNode = document.createElement('a');
-              downloadAnchorNode.setAttribute('href', dataStr);
-              downloadAnchorNode.setAttribute('download', `learners_data_${new Date().toISOString().split('T')[0]}.json`);
-              document.body.appendChild(downloadAnchorNode);
-              downloadAnchorNode.click();
-              downloadAnchorNode.remove();
+              setIsBetaCardPreview(true);
+              setCelebrationCardData(undefined);
+              setIsCelebrationCardOpen(true);
             }}
-            className="text-brand-offwhite px-4 py-3 hover:bg-brand-brown-dark flex items-center justify-center"
-            title="Download Data (JSON)"
+            className="bg-amber-600 hover:bg-amber-700 text-stone-950 font-black uppercase tracking-wider text-xs px-4 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all active:scale-95 flex items-center space-x-2 border border-amber-400"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>
+            <Sparkles className="w-4 h-4 text-yellow-300" />
+            <span>🎉 Beta: Celebration Card</span>
           </button>
+
+          <div className="flex bg-brand-brown rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 active:translate-y-0 active:scale-95 divide-x divide-brand-brown-dark">
+            <button 
+              onClick={handleAddNew}
+              className="text-brand-offwhite px-6 py-3 font-bold uppercase tracking-wider text-xs hover:bg-brand-brown-dark flex items-center space-x-2"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Enroll New Learner</span>
+            </button>
+            <button
+              onClick={() => {
+                const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(learners, null, 2));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute('href', dataStr);
+                downloadAnchorNode.setAttribute('download', `learners_data_${new Date().toISOString().split('T')[0]}.json`);
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+              }}
+              className="text-brand-offwhite px-4 py-3 hover:bg-brand-brown-dark flex items-center justify-center"
+              title="Download Data (JSON)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -467,7 +515,7 @@ export function AdminDashboard({
               <Database className="w-6 h-6" />
             </div>
             <div className="space-y-1">
-              <h3 className="font-serif text-2xl font-bold text-brand-text leading-tight">Database Recovery Mode</h3>
+              <h3 className="font-sans text-2xl font-bold text-brand-text leading-tight">Database Recovery Mode</h3>
               <p className="text-sm text-brand-brown-light leading-relaxed">
                 It looks like the <strong>learners</strong> collection in your Firestore database is currently empty (or has been recently deleted). 
                 To quickly restore your application data and populated workspaces, you can seed the database with standard demonstration profiles.
@@ -670,7 +718,7 @@ export function AdminDashboard({
                         <span className="w-6 h-6 rounded-full bg-brand-beige flex items-center justify-center text-xs font-bold text-brand-brown">{i + 1}</span>
                         <span className="font-medium text-brand-text">{learner.name}</span>
                       </div>
-                      <span className="font-serif font-bold text-brand-brown">{learner.points} pts</span>
+                      <span className="font-sans font-bold text-brand-brown">{learner.points} pts</span>
                     </div>
                   ))}
                   {reportingData.topLearners.length === 0 && (
@@ -754,7 +802,7 @@ export function AdminDashboard({
                              </div>
                              <div>
                                <div className="flex items-center gap-2">
-                                 <h4 className="font-serif font-bold text-brand-text text-base">{learnerName}</h4>
+                                 <h4 className="font-sans font-bold text-brand-text text-base">{learnerName}</h4>
                                  <span className="px-2 py-0.5 bg-brand-beige text-brand-brown rounded-full text-[10px] font-bold">
                                    {learnerReqs.length} request{learnerReqs.length !== 1 ? 's' : ''}
                                  </span>
@@ -976,7 +1024,7 @@ export function AdminDashboard({
                         })()}
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-serif font-bold text-brand-text">{req.learnerName}</h4>
+                            <h4 className="font-sans font-bold text-brand-text">{req.learnerName}</h4>
                             <span className="text-[10px] font-mono text-brand-brown-light">Wisdom Code: {req.learnerId}</span>
                           </div>
                           <p className="text-sm text-brand-brown">
@@ -1127,7 +1175,7 @@ export function AdminDashboard({
           <div className="p-6 space-y-6 bg-brand-bg-alt min-h-[400px]">
              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-brand-border pb-4">
                <div>
-                 <h3 className="font-serif text-2xl font-bold text-brand-brown">Learning Focus Alerts</h3>
+                 <h3 className="font-sans text-2xl font-bold text-brand-brown">Learning Focus Alerts</h3>
                  <p className="text-sm text-brand-brown-light">Track approaching completion dates, periodic progress checkpoints, and individual member assistance requests.</p>
                </div>
                <button
@@ -1226,7 +1274,7 @@ export function AdminDashboard({
                                <p className="text-xs text-brand-brown-light/80 italic font-mono mb-1">
                                  {reminder.type === 'abandon' ? 'System Notification / Action:' : 'Question sent to learner:'}
                                </p>
-                               <p className="text-brand-brown font-serif italic text-sm">"{reminder.questionText}"</p>
+                               <p className="text-brand-brown font-sans italic text-sm">"{reminder.questionText}"</p>
                              </div>
 
                              {isAnswered && (
@@ -1491,6 +1539,15 @@ export function AdminDashboard({
           }}
         />
       )}
+
+      {isCelebrationCardOpen && (
+        <CelebrationCardModal
+          isOpen={isCelebrationCardOpen}
+          onClose={() => setIsCelebrationCardOpen(false)}
+          data={celebrationCardData}
+          isBetaAdminPreview={isBetaCardPreview}
+        />
+      )}
     </div>
   );
 }
@@ -1503,7 +1560,7 @@ function StatItem({ label, value, icon, color }: { label: string, value: number,
       </div>
       <div>
         <p className="text-[10px] font-bold uppercase tracking-wider text-brand-brown-light leading-none mb-1">{label}</p>
-        <p className="text-xl font-serif font-bold text-brand-text">{value}</p>
+        <p className="text-xl font-sans font-bold text-brand-text">{value}</p>
       </div>
     </div>
   );
