@@ -346,10 +346,12 @@ export default function App() {
             activeLearner={activeLearner}
             initialTab={updatesInitialTab}
             onEnroll={(module) => {
-              let targetDate = '';
-              if (module.category === 'tafsir') targetDate = '2026-08-14';
-              else if (module.category === 'seerah') targetDate = '2026-08-14';
-              else targetDate = '2026-07-14';
+              let targetDate = module.endDate || module.estimatedEndDate || '';
+              if (!targetDate) {
+                const d = new Date();
+                d.setMonth(d.getMonth() + 2);
+                targetDate = d.toISOString().split('T')[0];
+              }
 
               setPendingEnrollment({ 
                 title: module.batch || module.title, 

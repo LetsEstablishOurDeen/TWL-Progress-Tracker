@@ -429,6 +429,16 @@ export function LoungeUpdates({
           </p>
           
           <div className="grid grid-cols-2 gap-y-4 gap-x-2 mb-8 bg-brand-bg-alt p-4 rounded-2xl border border-brand-border-light">
+            {(module.endDate || module.estimatedEndDate) && (
+              <div className="col-span-2 flex items-center justify-between bg-amber-50/80 border border-amber-200/70 px-3 py-2 rounded-xl text-xs">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-amber-700" /> Est. End Date:
+                </span>
+                <span className="font-mono font-bold text-amber-950">
+                  {formatDateDDMMYYYY(module.endDate || module.estimatedEndDate || '')}
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Calendar className="w-4 h-4 text-brand-brown/60 shrink-0" />
               <div className="flex flex-col min-w-0">

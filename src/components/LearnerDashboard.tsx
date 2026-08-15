@@ -5,7 +5,7 @@ import {
   LayoutDashboard, BarChart3, Plus, X, Clock, Send, Info, Lock,
   Bell, Calendar, HelpCircle, Flame, Activity, Sparkles, Volume2, Settings,
   ChevronLeft, ChevronRight, Trophy, MessageSquare, Upload, ArrowRight, Users, Check, Trash2,
-  AlertTriangle, TrendingDown
+  AlertTriangle, TrendingDown, FileText
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { getLearnerBadges, ALL_BADGES } from '../lib/badges';
@@ -451,6 +451,8 @@ export function LearnerDashboard({
   };
 
   // Form State
+  const [loungeCircles, setLoungeCircles] = useState<LoungeCircle[]>([]);
+  const [circlesLoading, setCirclesLoading] = useState(false);
   const [itemTitle, setItemTitle] = useState('');
   const [itemAuthor, setItemAuthor] = useState('');
   const [completionDate, setCompletionDate] = useState('');
@@ -483,13 +485,24 @@ export function LearnerDashboard({
 
   const activeDomain = useMemo(() => APP_DOMAINS.find(d => d.type === requestType), [requestType]);
   const isTaskLike = requestType === 'task';
+
+  const selectedRequestCircle = useMemo(() => {
+    if (!requestSelectedCircleId) return null;
+    return loungeCircles.find(c => c.id === requestSelectedCircleId) || null;
+  }, [loungeCircles, requestSelectedCircleId]);
+
+  const selectedRequestModule = useMemo(() => {
+    if (!requestSelectedModuleId) return null;
+    return loungeModules.find(m => m.id === requestSelectedModuleId) || null;
+  }, [loungeModules, requestSelectedModuleId]);
+
   const hideSubmitButton = 
     (requestType === 'book' && requestLocation === 'lounge' && !requestSelectedCircleId) ||
     (requestLocation === 'personal' && !['task'].includes(requestType) && !submissionMethod) ||
     ((['tafsir', 'seerah', 'dowra'].includes(requestType)) && requestLocation === 'lounge' && !requestSelectedModuleId) ||
     (requestType === 'talaqqi' && requestLocation === 'lounge' && !requestSelectedCircleId);
 
-  const hideExtraFields = requestLocation === 'lounge';
+  const hideExtraFields = false;
 
   useEffect(() => {
     const shouldBeLoungeModule = ['tafsir', 'seerah', 'dowra'].includes(requestType) && requestLocation === 'lounge';
@@ -821,8 +834,6 @@ export function LearnerDashboard({
   const [focusSubject, setFocusSubject] = useState('');
   const [focusObjective, setFocusObjective] = useState('');
 
-  const [loungeCircles, setLoungeCircles] = useState<LoungeCircle[]>([]);
-  const [circlesLoading, setCirclesLoading] = useState(false);
   const [selectedCircle, setSelectedCircle] = useState<LoungeCircle | null>(null);
   const [selectedFocusModule, setSelectedFocusModule] = useState<LoungeModule | null>(null);
 
@@ -924,18 +935,26 @@ export function LearnerDashboard({
       setFocusDomain(pendingEnrollment.category);
       setFocusTargetDomain(pendingEnrollment.targetDomain || pendingEnrollment.category);
       setFocusTitle(pendingEnrollment.title);
-      if (pendingEnrollment.duration) setFocusEstimatedDuration(pendingEnrollment.duration);
       if (pendingEnrollment.speaker) setFocusAuthor(pendingEnrollment.speaker);
       setFocusLocation('lounge');
       setIsLoungeModule((pendingEnrollment as any).isLoungeModule || false);
       const mId = (pendingEnrollment as any).moduleId;
       setFocusModuleId(mId || undefined);
+
+      let targetEndDate = pendingEnrollment.duration || '';
       if (mId) {
         const matchingModule = loungeModules.find(m => m.id === mId);
         if (matchingModule) {
           setSelectedFocusModule(matchingModule);
+          if (matchingModule.endDate || matchingModule.estimatedEndDate) {
+            targetEndDate = matchingModule.endDate || matchingModule.estimatedEndDate || targetEndDate;
+          }
         }
       }
+      if (targetEndDate) {
+        setFocusEstimatedDuration(targetEndDate);
+      }
+
       setIsFocusModalOpen(true);
       clearPendingEnrollment?.();
     }
@@ -3559,261 +3578,851 @@ export function LearnerDashboard({
                   
                   <form onSubmit={handleSubmitRequest} className="p-6 space-y-5 overflow-y-auto flex-1">
                     
-                    {/* Domain Selection */}
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Category (Domain)</label>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-brand-offwhite p-2 rounded-xl border border-brand-border">
-                        {APP_DOMAINS.map(domain => (
-                          <button
-                            key={domain.type}
-                            type="button"
-                            onClick={() => {
-                              setRequestType(domain.type);
-                              setIsRequestLoungeModule(false);
-                            }}
-                            className={`relative w-full py-2.5 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 active:scale-95 ${requestType === domain.type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
-                          >
-                            {requestType === domain.type && (
-                              <motion.div
-                                layoutId="segmented-control-bg"
-                                className="absolute inset-0 bg-brand-brown rounded-lg shadow-md"
-                                transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
-                              />
-                            )}
-                            <span className="relative z-10 block whitespace-normal break-words leading-tight text-center px-1">{domain.label}</span>
-                          </button>
-                        ))}
+                    {/* Sub-categorized Domain Selection */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">
+                          Select Domain
+                        </label>
+                        <span className="text-[10px] text-brand-brown-light/70 font-semibold">
+                          Choose a category below
+                        </span>
+                      </div>
+
+                      {/* 1st Category: Modules */}
+                      <div className="bg-brand-offwhite p-3 rounded-2xl border border-brand-border/80 space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200/70 flex items-center gap-1.5">
+                            <BookOpen className="w-3 h-3 text-amber-700" /> Modules
+                          </span>
+                          <span className="text-[10px] text-brand-brown-light/70 font-medium">Structured Islamic courses</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { type: 'tafsir', label: 'Tafsir' },
+                            { type: 'seerah', label: 'Seerah' },
+                            { type: 'dowra', label: 'Dowra e Quran' }
+                          ].map(domain => {
+                            const isSelected = requestType === domain.type;
+                            return (
+                              <button
+                                key={domain.type}
+                                type="button"
+                                onClick={() => {
+                                  setRequestType(domain.type);
+                                  setIsRequestLoungeModule(requestLocation === 'lounge');
+                                  setRequestSelectedModuleId('');
+                                  setRequestSelectedCircleId('');
+                                  setItemTitle('');
+                                  setItemAuthor('');
+                                }}
+                                className={`py-2.5 px-2 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center ${
+                                  isSelected
+                                    ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                    : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40 hover:bg-brand-beige/20'
+                                } active:scale-98`}
+                              >
+                                <span className="leading-tight truncate">{domain.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 2nd Category: Circles */}
+                      <div className="bg-brand-offwhite p-3 rounded-2xl border border-brand-border/80 space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-900 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200/70 flex items-center gap-1.5">
+                            <Users className="w-3 h-3 text-emerald-700" /> Circles
+                          </span>
+                          <span className="text-[10px] text-brand-brown-light/70 font-medium">Reading & guided cohorts</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { type: 'book', label: 'Books' },
+                            { type: 'talaqqi', label: 'Guided Studies' }
+                          ].map(domain => {
+                            const isSelected = requestType === domain.type;
+                            return (
+                              <button
+                                key={domain.type}
+                                type="button"
+                                onClick={() => {
+                                  setRequestType(domain.type);
+                                  setIsRequestLoungeModule(false);
+                                  setRequestSelectedModuleId('');
+                                  setRequestSelectedCircleId('');
+                                  setItemTitle('');
+                                  setItemAuthor('');
+                                }}
+                                className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center ${
+                                  isSelected
+                                    ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                    : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40 hover:bg-brand-beige/20'
+                                } active:scale-98`}
+                              >
+                                <span className="leading-tight truncate">{domain.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 3rd Category: Others */}
+                      <div className="bg-brand-offwhite p-3 rounded-2xl border border-brand-border/80 space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-sky-900 bg-sky-100/80 px-2 py-0.5 rounded-md border border-sky-200/70 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3 h-3 text-sky-700" /> Others
+                          </span>
+                          <span className="text-[10px] text-brand-brown-light/70 font-medium">Independent learning tasks</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { type: 'presentation', label: 'Presentations' },
+                            { type: 'task', label: 'Tasks' },
+                            { type: 'research papers/article', label: 'Research Paper / Article' }
+                          ].map(domain => {
+                            const isSelected = requestType === domain.type;
+                            return (
+                              <button
+                                key={domain.type}
+                                type="button"
+                                onClick={() => {
+                                  setRequestType(domain.type);
+                                  setIsRequestLoungeModule(false);
+                                  setRequestSelectedModuleId('');
+                                  setRequestSelectedCircleId('');
+                                  setItemTitle('');
+                                  setItemAuthor('');
+                                }}
+                                className={`py-2.5 px-2 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center ${
+                                  isSelected
+                                    ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                    : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40 hover:bg-brand-beige/20'
+                                } active:scale-98`}
+                              >
+                                <span className="leading-tight text-[11px] truncate">{domain.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 
                     {/* Location selector (except for task domain) */}
                     {!isTaskLike && (
                       <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Location</label>
-                        <div className="flex gap-4">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="requestLocation"
-                              value="lounge"
-                              checked={requestLocation === 'lounge'}
-                              onChange={() => setRequestLocation('lounge')}
-                              className="w-4 h-4 text-brand-brown focus:ring-brand-brown border-brand-border"
-                            />
-                            <span className="text-sm text-brand-brown font-medium">Inside the Lounge</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="requestLocation"
-                              value="personal"
-                              checked={requestLocation === 'personal'}
-                              onChange={() => setRequestLocation('personal')}
-                              className="w-4 h-4 text-brand-brown focus:ring-brand-brown border-brand-border"
-                            />
-                            <span className="text-sm text-brand-brown font-medium">Personal Study (Outside)</span>
-                          </label>
+                        <div className="bg-brand-offwhite p-3.5 rounded-2xl border border-brand-border space-y-2">
+                          <label className="block text-xs font-black uppercase tracking-wider text-brand-brown-light">Learning Location</label>
+                          <div className="grid grid-cols-2 gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRequestLocation('lounge');
+                              }}
+                              className={`p-3 rounded-xl border text-left transition-all flex items-center gap-2.5 ${
+                                requestLocation === 'lounge'
+                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                  : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40'
+                              }`}
+                            >
+                              <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                requestLocation === 'lounge' ? 'border-brand-offwhite bg-amber-400' : 'border-brand-brown-light/40'
+                              }`} />
+                              <div>
+                                <div className="text-xs font-bold leading-tight">Inside the Lounge</div>
+                                <div className="text-[10px] opacity-80 mt-0.5">Cohorts, modules & circles</div>
+                              </div>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRequestLocation('personal');
+                                setRequestSelectedCircleId('');
+                                setRequestSelectedModuleId('');
+                                setIsRequestLoungeModule(false);
+                              }}
+                              className={`p-3 rounded-xl border text-left transition-all flex items-center gap-2.5 ${
+                                requestLocation === 'personal'
+                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                  : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40'
+                              }`}
+                            >
+                              <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                requestLocation === 'personal' ? 'border-brand-offwhite bg-amber-400' : 'border-brand-brown-light/40'
+                              }`} />
+                              <div>
+                                <div className="text-xs font-bold leading-tight">Personal Study (Outside)</div>
+                                <div className="text-[10px] opacity-80 mt-0.5">Self-paced independent study</div>
+                              </div>
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )}
 
+                    {/* ========================================================================= */}
+                    {/* INSIDE THE LOUNGE MODE - UNIFIED CARD SELECTION FOR ALL DOMAINS */}
+                    {/* ========================================================================= */}
+                    {requestLocation === 'lounge' && !isTaskLike && (
+                      <div className="space-y-4">
+                        {/* 1. MODULES (Tafsir, Seerah, Dowra e Quran) */}
+                        {['tafsir', 'seerah', 'dowra'].includes(requestType) && (
+                          <div>
+                            {selectedRequestModule ? (
+                              <motion.div 
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="p-5 bg-green-50/50 border border-green-200 rounded-2xl flex flex-col space-y-4 shadow-sm"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center border border-green-200">
+                                      <CheckCircle2 className="w-5 h-5 text-green-700" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-green-700 block">Selected Lounge Module</span>
+                                      <h4 className="font-sans text-base font-bold text-brand-text mt-0.5 truncate">{selectedRequestModule.title} {selectedRequestModule.batch ? `(${selectedRequestModule.batch})` : ''}</h4>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRequestSelectedModuleId('');
+                                      setItemTitle('');
+                                      setItemAuthor('');
+                                      setTimeTaken('');
+                                    }}
+                                    className="px-3 py-1.5 border border-brand-border hover:bg-brand-offwhite text-brand-brown rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shrink-0"
+                                  >
+                                    Change
+                                  </button>
+                                </div>
 
+                                <div className="bg-brand-white/80 p-4 rounded-xl border border-brand-border-light space-y-2 text-xs text-brand-brown">
+                                  <p className="font-medium text-brand-text">
+                                    📖 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Module / Batch:</span> {selectedRequestModule.batch || selectedRequestModule.title}
+                                  </p>
+                                  {selectedRequestModule.speaker && (
+                                    <p className="font-medium text-brand-text">
+                                      🎓 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Instructor:</span> {selectedRequestModule.speaker}
+                                    </p>
+                                  )}
+                                  {selectedRequestModule.orientationDate && (
+                                    <p className="font-medium">
+                                      🗓️ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Orientation:</span> {formatDateDDMMYYYY(selectedRequestModule.orientationDate)}
+                                    </p>
+                                  )}
+                                  {(selectedRequestModule.endDate || selectedRequestModule.estimatedEndDate) && (
+                                    <p className="font-medium">
+                                      ⏳ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Target / End Date:</span> {formatDateDDMMYYYY(selectedRequestModule.endDate || selectedRequestModule.estimatedEndDate || '')}
+                                    </p>
+                                  )}
+                                </div>
 
-                    {/* Dynamic Fields based on Domain */}
-                    {requestType === 'research papers/article' ? (
-                      <>
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                            Title / Topic <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={itemTitle}
-                            onChange={(e) => setItemTitle(e.target.value)}
-                            placeholder="e.g. History of Fiqh or Islamic Financial Ethics"
-                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
-                          />
-                        </div>
+                                <p className="text-[11px] text-green-800 leading-relaxed font-semibold">
+                                  ✓ Selected! Fill in your completion date and notes below to submit your update for this module.
+                                </p>
+                              </motion.div>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="border-b border-brand-border pb-2">
+                                  <h4 className="font-sans text-base font-bold text-brand-text">Choose a Past {APP_DOMAINS.find(d => d.type === requestType)?.label || 'Module'} to Submit</h4>
+                                  <p className="text-xs text-brand-brown-light mt-1">
+                                    Select the completed past module you finished inside the Wisdom Lounge.
+                                  </p>
+                                </div>
 
-                        {/* Series vs Single Selection */}
-                        <div className="bg-brand-bg-alt/80 p-4 rounded-2xl border border-brand-border/80 space-y-3">
-                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-text">
-                            Article Structure
-                          </label>
-                          <div className="grid grid-cols-2 gap-3">
-                            <button
-                              type="button"
-                              onClick={() => setRequestIsSeries(false)}
-                              className={`p-3 rounded-xl border text-left transition-all ${
-                                !requestIsSeries 
-                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
-                                  : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
-                              }`}
-                            >
-                              <div className="text-xs font-bold flex items-center gap-1.5">
-                                📄 Single Piece
+                                {loungeModules.filter(m => m.category === requestType && m.status === 'past').length === 0 ? (
+                                  <div className="p-6 bg-brand-offwhite rounded-2xl border border-dashed border-brand-border text-center">
+                                    <p className="text-xs text-brand-brown font-bold">No past {APP_DOMAINS.find(d => d.type === requestType)?.label || 'Module'} modules found.</p>
+                                    <p className="text-[11px] text-brand-brown-light mt-1">Only completed past modules can be submitted. Please select "Personal Study (Outside)" if you completed this independently.</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+                                    {loungeModules
+                                      .filter(m => m.category === requestType && m.status === 'past')
+                                      .map((module) => (
+                                        <div 
+                                          key={module.id} 
+                                          className="p-4 bg-brand-white border border-brand-border rounded-2xl flex flex-col justify-between gap-3 shadow-xs transition-all hover:border-brand-brown/50"
+                                        >
+                                          <div>
+                                            <div className="flex items-center justify-between gap-2">
+                                              <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-amber-100/80 text-amber-900 border border-amber-200/80 rounded">
+                                                {APP_DOMAINS.find(d => d.type === module.category)?.label || module.category}
+                                              </span>
+                                              <span className="text-[9px] font-bold text-brand-brown-light/80 bg-brand-offwhite px-2 py-0.5 rounded border border-brand-border">
+                                                PAST MODULE
+                                              </span>
+                                            </div>
+
+                                            <h5 className="font-sans font-bold text-brand-text text-sm mt-1.5 leading-tight">
+                                              {module.title} {module.batch ? `(${module.batch})` : ''}
+                                            </h5>
+                                            
+                                            {module.speaker && (
+                                              <p className="text-xs text-brand-brown font-extrabold mt-1">
+                                                Instructor: <span className="text-brand-text">{module.speaker}</span>
+                                              </p>
+                                            )}
+                                          </div>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setRequestSelectedModuleId(module.id);
+                                              setItemTitle(module.batch || module.title);
+                                              setItemAuthor(module.speaker || '');
+                                              setTimeTaken(module.duration || '2 Months');
+                                            }}
+                                            className="w-full py-2 px-3 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 active:scale-95"
+                                          >
+                                            Select Module <ArrowRight className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                  </div>
+                                )}
                               </div>
-                              <div className="text-[10px] opacity-80 mt-0.5">Standalone article / paper</div>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setRequestIsSeries(true)}
-                              className={`p-3 rounded-xl border text-left transition-all ${
-                                requestIsSeries 
-                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
-                                  : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
-                              }`}
-                            >
-                              <div className="text-xs font-bold flex items-center gap-1.5">
-                                📚 Article Series
-                              </div>
-                              <div className="text-[10px] opacity-80 mt-0.5">Multiple related parts</div>
-                            </button>
+                            )}
                           </div>
+                        )}
 
-                          {requestIsSeries && (
-                            <div className="mt-3 pt-3 border-t border-brand-border/60 space-y-3 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
+                        {/* 2. CIRCLES: BOOKS */}
+                        {requestType === 'book' && (
+                          <div>
+                            {selectedRequestCircle ? (
+                              <motion.div 
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="p-5 bg-green-50/50 border border-green-200 rounded-2xl flex flex-col space-y-4 shadow-sm"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center border border-green-200">
+                                      <CheckCircle2 className="w-5 h-5 text-green-700" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-green-700 block">Selected Lounge Circle</span>
+                                      <h4 className="font-sans text-base font-bold text-brand-text mt-0.5 truncate">{selectedRequestCircle.title}</h4>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRequestSelectedCircleId('');
+                                      setItemTitle('');
+                                      setItemAuthor('');
+                                    }}
+                                    className="px-3 py-1.5 border border-brand-border hover:bg-brand-offwhite text-brand-brown rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shrink-0"
+                                  >
+                                    Change
+                                  </button>
+                                </div>
+
+                                <div className="bg-brand-white/80 p-4 rounded-xl border border-brand-border-light space-y-2 text-xs text-brand-brown">
+                                  {selectedRequestCircle.bookName && (
+                                    <p className="font-medium text-brand-text">
+                                      📖 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Book Name:</span> {selectedRequestCircle.bookName}
+                                    </p>
+                                  )}
+                                  <p className="font-medium text-brand-text">
+                                    🎓 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Moderator / Host:</span> {selectedRequestCircle.moderator}
+                                  </p>
+                                  {selectedRequestCircle.subject && (
+                                    <p className="font-medium text-emerald-800">
+                                      🏷️ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Subject:</span> {selectedRequestCircle.subject}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <p className="text-[11px] text-green-800 leading-relaxed font-semibold">
+                                  ✓ Selected! Fill in your completion details below to submit your update for this study circle book.
+                                </p>
+                              </motion.div>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="border-b border-brand-border pb-2">
+                                  <h4 className="font-sans text-base font-bold text-brand-text">Choose a Past Study Circle Book to Submit</h4>
+                                  <p className="text-xs text-brand-brown-light mt-1">
+                                    Select the past book circle you completed inside the Wisdom Lounge.
+                                  </p>
+                                </div>
+
+                                {circlesLoading ? (
+                                  <div className="flex flex-col items-center justify-center py-8 opacity-65">
+                                    <Activity className="w-6 h-6 text-brand-brown animate-spin mb-2" />
+                                    <span className="text-xs font-bold uppercase tracking-wider text-brand-brown-light">Loading study circles...</span>
+                                  </div>
+                                ) : loungeCircles.filter(c => c.category === 'Book Reading' && c.status === 'past').length === 0 ? (
+                                  <div className="p-6 bg-brand-offwhite rounded-xl border border-dashed border-brand-border text-center">
+                                    <p className="text-xs text-brand-brown-light font-bold">No past book circles found.</p>
+                                    <p className="text-[11px] text-brand-brown-light mt-1">Only completed past circles can be submitted. Please select "Personal Study" if you read this independently.</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+                                    {loungeCircles
+                                      .filter(c => c.category === 'Book Reading' && c.status === 'past')
+                                      .map((circle) => (
+                                        <div 
+                                          key={circle.id} 
+                                          className="p-4 bg-brand-white border border-brand-border rounded-2xl flex flex-col justify-between gap-3 shadow-xs transition-all hover:border-brand-brown/50"
+                                        >
+                                          <div>
+                                            <div className="flex items-center justify-between gap-2">
+                                              <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 rounded">
+                                                {circle.category || 'Study Circle'}
+                                              </span>
+                                              <span className="text-[9px] font-bold text-brand-brown-light/60">
+                                                PAST CIRCLE
+                                              </span>
+                                            </div>
+
+                                            <h5 className="font-sans font-bold text-brand-text text-sm mt-1.5 leading-tight">{circle.title}</h5>
+                                            {circle.bookName && (
+                                              <p className="text-xs text-brand-brown font-extrabold mt-1">
+                                                Book: <span className="text-brand-text">{circle.bookName}</span>{circle.bookAuthor ? ` (by ${circle.bookAuthor})` : ''}
+                                              </p>
+                                            )}
+                                            {circle.subject && (
+                                              <p className="text-[11px] text-emerald-800 font-extrabold mt-0.5">
+                                                Subject: <span className="text-emerald-950 font-semibold">{circle.subject}</span>
+                                              </p>
+                                            )}
+                                            <p className="text-[11px] text-brand-brown-light font-bold mt-0.5">
+                                              Host: {circle.moderator} | Schedule: {circle.schedule}
+                                            </p>
+                                          </div>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setRequestSelectedCircleId(circle.id);
+                                              setItemTitle(circle.bookName || circle.title);
+                                              setItemAuthor(circle.bookAuthor || circle.moderator || '');
+                                              if (circle.subject) setRequestSubject(circle.subject);
+                                            }}
+                                            className="w-full py-2 px-3 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 active:scale-95"
+                                          >
+                                            Select Circle <ArrowRight className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 3. CIRCLES: GUIDED STUDIES (Talaqqi) */}
+                        {requestType === 'talaqqi' && (
+                          <div>
+                            {selectedRequestCircle ? (
+                              <motion.div 
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="p-5 bg-green-50/50 border border-green-200 rounded-2xl flex flex-col space-y-4 shadow-sm"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center border border-green-200">
+                                      <CheckCircle2 className="w-5 h-5 text-green-700" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-green-700 block">Selected Guided Study Circle</span>
+                                      <h4 className="font-sans text-base font-bold text-brand-text mt-0.5 truncate">{selectedRequestCircle.title}</h4>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRequestSelectedCircleId('');
+                                      setItemTitle('');
+                                      setRequestUstadName('');
+                                    }}
+                                    className="px-3 py-1.5 border border-brand-border hover:bg-brand-offwhite text-brand-brown rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shrink-0"
+                                  >
+                                    Change
+                                  </button>
+                                </div>
+
+                                <div className="bg-brand-white/80 p-4 rounded-xl border border-brand-border-light space-y-2 text-xs text-brand-brown">
+                                  {selectedRequestCircle.bookName && (
+                                    <p className="font-medium text-brand-text">
+                                      📖 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Course / Topic:</span> {selectedRequestCircle.bookName}
+                                    </p>
+                                  )}
+                                  <p className="font-medium text-brand-text">
+                                    🎓 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Moderator / Teacher:</span> {selectedRequestCircle.moderator}
+                                  </p>
+                                  {selectedRequestCircle.subject && (
+                                    <p className="font-medium text-brand-text">
+                                      🏷️ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Subject:</span> {selectedRequestCircle.subject}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <p className="text-[11px] text-green-800 leading-relaxed font-semibold">
+                                  ✓ Selected! Fill in your completion details below to submit your update for this guided study circle.
+                                </p>
+                              </motion.div>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="border-b border-brand-border pb-2">
+                                  <h4 className="font-sans text-base font-bold text-brand-text">Choose a Past Guided Study Circle to Submit</h4>
+                                  <p className="text-xs text-brand-brown-light mt-1">
+                                    Select the past guided study cohort you completed inside the Wisdom Lounge.
+                                  </p>
+                                </div>
+
+                                {circlesLoading ? (
+                                  <div className="flex flex-col items-center justify-center py-8 opacity-65">
+                                    <Activity className="w-6 h-6 text-brand-brown animate-spin mb-2" />
+                                    <span className="text-xs font-bold uppercase tracking-wider text-brand-brown-light">Loading guided study circles...</span>
+                                  </div>
+                                ) : loungeCircles.filter(c => c.category !== 'Book Reading' && c.status === 'past').length === 0 ? (
+                                  <div className="p-6 bg-brand-offwhite rounded-xl border border-dashed border-brand-border text-center">
+                                    <p className="text-xs text-brand-brown-light font-bold">No past guided study circles found.</p>
+                                    <p className="text-[11px] text-brand-brown-light mt-1">Only completed past circles can be submitted. Please select "Personal Study (Outside)" if you studied independently.</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3 max-h-[280px] overflow-y-auto pr-1">
+                                    {loungeCircles
+                                      .filter(c => c.category !== 'Book Reading' && c.status === 'past')
+                                      .map((circle) => (
+                                        <div 
+                                          key={circle.id} 
+                                          className="p-4 bg-brand-white border border-brand-border rounded-2xl flex flex-col justify-between gap-3 shadow-xs transition-all hover:border-brand-brown/50"
+                                        >
+                                          <div>
+                                            <div className="flex items-center justify-between gap-2">
+                                              <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-emerald-100/80 text-emerald-900 border border-emerald-200/80 rounded">
+                                                {circle.category || 'Guided Study'}
+                                              </span>
+                                              <span className="text-[9px] font-bold text-brand-brown-light/60">
+                                                PAST CIRCLE
+                                              </span>
+                                            </div>
+
+                                            <h5 className="font-sans font-bold text-brand-text text-sm mt-1.5 leading-tight">{circle.title}</h5>
+                                            {circle.bookName && (
+                                              <p className="text-xs text-brand-brown font-extrabold mt-1">
+                                                Course: <span className="text-brand-text">{circle.bookName}</span>
+                                              </p>
+                                            )}
+                                            {circle.subject && (
+                                              <p className="text-[11px] text-emerald-800 font-extrabold mt-0.5">
+                                                Subject: <span className="text-emerald-950 font-semibold">{circle.subject}</span>
+                                              </p>
+                                            )}
+                                            <p className="text-[11px] text-brand-brown-light font-bold mt-0.5">
+                                              Host: {circle.moderator} | Schedule: {circle.schedule}
+                                            </p>
+                                          </div>
+
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setRequestSelectedCircleId(circle.id);
+                                              setItemTitle(circle.bookName || circle.title);
+                                              setRequestUstadName(circle.moderator || circle.bookAuthor || '');
+                                              if (circle.subject) setRequestSubject(circle.subject);
+                                            }}
+                                            className="w-full py-2 px-3 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 active:scale-95"
+                                          >
+                                            Select Circle <ArrowRight className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 4. OTHERS (Research Paper / Article, Presentation) */}
+                        {requestType === 'research papers/article' && (
+                          <div className="p-5 bg-brand-white border border-brand-border rounded-2xl space-y-4 shadow-xs">
+                            <div className="flex items-center gap-2 border-b border-brand-border/60 pb-3">
+                              <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center border border-sky-200">
+                                <FileText className="w-4 h-4 text-sky-800" />
+                              </div>
                               <div>
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <label className="block text-xs font-bold uppercase tracking-wider text-amber-950">
-                                    Number of Article Pieces <span className="text-red-500">*</span>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-sky-900 block">Lounge Scholarly Initiative</span>
+                                <h4 className="font-sans text-sm font-bold text-brand-text">Research Paper or Article Update</h4>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1.5">
+                                Title / Topic <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={itemTitle}
+                                onChange={(e) => setItemTitle(e.target.value)}
+                                placeholder="e.g. History of Fiqh or Islamic Financial Ethics"
+                                className="w-full px-4 py-2.5 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
+                              />
+                            </div>
+
+                            {/* Series vs Single Selection */}
+                            <div className="bg-brand-offwhite p-3.5 rounded-xl border border-brand-border space-y-2.5">
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-text">
+                                Publication Structure
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setRequestIsSeries(false)}
+                                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                                    !requestIsSeries 
+                                      ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                      : 'bg-brand-white hover:bg-brand-beige text-brand-brown border-brand-border'
+                                  }`}
+                                >
+                                  <div className="text-xs font-bold">📄 Single Piece</div>
+                                  <div className="text-[10px] opacity-80 mt-0.5">Standalone article / paper</div>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setRequestIsSeries(true)}
+                                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                                    requestIsSeries 
+                                      ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                      : 'bg-brand-white hover:bg-brand-beige text-brand-brown border-brand-border'
+                                  }`}
+                                >
+                                  <div className="text-xs font-bold">📚 Article Series</div>
+                                  <div className="text-[10px] opacity-80 mt-0.5">Multiple related parts</div>
+                                </button>
+                              </div>
+
+                              {requestIsSeries && (
+                                <div className="mt-2 pt-2 border-t border-brand-border/60 space-y-2.5 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                                  <div className="flex items-center justify-between">
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-amber-950">
+                                      Pieces in Series <span className="text-red-500">*</span>
+                                    </label>
+                                    <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-md border border-amber-300">
+                                      +{(requestIsResearchPaper ? 30 : 15) * Math.max(2, requestSeriesCount)} Pts Total
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="number"
+                                    min={2}
+                                    max={100}
+                                    required={requestIsSeries}
+                                    value={requestSeriesCount}
+                                    onChange={(e) => setRequestSeriesCount(Math.max(2, parseInt(e.target.value) || 2))}
+                                    className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-sm font-bold text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-start gap-3 p-3 bg-brand-offwhite border border-brand-border rounded-xl">
+                              <input
+                                id="requestIsResearchPaperLounge"
+                                type="checkbox"
+                                checked={requestIsResearchPaper}
+                                onChange={(e) => setRequestIsResearchPaper(e.target.checked)}
+                                className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown mt-0.5 cursor-pointer"
+                              />
+                              <div className="flex flex-col">
+                                <label htmlFor="requestIsResearchPaperLounge" className="text-xs font-bold uppercase tracking-wide text-brand-text cursor-pointer select-none">
+                                  Academic Research Paper (30 pts)
+                                </label>
+                                <span className="text-[10px] text-brand-brown-light leading-relaxed mt-0.5">
+                                  Check this option if your work matches a full academic research paper rather than a brief article.
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {requestType === 'presentation' && (
+                          <div className="p-5 bg-brand-white border border-brand-border rounded-2xl space-y-4 shadow-xs">
+                            <div className="flex items-center gap-2 border-b border-brand-border/60 pb-3">
+                              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center border border-amber-200">
+                                <Sparkles className="w-4 h-4 text-amber-800" />
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-amber-900 block">Lounge Session</span>
+                                <h4 className="font-sans text-sm font-bold text-brand-text">Knowledge Sharing Presentation</h4>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1.5">
+                                Presentation Topic / Title <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={itemTitle}
+                                onChange={(e) => setItemTitle(e.target.value)}
+                                placeholder="e.g. Overview of Imam al-Ghazali's Epistemology"
+                                className="w-full px-4 py-2.5 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1.5">
+                                Presentation / Recording Link <span className="text-[10px] lowercase italic font-normal">(optional)</span>
+                              </label>
+                              <input
+                                type="url"
+                                value={requestLink}
+                                onChange={(e) => setRequestLink(e.target.value)}
+                                placeholder="e.g. https://youtube.com/... or https://drive.google.com/..."
+                                className="w-full px-4 py-2.5 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* ========================================================================= */}
+                    {/* PERSONAL STUDY (OUTSIDE) & TASKS MODE */}
+                    {/* ========================================================================= */}
+                    {(requestLocation === 'personal' || isTaskLike) && (
+                      <div className="space-y-4">
+                        {requestType === 'research papers/article' ? (
+                          <>
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                                Title / Topic <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={itemTitle}
+                                onChange={(e) => setItemTitle(e.target.value)}
+                                placeholder="e.g. History of Fiqh or Islamic Financial Ethics"
+                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
+                              />
+                            </div>
+
+                            {/* Series vs Single Selection */}
+                            <div className="bg-brand-bg-alt/80 p-4 rounded-2xl border border-brand-border/80 space-y-3">
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-text">
+                                Article Structure
+                              </label>
+                              <div className="grid grid-cols-2 gap-3">
+                                <button
+                                  type="button"
+                                  onClick={() => setRequestIsSeries(false)}
+                                  className={`p-3 rounded-xl border text-left transition-all ${
+                                    !requestIsSeries 
+                                      ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                      : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
+                                  }`}
+                                >
+                                  <div className="text-xs font-bold flex items-center gap-1.5">
+                                    📄 Single Piece
+                                  </div>
+                                  <div className="text-[10px] opacity-80 mt-0.5">Standalone article / paper</div>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setRequestIsSeries(true)}
+                                  className={`p-3 rounded-xl border text-left transition-all ${
+                                    requestIsSeries 
+                                      ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                      : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
+                                  }`}
+                                >
+                                  <div className="text-xs font-bold flex items-center gap-1.5">
+                                    📚 Article Series
+                                  </div>
+                                  <div className="text-[10px] opacity-80 mt-0.5">Multiple related parts</div>
+                                </button>
+                              </div>
+
+                              {requestIsSeries && (
+                                <div className="mt-3 pt-3 border-t border-brand-border/60 space-y-3 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
+                                  <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <label className="block text-xs font-bold uppercase tracking-wider text-amber-950">
+                                        Number of Article Pieces <span className="text-red-500">*</span>
+                                      </label>
+                                      <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-md border border-amber-300">
+                                        +{(requestIsResearchPaper ? 30 : 15) * Math.max(2, requestSeriesCount)} Pts Total
+                                      </span>
+                                    </div>
+                                    <input
+                                      type="number"
+                                      min={2}
+                                      max={100}
+                                      required={requestIsSeries}
+                                      value={requestSeriesCount}
+                                      onChange={(e) => setRequestSeriesCount(Math.max(2, parseInt(e.target.value) || 2))}
+                                      className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-sm font-bold text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                    />
+                                    <p className="text-[10px] text-amber-800/90 mt-1">
+                                      * Completing a series scales your score! Each piece adds +{requestIsResearchPaper ? 30 : 15} points.
+                                    </p>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-amber-950 mb-1">
+                                      Titles / Names of Articles in Series (Optional)
+                                    </label>
+                                    <textarea
+                                      value={requestSeriesTitles}
+                                      onChange={(e) => setRequestSeriesTitles(e.target.value)}
+                                      placeholder="e.g. Part 1: Foundations, Part 2: Analysis, Part 3: Modern Applications"
+                                      rows={2}
+                                      className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-xs text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="space-y-4 my-2">
+                              <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                                  Online Link (If available)
+                                </label>
+                                <input
+                                  type="url"
+                                  value={requestLink}
+                                  onChange={(e) => setRequestLink(e.target.value)}
+                                  placeholder="e.g. https://example.com/scholarly-article"
+                                  className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                                />
+                              </div>
+                              <div className="flex items-start gap-3 p-3.5 bg-brand-bg-alt/70 border border-brand-border/60 rounded-xl">
+                                <input
+                                  id="requestIsResearchPaper"
+                                  type="checkbox"
+                                  checked={requestIsResearchPaper}
+                                  onChange={(e) => setRequestIsResearchPaper(e.target.checked)}
+                                  className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown mt-0.5 cursor-pointer"
+                                />
+                                <div className="flex flex-col">
+                                  <label htmlFor="requestIsResearchPaper" className="text-xs font-bold uppercase tracking-wide text-brand-text cursor-pointer select-none">
+                                    This is a Scholarly Research Paper
                                   </label>
-                                  <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-md border border-amber-300">
-                                    +{(requestIsResearchPaper ? 30 : 15) * Math.max(2, requestSeriesCount)} Pts Total
+                                  <span className="text-[10px] text-brand-brown-light leading-relaxed mt-0.5">
+                                    Check this option if your work matches a full academic research paper rather than a brief article. Research papers grant more score (30 pts vs 15 pts per piece).
                                   </span>
                                 </div>
-                                <input
-                                  type="number"
-                                  min={2}
-                                  max={100}
-                                  required={requestIsSeries}
-                                  value={requestSeriesCount}
-                                  onChange={(e) => setRequestSeriesCount(Math.max(2, parseInt(e.target.value) || 2))}
-                                  className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-sm font-bold text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                />
-                                <p className="text-[10px] text-amber-800/90 mt-1">
-                                  * Completing a series scales your score! Each piece adds +{requestIsResearchPaper ? 30 : 15} points.
-                                </p>
-                              </div>
-
-                              <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-amber-950 mb-1">
-                                  Titles / Names of Articles in Series (Optional)
-                                </label>
-                                <textarea
-                                  value={requestSeriesTitles}
-                                  onChange={(e) => setRequestSeriesTitles(e.target.value)}
-                                  placeholder="e.g. Part 1: Foundations, Part 2: Analysis, Part 3: Modern Applications"
-                                  rows={2}
-                                  className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-xs text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
-                                />
-                                <p className="text-[10px] text-amber-800/80 mt-0.5">
-                                  Optionally list the names of all articles in this series.
-                                </p>
                               </div>
                             </div>
-                          )}
-                        </div>
-
-                        <div className="space-y-4 my-2">
-                          <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                              Online Link (If available)
-                            </label>
-                            <input
-                              type="url"
-                              value={requestLink}
-                              onChange={(e) => setRequestLink(e.target.value)}
-                              placeholder="e.g. https://example.com/scholarly-article"
-                              className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                              Description / Learnings
-                            </label>
-                            <textarea
-                              value={requestOverview}
-                              onChange={(e) => setRequestOverview(e.target.value)}
-                              placeholder="Summarize key takeaways, concepts, or reflections..."
-                              rows={3}
-                              className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown resize-none"
-                            />
-                          </div>
-                          <div className="flex items-start gap-3 p-3.5 bg-brand-bg-alt/70 border border-brand-border/60 rounded-xl">
-                            <input
-                              id="requestIsResearchPaper"
-                              type="checkbox"
-                              checked={requestIsResearchPaper}
-                              onChange={(e) => setRequestIsResearchPaper(e.target.checked)}
-                              className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown mt-0.5 cursor-pointer"
-                            />
-                            <div className="flex flex-col">
-                              <label htmlFor="requestIsResearchPaper" className="text-xs font-bold uppercase tracking-wide text-brand-text cursor-pointer select-none">
-                                This is a Scholarly Research Paper
-                              </label>
-                              <span className="text-[10px] text-brand-brown-light leading-relaxed mt-0.5">
-                                Check this option if your work matches a full academic research paper rather than a brief article. Research papers grant more score (30 pts vs 15 pts per piece).
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    ) : ['tafsir', 'seerah', 'dowra'].includes(requestType) ? (
-                      <>
-                        {requestLocation === 'lounge' ? (
-                          <div className="mb-4">
-                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                              Select Lounge Module <span className="text-red-500">*</span>
-                            </label>
-                            {loungeModules.filter(m => m.category === requestType && m.status === 'past').length === 0 ? (
-                              <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                                No past lounge modules available in this category yet. Please select "Personal Study (Outside)" if applicable.
-                              </div>
-                            ) : (
-                              <select
-                                value={requestSelectedModuleId}
-                                onChange={(e) => {
-                                  const moduleId = e.target.value;
-                                  setRequestSelectedModuleId(moduleId);
-                                  const module = loungeModules.find(m => m.id === moduleId);
-                                  if (module) {
-                                    setItemTitle(module.batch || module.title);
-                                    setItemAuthor(module.speaker || '');
-                                    setTimeTaken(module.duration || '2 Months');
-                                  } else {
-                                    setItemTitle('');
-                                    setItemAuthor('');
-                                    setTimeTaken('');
-                                  }
-                                }}
-                                required
-                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown text-brand-text font-medium"
-                              >
-                                <option value="">-- Choose a Past Module --</option>
-                                {loungeModules
-                                  .filter(m => m.category === requestType && m.status === 'past')
-                                  .map(m => (
-                                    <option key={m.id} value={m.id}>
-                                      {m.title} {m.batch ? `(${m.batch})` : ''}
-                                    </option>
-                                  ))}
-                              </select>
-                            )}
-                            {requestSelectedModuleId && (
-                              <div className="mt-3 p-3 bg-brand-bg-alt rounded-xl border border-brand-border-light text-xs space-y-1">
-                                <p className="text-brand-brown"><strong className="text-brand-brown-light uppercase text-[10px] tracking-wider block">Module Title / Batch</strong> {itemTitle}</p>
-                                <p className="text-brand-brown mt-1.5"><strong className="text-brand-brown-light uppercase text-[10px] tracking-wider block">Speaker / Instructor</strong> {itemAuthor}</p>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
+                          </>
+                        ) : ['tafsir', 'seerah', 'dowra'].includes(requestType) ? (
                           <>
-                            <div className="mt-4">
+                            <div>
                               <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                                Course Title
+                                Course Title <span className="text-red-500">*</span>
                               </label>
                               <input
                                 type="text"
@@ -3821,12 +4430,12 @@ export function LearnerDashboard({
                                 value={itemTitle}
                                 onChange={(e) => setItemTitle(e.target.value)}
                                 placeholder="e.g. Tafsir of Surah Nisaa"
-                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
                               />
                             </div>
-                            <div className="mt-4">
+                            <div>
                               <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                                Author / Teacher
+                                Author / Teacher <span className="text-red-500">*</span>
                               </label>
                               <input
                                 type="text"
@@ -3834,10 +4443,10 @@ export function LearnerDashboard({
                                 value={itemAuthor}
                                 onChange={(e) => setItemAuthor(e.target.value)}
                                 placeholder="e.g. Dr. Mustafa Khattab"
-                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
                               />
                             </div>
-                            <div className="flex items-center gap-2 mt-4 mb-2">
+                            <div className="flex items-center gap-2 p-3 bg-brand-offwhite border border-brand-border rounded-xl">
                               <input
                                 id="requestHasCommunity"
                                 type="checkbox"
@@ -3848,15 +4457,15 @@ export function LearnerDashboard({
                                 }}
                                 className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown"
                               />
-                              <label htmlFor="requestHasCommunity" className="text-sm font-semibold text-brand-brown-light cursor-pointer">
-                                Was this studied as part of a Study Circle / Community?
+                              <label htmlFor="requestHasCommunity" className="text-sm font-semibold text-brand-brown-light cursor-pointer select-none">
+                                Studied as part of a Study Circle / Community?
                               </label>
                             </div>
                             {requestHasCommunity && (
                               <motion.div
                                 initial={{ opacity: 0, height: 0 }}
                                 animate={{ opacity: 1, height: 'auto' }}
-                                className="overflow-hidden mb-4"
+                                className="overflow-hidden"
                               >
                                 <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
                                   Circle / Community Name
@@ -3871,57 +4480,13 @@ export function LearnerDashboard({
                               </motion.div>
                             )}
                           </>
-                        )}
-                      </>
-                    ) : requestType === 'talaqqi' ? (
-                      <>
-                        {requestLocation === 'lounge' ? (
-                          <div className="mb-4">
-                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                              Select Past Guided Study <span className="text-red-500">*</span>
-                            </label>
-                            {circlesLoading ? (
-                              <div className="text-xs text-brand-brown-light animate-pulse py-2">Loading past guided studies...</div>
-                            ) : loungeCircles.filter(c => c.status === 'past' && c.category !== 'Book Reading').length === 0 ? (
-                              <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                                No past guided studies configured in the Wisdom Lounge yet. Please contact an admin or select "Personal Study (Outside)" if applicable.
-                              </div>
-                            ) : (
-                              <select
-                                value={requestSelectedCircleId}
-                                onChange={(e) => {
-                                  const circleId = e.target.value;
-                                  setRequestSelectedCircleId(circleId);
-                                  const circle = loungeCircles.find(c => c.id === circleId);
-                                  if (circle) {
-                                    setItemTitle(circle.bookName || circle.title);
-                                    setRequestUstadName(circle.moderator || circle.bookAuthor || '');
-                                  } else {
-                                    setItemTitle('');
-                                    setRequestUstadName('');
-                                  }
-                                }}
-                                required
-                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown text-brand-text font-medium"
-                              >
-                                <option value="">-- Choose a Past Guided Study --</option>
-                                {loungeCircles
-                                  .filter(c => c.status === 'past' && c.category !== 'Book Reading')
-                                  .map(c => (
-                                    <option key={c.id} value={c.id}>
-                                      {c.title} {c.bookName ? `(${c.bookName})` : ''}
-                                    </option>
-                                  ))}
-                              </select>
-                            )}
-                          </div>
-                        ) : (
+                        ) : requestType === 'talaqqi' ? (
                           <>
-                            <div className="mt-4">
-                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Course Title</label>
-                              <input type="text" value={itemTitle} onChange={e => setItemTitle(e.target.value)} required className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown" placeholder="e.g. Fiqh, Hadith, Arabic..." />
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Course Title <span className="text-red-500">*</span></label>
+                              <input type="text" value={itemTitle} onChange={e => setItemTitle(e.target.value)} required className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium" placeholder="e.g. Fiqh, Hadith, Arabic..." />
                             </div>
-                            <div className="flex items-center gap-3 mb-4 p-3.5 bg-brand-bg-alt/70 border border-brand-border/60 rounded-xl mt-4">
+                            <div className="flex items-center gap-3 p-3.5 bg-brand-bg-alt/70 border border-brand-border/60 rounded-xl">
                               <input
                                 id="requestIsOnline"
                                 type="checkbox"
@@ -3931,21 +4496,21 @@ export function LearnerDashboard({
                               />
                               <div className="flex flex-col">
                                 <label htmlFor="requestIsOnline" className="text-xs font-bold uppercase tracking-wide text-brand-text cursor-pointer select-none">
-                                  Pursuing Online?
+                                  Pursued Online?
                                 </label>
                               </div>
                             </div>
                             {requestIsOnline && (
-                               <div className="mb-4">
+                               <div>
                                  <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Source / Link</label>
                                  <input type="text" value={requestSource} onChange={e => setRequestSource(e.target.value)} required={requestIsOnline} className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown" placeholder="e.g. YouTube channel link, Zoom ID etc." />
                                </div>
                             )}
-                            <div className="mb-4">
-                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Name of Ustad</label>
-                              <input type="text" value={requestUstadName} onChange={e => setRequestUstadName(e.target.value)} required className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown" placeholder="e.g. Ustadh Majed Mahmoud" />
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Name of Ustad <span className="text-red-500">*</span></label>
+                              <input type="text" value={requestUstadName} onChange={e => setRequestUstadName(e.target.value)} required className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium" placeholder="e.g. Ustadh Majed Mahmoud" />
                             </div>
-                            <div className="flex items-center gap-3 mb-4 p-3.5 bg-brand-bg-alt/70 border border-brand-border/60 rounded-xl">
+                            <div className="flex items-center gap-3 p-3.5 bg-brand-bg-alt/70 border border-brand-border/60 rounded-xl">
                               <input
                                 id="requestHasCommunity"
                                 type="checkbox"
@@ -3960,96 +4525,46 @@ export function LearnerDashboard({
                               </div>
                             </div>
                             {requestHasCommunity && (
-                              <div className="mb-4">
+                              <div>
                                 <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Community / Circle Name</label>
                                 <input type="text" value={requestCommunity} onChange={e => setRequestCommunity(e.target.value)} required={requestHasCommunity} className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown" placeholder="e.g. AlMaghrib Institute" />
                               </div>
                             )}
-                            <div className="mb-4">
-                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Objective / Reason for pursuing</label>
-                              <input type="text" value={requestObjective} onChange={e => setRequestObjective(e.target.value)} required className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown" placeholder="Why are you studying this?" />
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Objective / Reason for pursuing <span className="text-red-500">*</span></label>
+                              <input type="text" value={requestObjective} onChange={e => setRequestObjective(e.target.value)} required className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium" placeholder="Why are you studying this?" />
                             </div>
                           </>
-                        )}
-                      </>
-                    ) : isTaskLike ? (
-                      <>
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Number of Tasks</label>
-                          <input
-                            type="number"
-                            required
-                            min="1"
-                            value={taskCount}
-                            onChange={(e) => setTaskCount(parseInt(e.target.value))}
-                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Task Description</label>
-                          <textarea
-                            required
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Briefly describe the tasks you've completed for this module..."
-                            rows={3}
-                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown resize-none"
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        {requestType === 'book' && requestLocation === 'lounge' ? (
-                          <div className="mb-4">
-                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                              Select Past Study Circle <span className="text-red-500">*</span>
-                            </label>
-                            {circlesLoading ? (
-                              <div className="text-xs text-brand-brown-light animate-pulse py-2">Loading past study circles...</div>
-                            ) : loungeCircles.filter(c => c.status === 'past' && c.category === 'Book Reading').length === 0 ? (
-                              <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                                No past study circles configured in the Wisdom Lounge yet. Please contact an admin or select "Personal Study" if applicable.
-                              </div>
-                            ) : (
-                              <select
-                                value={requestSelectedCircleId}
-                                onChange={(e) => {
-                                  const circleId = e.target.value;
-                                  setRequestSelectedCircleId(circleId);
-                                  const circle = loungeCircles.find(c => c.id === circleId);
-                                  if (circle) {
-                                    setItemTitle(circle.bookName || circle.title);
-                                    setItemAuthor(circle.bookAuthor || circle.moderator || '');
-                                  } else {
-                                    setItemTitle('');
-                                    setItemAuthor('');
-                                  }
-                                }}
+                        ) : isTaskLike ? (
+                          <>
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Number of Tasks <span className="text-red-500">*</span></label>
+                              <input
+                                type="number"
                                 required
-                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown text-brand-text font-medium"
-                              >
-                                <option value="">-- Choose a Past Study Circle --</option>
-                                {loungeCircles
-                                  .filter(c => c.status === 'past' && c.category === 'Book Reading')
-                                  .map(c => (
-                                    <option key={c.id} value={c.id}>
-                                      {c.title} {c.bookName ? `(${c.bookName})` : ''}
-                                    </option>
-                                  ))}
-                              </select>
-                            )}
-                            {requestSelectedCircleId && (
-                              <div className="mt-3 p-3 bg-brand-bg-alt rounded-xl border border-brand-border-light text-xs space-y-1">
-                                <p className="text-brand-brown"><strong className="text-brand-brown-light uppercase text-[10px] tracking-wider block">Book Name</strong> {itemTitle}</p>
-                                <p className="text-brand-brown mt-1.5"><strong className="text-brand-brown-light uppercase text-[10px] tracking-wider block">Author / Moderator</strong> {itemAuthor}</p>
-                              </div>
-                            )}
-                          </div>
+                                min="1"
+                                value={taskCount}
+                                onChange={(e) => setTaskCount(parseInt(e.target.value) || 1)}
+                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-bold"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Task Description <span className="text-red-500">*</span></label>
+                              <textarea
+                                required
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                placeholder="Briefly describe the tasks you've completed for this module..."
+                                rows={3}
+                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown resize-none font-medium"
+                              />
+                            </div>
+                          </>
                         ) : (
                           <>
                             <div>
                               <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                                {requestType === 'book' ? 'Book Title' : activeDomain ? `${activeDomain.label} Title` : 'Title'}
+                                {requestType === 'book' ? 'Book Title' : activeDomain ? `${activeDomain.label} Title` : 'Title'} <span className="text-red-500">*</span>
                               </label>
                               <input
                                 type="text"
@@ -4057,7 +4572,7 @@ export function LearnerDashboard({
                                 value={itemTitle}
                                 onChange={(e) => setItemTitle(e.target.value)}
                                 placeholder={`e.g. ${requestType === 'book' ? 'The Clear Quran' : 'Presentation Topic'}`}
-                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
                                 list="archive-books"
                               />
                               <datalist id="archive-books">
@@ -4068,8 +4583,8 @@ export function LearnerDashboard({
                             </div>
                             {requestType === 'book' && (
                               <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
-                                  Author / Editor
+                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                                  Author / Editor <span className="text-red-500">*</span>
                                 </label>
                                 <input
                                   type="text"
@@ -4077,7 +4592,7 @@ export function LearnerDashboard({
                                   value={itemAuthor}
                                   onChange={(e) => setItemAuthor(e.target.value)}
                                   placeholder="e.g. Dr. Mustafa Khattab"
-                                  className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                                  className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
                                   list="archive-authors"
                                 />
                                 <datalist id="archive-authors">
@@ -4085,62 +4600,58 @@ export function LearnerDashboard({
                                     <option key={author} value={author} />
                                   ))}
                                 </datalist>
-                                {requestLocation === 'personal' && (
-                                  <>
-                                    <div className="flex items-center gap-2 mt-4 mb-2">
-                                      <input
-                                        id="requestBookHasCommunity"
-                                        type="checkbox"
-                                        checked={requestHasCommunity}
-                                        onChange={(e) => {
-                                          setRequestHasCommunity(e.target.checked);
-                                          if (!e.target.checked) setRequestCommunity('');
-                                        }}
-                                        className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown"
-                                      />
-                                      <label htmlFor="requestBookHasCommunity" className="text-sm font-semibold text-brand-brown-light cursor-pointer">
-                                        Was this read as part of a Study Circle / Community?
-                                      </label>
-                                    </div>
-                                    {requestHasCommunity && (
-                                      <motion.div
-                                        initial={{ opacity: 0, height: 0 }}
-                                        animate={{ opacity: 1, height: 'auto' }}
-                                        className="overflow-hidden"
-                                      >
-                                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                                          Circle / Community Name
-                                        </label>
-                                        <input
-                                          type="text"
-                                          value={requestCommunity}
-                                          onChange={(e) => setRequestCommunity(e.target.value)}
-                                          placeholder="e.g. AlMaghrib Institute"
-                                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                                        />
-                                      </motion.div>
-                                    )}
-                                  </>
+                                <div className="flex items-center gap-2 p-3 bg-brand-offwhite border border-brand-border rounded-xl mt-3">
+                                  <input
+                                    id="requestBookHasCommunity"
+                                    type="checkbox"
+                                    checked={requestHasCommunity}
+                                    onChange={(e) => {
+                                      setRequestHasCommunity(e.target.checked);
+                                      if (!e.target.checked) setRequestCommunity('');
+                                    }}
+                                    className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown"
+                                  />
+                                  <label htmlFor="requestBookHasCommunity" className="text-sm font-semibold text-brand-brown-light cursor-pointer select-none">
+                                    Was this read as part of a Study Circle / Community?
+                                  </label>
+                                </div>
+                                {requestHasCommunity && (
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: 'auto' }}
+                                    className="overflow-hidden mt-3"
+                                  >
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                                      Circle / Community Name
+                                    </label>
+                                    <input
+                                      type="text"
+                                      value={requestCommunity}
+                                      onChange={(e) => setRequestCommunity(e.target.value)}
+                                      placeholder="e.g. AlMaghrib Institute"
+                                      className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
+                                    />
+                                  </motion.div>
                                 )}
+                              </div>
+                            )}
+                            {requestType === 'presentation' && (
+                              <div>
+                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                                  Online Presentation / Recording Link <span className="text-[10px] lowercase italic font-normal">(optional, e.g. YouTube, Google Drive, Canva)</span>
+                                </label>
+                                <input
+                                  type="url"
+                                  value={requestLink}
+                                  onChange={(e) => setRequestLink(e.target.value)}
+                                  placeholder="e.g. https://youtube.com/... or https://drive.google.com/..."
+                                  className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                                />
                               </div>
                             )}
                           </>
                         )}
-                        {requestType === 'presentation' && (
-                          <div className="mt-4">
-                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                              Online Presentation / Recording Link <span className="text-[10px] lowercase italic font-normal">(optional, e.g. YouTube, Google Drive, Canva)</span>
-                            </label>
-                            <input
-                              type="url"
-                              value={requestLink}
-                              onChange={(e) => setRequestLink(e.target.value)}
-                              placeholder="e.g. https://youtube.com/... or https://drive.google.com/..."
-                              className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                            />
-                          </div>
-                        )}
-                      </>
+                      </div>
                     )}
 
                     {/* Completion Date and Time Taken */}
@@ -4470,849 +4981,1047 @@ export function LearnerDashboard({
                   
                   <form onSubmit={handleUpdateFocus} className="p-6 space-y-5 overflow-y-auto flex-1">
                     
-                    {/* Domain Selection */}
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Category (Domain)</label>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-brand-offwhite p-2 rounded-xl border border-brand-border">
-                        {APP_DOMAINS.map(domain => {
-                          const isDisabled = isLoungeModule && focusDomain !== domain.type;
-                          return (
-                            <button
-                              key={domain.type}
-                              type="button"
-                              onClick={() => {
-                                setFocusDomain(domain.type);
-                                setFocusTargetDomain('');
-                              }}
-                              disabled={isDisabled}
-                              className={`relative w-full py-2.5 px-3 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 ${!isDisabled ? 'active:scale-95' : ''} ${isDisabled ? 'opacity-40 cursor-not-allowed' : ''} ${focusDomain === domain.type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}
-                            >
-                              {focusDomain === domain.type && (
-                                <motion.div
-                                  layoutId="focus-segmented-control-bg"
-                                  className="absolute inset-0 bg-brand-brown rounded-lg shadow-md"
-                                  transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
-                                />
-                              )}
-                              <span className="relative z-10 block whitespace-normal break-words leading-tight text-center px-1">{domain.label}</span>
-                            </button>
-                          );
-                        })}
+                    {/* Sub-categorized Domain Selection */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">
+                          Select Focus Domain
+                        </label>
+                        <span className="text-[10px] text-brand-brown-light/70 font-semibold">
+                          Choose a category below
+                        </span>
                       </div>
-                    </div>
 
-                    {/* Top Location & Ongoing Circles block for Book category */}
-                    {focusDomain === 'book' && focusLocation === 'lounge' && (
-                      <div className="space-y-4">
-                        
-                        {selectedCircle ? (
-                          <motion.div 
-                            initial={{ opacity: 0, scale: 0.98 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className="p-5 bg-green-50/50 border border-green-200 rounded-2xl flex flex-col space-y-4 shadow-sm"
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center border border-green-200">
-                                  <CheckCircle2 className="w-5 h-5 text-green-700" />
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-green-700 block">Selected Lounge Circle</span>
-                                  <h4 className="font-sans text-base font-bold text-brand-text mt-0.5 truncate">{selectedCircle.title}</h4>
-                                </div>
-                              </div>
+                      {/* 1st Category: Modules */}
+                      <div className="bg-brand-offwhite p-3 rounded-2xl border border-brand-border/80 space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200/70 flex items-center gap-1.5">
+                            <BookOpen className="w-3 h-3 text-amber-700" /> Modules
+                          </span>
+                          <span className="text-[10px] text-brand-brown-light/70 font-medium">Structured Islamic courses</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { type: 'tafsir', label: 'Tafsir' },
+                            { type: 'seerah', label: 'Seerah' },
+                            { type: 'dowra', label: 'Dowra e Quran' }
+                          ].map(domain => {
+                            const isSelected = focusDomain === domain.type;
+                            const isDisabled = isLoungeModule && focusDomain !== domain.type;
+                            return (
                               <button
+                                key={domain.type}
                                 type="button"
                                 onClick={() => {
+                                  setFocusDomain(domain.type);
+                                  setFocusTargetDomain('');
                                   setSelectedCircle(null);
+                                  setSelectedFocusModule(null);
+                                  setFocusModuleId(undefined);
+                                  setIsLoungeModule(false);
                                   setFocusTitle('');
                                   setFocusAuthor('');
                                   setFocusEstimatedDuration('');
                                 }}
-                                className="px-3 py-1.5 border border-brand-border hover:bg-brand-offwhite text-brand-brown rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shrink-0"
+                                disabled={isDisabled}
+                                className={`py-2.5 px-2 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center ${
+                                  isSelected
+                                    ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                    : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40 hover:bg-brand-beige/20'
+                                } ${isDisabled ? 'opacity-35 cursor-not-allowed' : 'active:scale-98'}`}
                               >
-                                Change
+                                <span className="leading-tight truncate">{domain.label}</span>
                               </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 2nd Category: Circles */}
+                      <div className="bg-brand-offwhite p-3 rounded-2xl border border-brand-border/80 space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-900 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200/70 flex items-center gap-1.5">
+                            <Users className="w-3 h-3 text-emerald-700" /> Circles
+                          </span>
+                          <span className="text-[10px] text-brand-brown-light/70 font-medium">Reading & guided cohorts</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { type: 'book', label: 'Books' },
+                            { type: 'talaqqi', label: 'Guided Studies' }
+                          ].map(domain => {
+                            const isSelected = focusDomain === domain.type;
+                            const isDisabled = isLoungeModule && focusDomain !== domain.type;
+                            return (
+                              <button
+                                key={domain.type}
+                                type="button"
+                                onClick={() => {
+                                  setFocusDomain(domain.type);
+                                  setFocusTargetDomain('');
+                                  setSelectedCircle(null);
+                                  setSelectedFocusModule(null);
+                                  setFocusModuleId(undefined);
+                                  setIsLoungeModule(false);
+                                  setFocusTitle('');
+                                  setFocusAuthor('');
+                                  setFocusEstimatedDuration('');
+                                }}
+                                disabled={isDisabled}
+                                className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center ${
+                                  isSelected
+                                    ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                    : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40 hover:bg-brand-beige/20'
+                                } ${isDisabled ? 'opacity-35 cursor-not-allowed' : 'active:scale-98'}`}
+                              >
+                                <span className="leading-tight truncate">{domain.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 3rd Category: Others */}
+                      <div className="bg-brand-offwhite p-3 rounded-2xl border border-brand-border/80 space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-sky-900 bg-sky-100/80 px-2 py-0.5 rounded-md border border-sky-200/70 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3 h-3 text-sky-700" /> Others
+                          </span>
+                          <span className="text-[10px] text-brand-brown-light/70 font-medium">Independent learning tasks</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { type: 'presentation', label: 'Presentations' },
+                            { type: 'task', label: 'Tasks' },
+                            { type: 'research papers/article', label: 'Research Paper / Article' }
+                          ].map(domain => {
+                            const isSelected = focusDomain === domain.type;
+                            const isDisabled = isLoungeModule && focusDomain !== domain.type;
+                            return (
+                              <button
+                                key={domain.type}
+                                type="button"
+                                onClick={() => {
+                                  setFocusDomain(domain.type);
+                                  setFocusTargetDomain('');
+                                  setSelectedCircle(null);
+                                  setSelectedFocusModule(null);
+                                  setFocusModuleId(undefined);
+                                  setIsLoungeModule(false);
+                                  setFocusTitle('');
+                                  setFocusAuthor('');
+                                  setFocusEstimatedDuration('');
+                                }}
+                                disabled={isDisabled}
+                                className={`py-2.5 px-2 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center ${
+                                  isSelected
+                                    ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                    : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40 hover:bg-brand-beige/20'
+                                } ${isDisabled ? 'opacity-35 cursor-not-allowed' : 'active:scale-98'}`}
+                              >
+                                <span className="leading-tight text-[11px] truncate">{domain.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Location Mode Selector */}
+                    <div>
+                      <div className="bg-brand-offwhite p-3.5 rounded-2xl border border-brand-border space-y-2">
+                        <label className="block text-xs font-black uppercase tracking-wider text-brand-brown-light">Learning Location</label>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFocusLocation('lounge');
+                            }}
+                            className={`p-3 rounded-xl border text-left transition-all flex items-center gap-2.5 ${
+                              focusLocation === 'lounge'
+                                ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40'
+                            }`}
+                          >
+                            <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              focusLocation === 'lounge' ? 'border-brand-offwhite bg-amber-400' : 'border-brand-brown-light/40'
+                            }`} />
+                            <div>
+                              <div className="text-xs font-bold leading-tight">Inside the Lounge</div>
+                              <div className="text-[10px] opacity-80 mt-0.5">Cohorts, modules & circles</div>
                             </div>
-
-                            <div className="bg-brand-white/80 p-4 rounded-xl border border-brand-border-light space-y-2 text-xs text-brand-brown">
-                              {selectedCircle.bookName && (
-                                <p className="font-medium text-brand-text">
-                                  📖 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Book Name:</span> {selectedCircle.bookName}
-                                </p>
-                              )}
-                              <p className="font-medium text-brand-text">
-                                🎓 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Moderator:</span> {selectedCircle.moderator}
-                              </p>
-                              <p className="font-medium">
-                                📅 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Schedule:</span> {selectedCircle.schedule}
-                              </p>
-                              {selectedCircle.duration && (
-                                <p className="font-medium cursor-help" title={formatDateFull(selectedCircle.duration)}>
-                                  ⏳ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Target Date:</span> {formatDateDDMMYYYY(selectedCircle.duration)}
-                                </p>
-                              )}
-                              {selectedCircle.startDate && (
-                                <p className="font-medium">
-                                  🗓️ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Starts:</span> {formatDateDDMMYYYY(selectedCircle.startDate)}
-                                </p>
-                              )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFocusLocation('personal');
+                              setSelectedCircle(null);
+                              setSelectedFocusModule(null);
+                              setFocusModuleId(undefined);
+                              setIsLoungeModule(false);
+                            }}
+                            className={`p-3 rounded-xl border text-left transition-all flex items-center gap-2.5 ${
+                              focusLocation === 'personal'
+                                ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40'
+                            }`}
+                          >
+                            <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                              focusLocation === 'personal' ? 'border-brand-offwhite bg-amber-400' : 'border-brand-brown-light/40'
+                            }`} />
+                            <div>
+                              <div className="text-xs font-bold leading-tight">Personal (Outside)</div>
+                              <div className="text-[10px] opacity-80 mt-0.5">Self-paced independent study</div>
                             </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
 
-                            <p className="text-[11px] text-green-800 leading-relaxed font-semibold">
-                              ✓ Ready! Click the "Update Focus" button at the bottom of the modal to submit your request to study this book inside the Wisdom Lounge.
-                            </p>
-                          </motion.div>
-                        ) : (
-                          <div className="space-y-3">
-                            <div className="border-b border-brand-border pb-2">
-                              <h4 className="font-sans text-base font-bold text-brand-text">Choose an Ongoing Circle to Join</h4>
-                              <p className="text-xs text-brand-brown-light mt-1">
-                                Book reading inside the Lounge must be registered by joining one of our active study circles. Select a group to prefill.
-                              </p>
-                            </div>
-
-                            {circlesLoading ? (
-                              <div className="flex flex-col items-center justify-center py-8 opacity-65">
-                                <Activity className="w-6 h-6 text-brand-brown animate-spin mb-2" />
-                                <span className="text-xs font-bold uppercase tracking-wider text-brand-brown-light">Loading study circles...</span>
-                              </div>
-                            ) : loungeCircles.filter(c => c.status !== 'past' && c.category === 'Book Reading').length === 0 ? (
-                              <div className="p-6 bg-brand-offwhite rounded-xl border border-dashed border-brand-border text-center">
-                                <p className="text-xs text-brand-brown-light font-bold">No active study circles found.</p>
-                              </div>
-                            ) : (
-                              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-                                {loungeCircles
-                                  .filter(c => c.status !== 'past' && c.category === 'Book Reading')
-                                  .map((circle) => {
-                                  const bookNameOrTitle = circle.bookName || circle.title;
-                                  const isAlreadyJoined = activeLearner?.currentFocuses?.some(f => 
-                                    f.title.toLowerCase() === bookNameOrTitle.toLowerCase()
-                                  );
-
-                                  return (
-                                    <div 
-                                      key={circle.id} 
-                                      className={`p-4 bg-brand-white border border-brand-border rounded-2xl flex flex-col justify-between gap-3 shadow-xs transition-all ${
-                                        isAlreadyJoined 
-                                          ? 'opacity-65 bg-brand-offwhite/80 border-dashed' 
-                                          : 'hover:border-brand-brown/50'
-                                      }`}
-                                    >
-                                      <div>
-                                        <div className="flex items-center justify-between gap-2">
-                                          <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 rounded">
-                                            {circle.category || 'Study Circle'}
-                                          </span>
-                                          <span className="text-[9px] font-bold text-brand-brown-light/60">
-                                            {circle.format || 'Onsite'}
-                                          </span>
-                                        </div>
-
-                                        <h5 className="font-sans font-bold text-brand-text text-sm mt-1.5 leading-tight">{circle.title}</h5>
-                                        {circle.bookName && (
-                                          <p className="text-xs text-brand-brown font-extrabold mt-1">
-                                            Book: <span className="text-brand-text">{circle.bookName}</span>{circle.bookAuthor ? ` (by ${circle.bookAuthor})` : ''}
-                                          </p>
-                                        )}
-                                        {circle.subject && (
-                                          <p className="text-[11px] text-emerald-800 font-extrabold mt-0.5">
-                                            Subject: <span className="text-emerald-950 font-semibold">{circle.subject}</span>
-                                          </p>
-                                        )}
-                                        <p className="text-[11px] text-brand-brown-light font-bold mt-0.5">
-                                          Host: {circle.moderator} | Schedule: {circle.schedule}
-                                          {circle.startDate ? ` | Starts: ${formatDateDDMMYYYY(circle.startDate)}` : ''}
-                                        </p>
-                                      </div>
-
-                                      {isAlreadyJoined ? (
-                                        <div className="w-full text-center py-2 px-3 bg-green-50 text-green-700 text-xs font-black uppercase tracking-wider rounded-xl border border-green-200 border-dashed select-none">
-                                          Already Joined ✓
-                                        </div>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setSelectedCircle(circle);
-                                            setFocusTitle(circle.bookName || circle.title);
-                                            setFocusAuthor(circle.bookAuthor || (focusDomain === 'book' ? '' : circle.moderator) || '');
-                                            
-                                            const d = new Date();
-                                            d.setMonth(d.getMonth() + 2);
-                                            const yyyymmdd = d.toISOString().split('T')[0];
-                                            setFocusEstimatedDuration(yyyymmdd);
-                                          }}
-                                          className="w-full py-2 px-3 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 active:scale-95"
-                                        >
-                                          Select Circle <ArrowRight className="w-3 h-3" />
-                                        </button>
-                                      )}
+                    {/* ========================================================================= */}
+                    {/* INSIDE THE LOUNGE MODE - UNIFIED CARD LAYOUT FOR ALL DOMAINS */}
+                    {/* ========================================================================= */}
+                    {focusLocation === 'lounge' && (
+                      <div className="space-y-4">
+                        {/* 1. MODULES (Tafsir, Seerah, Dowra e Quran) */}
+                        {['tafsir', 'seerah', 'dowra'].includes(focusDomain) && (
+                          <div>
+                            {selectedFocusModule ? (
+                              <motion.div 
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="p-5 bg-green-50/50 border border-green-200 rounded-2xl flex flex-col space-y-4 shadow-sm"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center border border-green-200">
+                                      <CheckCircle2 className="w-5 h-5 text-green-700" />
                                     </div>
-                                  );
-                                })}
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-green-700 block">Selected Lounge Module</span>
+                                      <h4 className="font-sans text-base font-bold text-brand-text mt-0.5 truncate">{selectedFocusModule.title} {selectedFocusModule.batch ? `(${selectedFocusModule.batch})` : ''}</h4>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedFocusModule(null);
+                                      setFocusModuleId(undefined);
+                                      setFocusTitle('');
+                                      setFocusAuthor('');
+                                      setFocusEstimatedDuration('');
+                                      setIsLoungeModule(false);
+                                    }}
+                                    className="px-3 py-1.5 border border-brand-border hover:bg-brand-offwhite text-brand-brown rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shrink-0"
+                                  >
+                                    Change
+                                  </button>
+                                </div>
+
+                                <div className="bg-brand-white/80 p-4 rounded-xl border border-brand-border-light space-y-2 text-xs text-brand-brown">
+                                  <p className="font-medium text-brand-text">
+                                    📖 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Module / Batch:</span> {selectedFocusModule.batch || selectedFocusModule.title}
+                                  </p>
+                                  {selectedFocusModule.speaker && (
+                                    <p className="font-medium text-brand-text">
+                                      🎓 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Instructor:</span> {selectedFocusModule.speaker}
+                                    </p>
+                                  )}
+                                  {selectedFocusModule.orientationDate && (
+                                    <p className="font-medium">
+                                      🗓️ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Starts / Orientation:</span> {formatDateDDMMYYYY(selectedFocusModule.orientationDate)}
+                                    </p>
+                                  )}
+                                  {(selectedFocusModule.endDate || selectedFocusModule.estimatedEndDate) && (
+                                    <p className="font-medium cursor-help" title={formatDateFull(selectedFocusModule.endDate || selectedFocusModule.estimatedEndDate || '')}>
+                                      ⏳ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Est. End Date:</span> {formatDateDDMMYYYY(selectedFocusModule.endDate || selectedFocusModule.estimatedEndDate || '')}
+                                    </p>
+                                  )}
+                                  {selectedFocusModule.fee && (
+                                    <p className="font-medium">
+                                      💳 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Registration / Fee:</span> {selectedFocusModule.fee}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <p className="text-[11px] text-green-800 leading-relaxed font-semibold">
+                                  ✓ Ready! Click the "Update Focus" button at the bottom of the modal to submit your request to study this {APP_DOMAINS.find(d => d.type === focusDomain)?.label || 'Module'} inside the Wisdom Lounge.
+                                </p>
+                              </motion.div>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="border-b border-brand-border pb-2">
+                                  <h4 className="font-sans text-base font-bold text-brand-text">Choose an Ongoing {APP_DOMAINS.find(d => d.type === focusDomain)?.label || 'Module'} to Join</h4>
+                                  <p className="text-xs text-brand-brown-light mt-1">
+                                    Modules inside the Lounge are structured cohort courses. Select an active module to prefill and join.
+                                  </p>
+                                </div>
+
+                                {loungeModules.filter(m => m.category === focusDomain && m.status !== 'past').length === 0 ? (
+                                  <div className="p-6 bg-brand-offwhite rounded-2xl border border-dashed border-brand-border text-center">
+                                    <p className="text-xs text-brand-brown font-bold">No active or upcoming {APP_DOMAINS.find(d => d.type === focusDomain)?.label || 'Module'} modules found.</p>
+                                    <p className="text-[11px] text-brand-brown-light mt-1">Please select "Personal (Outside)" if you are studying this topic independently.</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                                    {loungeModules
+                                      .filter(m => m.category === focusDomain && m.status !== 'past')
+                                      .map((module) => {
+                                        const isAlreadyJoined = activeLearner?.currentFocuses?.some(f => 
+                                          (f.moduleId && f.moduleId === module.id) || 
+                                          f.title.toLowerCase() === (module.batch || module.title).toLowerCase()
+                                        );
+
+                                        return (
+                                          <div 
+                                            key={module.id} 
+                                            className={`p-4 bg-brand-white border border-brand-border rounded-2xl flex flex-col justify-between gap-3 shadow-xs transition-all ${
+                                              isAlreadyJoined 
+                                                ? 'opacity-65 bg-brand-offwhite/80 border-dashed' 
+                                                : 'hover:border-brand-brown/50'
+                                            }`}
+                                          >
+                                            <div>
+                                              <div className="flex items-center justify-between gap-2">
+                                                <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-amber-100/80 text-amber-900 border border-amber-200/80 rounded">
+                                                  {APP_DOMAINS.find(d => d.type === module.category)?.label || module.category}
+                                                </span>
+                                                <span className="text-[9px] font-bold text-brand-brown-light/80 bg-brand-offwhite px-2 py-0.5 rounded border border-brand-border">
+                                                  {module.status.toUpperCase()}
+                                                </span>
+                                              </div>
+
+                                              <h5 className="font-sans font-bold text-brand-text text-sm mt-1.5 leading-tight">
+                                                {module.title} {module.batch ? `(${module.batch})` : ''}
+                                              </h5>
+                                              
+                                              {module.speaker && (
+                                                <p className="text-xs text-brand-brown font-extrabold mt-1">
+                                                  Instructor: <span className="text-brand-text">{module.speaker}</span>
+                                                </p>
+                                              )}
+                                              
+                                              <div className="text-[11px] text-brand-brown-light font-medium mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                                                {module.orientationDate && (
+                                                  <span>🗓️ Starts: {formatDateDDMMYYYY(module.orientationDate)}</span>
+                                                )}
+                                                {(module.endDate || module.estimatedEndDate) && (
+                                                  <span>⏳ Est. End: {formatDateDDMMYYYY(module.endDate || module.estimatedEndDate || '')}</span>
+                                                )}
+                                                {module.fee && (
+                                                  <span>💳 Fee: {module.fee}</span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            {isAlreadyJoined ? (
+                                              <div className="w-full text-center py-2 px-3 bg-green-50 text-green-700 text-xs font-black uppercase tracking-wider rounded-xl border border-green-200 border-dashed select-none">
+                                                Already Joined ✓
+                                              </div>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setSelectedFocusModule(module);
+                                                  setFocusModuleId(module.id);
+                                                  setFocusTitle(module.batch || module.title);
+                                                  setFocusAuthor(module.speaker || '');
+                                                  setIsLoungeModule(true);
+                                                  const targetDate = module.endDate || module.estimatedEndDate || '';
+                                                  if (targetDate) {
+                                                    setFocusEstimatedDuration(targetDate);
+                                                  }
+                                                }}
+                                                className="w-full py-2 px-3 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 active:scale-95"
+                                              >
+                                                Select Module <ArrowRight className="w-3 h-3" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
                         )}
-                      </div>
-                    )}
 
-                    {/* Dynamic Fields based on Domain */}
-                    {['book', 'tafsir', 'seerah', 'dowra', 'talaqqi'].includes(focusDomain) && (
-                      <div className="mt-4">
-                        {renderLocationSelection()}
-                      </div>
-                    )}
-
-                    {focusDomain === 'research papers/article' ? (
-                      <>
-                        <div>
-                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
-                            Title / Topic <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            required
-                            value={focusTitle}
-                            onChange={(e) => setFocusTitle(e.target.value)}
-                            placeholder="e.g. History of Fiqh or Islamic Financial Ethics"
-                            className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
-                          />
-                        </div>
-
-                        {/* Series vs Single Selection */}
-                        <div className="bg-brand-bg-alt/80 p-4 rounded-2xl border border-brand-border/80 space-y-3 mt-3">
-                          <label className="block text-xs font-bold uppercase tracking-wider text-brand-text">
-                            Article Structure
-                          </label>
-                          <div className="grid grid-cols-2 gap-3">
-                            <button
-                              type="button"
-                              onClick={() => setFocusIsSeries(false)}
-                              className={`p-3 rounded-xl border text-left transition-all ${
-                                !focusIsSeries 
-                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
-                                  : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
-                              }`}
-                            >
-                              <div className="text-xs font-bold flex items-center gap-1.5">
-                                📄 Single Piece
-                              </div>
-                              <div className="text-[10px] opacity-80 mt-0.5">Standalone article / paper</div>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setFocusIsSeries(true)}
-                              className={`p-3 rounded-xl border text-left transition-all ${
-                                focusIsSeries 
-                                  ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
-                                  : 'bg-brand-offwhite hover:bg-brand-brown/10 text-brand-brown border-brand-border'
-                              }`}
-                            >
-                              <div className="text-xs font-bold flex items-center gap-1.5">
-                                📚 Article Series
-                              </div>
-                              <div className="text-[10px] opacity-80 mt-0.5">Multiple related parts</div>
-                            </button>
-                          </div>
-
-                          {focusIsSeries && (
-                            <div className="mt-3 pt-3 border-t border-brand-border/60 space-y-3 bg-amber-50/70 p-3.5 rounded-xl border border-amber-200">
-                              <div>
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <label className="block text-xs font-bold uppercase tracking-wider text-amber-950">
-                                    Number of Article Pieces <span className="text-red-500">*</span>
-                                  </label>
-                                  <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-md border border-amber-300">
-                                    +{(focusIsResearchPaper ? 30 : 15) * Math.max(2, focusSeriesCount)} Pts Total
-                                  </span>
-                                </div>
-                                <input
-                                  type="number"
-                                  min={2}
-                                  max={100}
-                                  required={focusIsSeries}
-                                  value={focusSeriesCount}
-                                  onChange={(e) => setFocusSeriesCount(Math.max(2, parseInt(e.target.value) || 2))}
-                                  className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-sm font-bold text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                                />
-                                <p className="text-[10px] text-amber-800/90 mt-1">
-                                  * Completing a series scales your score! Each piece adds +{focusIsResearchPaper ? 30 : 15} points.
-                                </p>
-                              </div>
-
-                              <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-amber-950 mb-1">
-                                  Titles / Names of Articles in Series (Optional)
-                                </label>
-                                <textarea
-                                  value={focusSeriesTitles}
-                                  onChange={(e) => setFocusSeriesTitles(e.target.value)}
-                                  placeholder="e.g. Part 1: Foundations, Part 2: Analysis, Part 3: Modern Applications"
-                                  rows={2}
-                                  className="w-full px-4 py-2.5 bg-white border border-amber-300 rounded-xl text-xs text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500 resize-none"
-                                />
-                                <p className="text-[10px] text-amber-800/80 mt-0.5">
-                                  Optionally list the names of all articles in this series.
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="space-y-4 my-2">
+                        {/* 2. CIRCLES: BOOKS */}
+                        {focusDomain === 'book' && (
                           <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                              Online Link (If available)
-                            </label>
-                            <input
-                              type="url"
-                              value={focusLink}
-                              onChange={(e) => setFocusLink(e.target.value)}
-                              placeholder="e.g. https://example.com/scholarly-article"
-                              className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                              Description / Learnings
-                            </label>
-                            <textarea
-                              value={focusOverview}
-                              onChange={(e) => setFocusOverview(e.target.value)}
-                              placeholder="Summarize key takeaways, concepts, or reflections..."
-                              rows={3}
-                              className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown resize-none"
-                            />
-                          </div>
-                          <div className="flex items-start gap-3 p-3.5 bg-brand-bg-alt/70 border border-brand-border/60 rounded-xl">
-                            <input
-                              id="focusIsResearchPaper"
-                              type="checkbox"
-                              checked={focusIsResearchPaper}
-                              onChange={(e) => setFocusIsResearchPaper(e.target.checked)}
-                              className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown mt-0.5 cursor-pointer"
-                            />
-                            <div className="flex flex-col">
-                              <label htmlFor="focusIsResearchPaper" className="text-xs font-bold uppercase tracking-wide text-brand-text cursor-pointer select-none">
-                                This is a Scholarly Research Paper
-                              </label>
-                              <span className="text-[10px] text-brand-brown-light leading-relaxed mt-0.5">
-                                Check this option if your target work matches a full academic research paper rather than a brief article. Research papers grant more score (30 pts vs 15 pts per piece).
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    ) : ['tafsir', 'seerah', 'dowra', 'talaqqi'].includes(focusDomain) ? (
-                      <div className="mt-4">
-                        {focusLocation === 'lounge' && focusDomain !== 'talaqqi' ? (
-                          <div className="mb-4">
-                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                              Select Lounge Module <span className="text-red-500">*</span>
-                            </label>
-                            {loungeModules.filter(m => m.category === focusDomain && m.status !== 'past').length === 0 ? (
-                              <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                                No active or upcoming lounge modules configured in this category yet. Please contact an admin or select "Personal Study (Outside)" if applicable.
-                              </div>
-                            ) : (
-                              <select
-                                value={focusModuleId || ''}
-                                onChange={(e) => {
-                                  const moduleId = e.target.value;
-                                  setFocusModuleId(moduleId);
-                                  const module = loungeModules.find(m => m.id === moduleId);
-                                  if (module) {
-                                    setFocusTitle(module.batch || module.title);
-                                    setFocusAuthor(module.speaker || '');
-                                    setSelectedFocusModule(module);
-                                  } else {
-                                    setFocusTitle('');
-                                    setFocusAuthor('');
-                                    setSelectedFocusModule(null);
-                                  }
-                                }}
-                                required
-                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown text-brand-text font-medium"
+                            {selectedCircle ? (
+                              <motion.div 
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="p-5 bg-green-50/50 border border-green-200 rounded-2xl flex flex-col space-y-4 shadow-sm"
                               >
-                                <option value="">-- Choose a Lounge Module --</option>
-                                {loungeModules
-                                  .filter(m => m.category === focusDomain && m.status !== 'past')
-                                  .map(m => (
-                                    <option key={m.id} value={m.id}>
-                                      {m.title} {m.batch ? `(${m.batch})` : ''} [{m.status.toUpperCase()}]
-                                    </option>
-                                  ))}
-                              </select>
-                            )}
-                            {focusModuleId && selectedFocusModule && (
-                              <div className="mt-3 p-3 bg-brand-bg-alt rounded-xl border border-brand-border-light text-xs space-y-1">
-                                <p className="text-brand-brown"><strong className="text-brand-brown-light uppercase text-[10px] tracking-wider block">Module Title / Batch</strong> {selectedFocusModule.batch || selectedFocusModule.title}</p>
-                                <p className="text-brand-brown mt-1.5"><strong className="text-brand-brown-light uppercase text-[10px] tracking-wider block">Speaker / Instructor</strong> {selectedFocusModule.speaker}</p>
-                              </div>
-                            )}
-                          </div>
-                        ) : focusDomain === 'talaqqi' ? (
-                          <>
-                            {focusLocation === 'lounge' ? (
-                              <div className="mb-4">
-                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                                  Select Ongoing Guided Study <span className="text-red-500">*</span>
-                                </label>
-                                {circlesLoading ? (
-                                  <div className="text-xs text-brand-brown-light animate-pulse py-2">Loading guided studies...</div>
-                                ) : loungeCircles.filter(c => c.status !== 'past' && c.category !== 'Book Reading').length === 0 ? (
-                                  <div className="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-3 rounded-xl">
-                                    No active guided studies configured in the Wisdom Lounge yet. Please contact an admin or select "Personal Study (Outside)" if applicable.
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center border border-green-200">
+                                      <CheckCircle2 className="w-5 h-5 text-green-700" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-green-700 block">Selected Lounge Circle</span>
+                                      <h4 className="font-sans text-base font-bold text-brand-text mt-0.5 truncate">{selectedCircle.title}</h4>
+                                    </div>
                                   </div>
-                                ) : (
-                                  <select
-                                    value={focusModuleId || ''}
-                                    onChange={(e) => {
-                                      const circleId = e.target.value;
-                                      setFocusModuleId(circleId);
-                                      const circle = loungeCircles.find(c => c.id === circleId);
-                                      if (circle) {
-                                        setFocusTitle(circle.bookName || circle.title);
-                                        setFocusAuthor(circle.moderator || circle.bookAuthor || '');
-                                      } else {
-                                        setFocusTitle('');
-                                        setFocusAuthor('');
-                                      }
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedCircle(null);
+                                      setFocusTitle('');
+                                      setFocusAuthor('');
+                                      setFocusEstimatedDuration('');
                                     }}
-                                    required
-                                    className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown text-brand-text font-medium"
+                                    className="px-3 py-1.5 border border-brand-border hover:bg-brand-offwhite text-brand-brown rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shrink-0"
                                   >
-                                    <option value="">-- Choose a Guided Study --</option>
-                                    {loungeCircles
-                                      .filter(c => c.status !== 'past' && c.category !== 'Book Reading')
-                                      .map(c => (
-                                        <option key={c.id} value={c.id}>
-                                          {c.title} {c.bookName ? `(${c.bookName})` : ''} [{c.status.toUpperCase()}]
-                                        </option>
-                                      ))}
-                                  </select>
-                                )}
-                              </div>
-                            ) : (
-                              <>
-                                <div className="mb-4">
-                                  <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Course Title</label>
-                                  <input type="text" value={focusTitle} onChange={e => setFocusTitle(e.target.value)} required className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown" placeholder="e.g. Fiqh, Hadith, Arabic..." />
+                                    Change
+                                  </button>
                                 </div>
-                                <div className="flex items-center gap-3 mb-4 p-3.5 bg-brand-bg-alt/70 border border-brand-border/60 rounded-xl mt-4">
-                                  <input
-                                    id="focusIsOnline"
-                                    type="checkbox"
-                                    checked={focusIsOnline}
-                                    onChange={(e) => setFocusIsOnline(e.target.checked)}
-                                    className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown mt-0.5"
-                                  />
-                                  <div className="flex flex-col">
-                                    <label htmlFor="focusIsOnline" className="text-xs font-bold uppercase tracking-wide text-brand-text cursor-pointer select-none">
-                                      Pursuing Online?
-                                    </label>
+
+                                <div className="bg-brand-white/80 p-4 rounded-xl border border-brand-border-light space-y-2 text-xs text-brand-brown">
+                                  {selectedCircle.bookName && (
+                                    <p className="font-medium text-brand-text">
+                                      📖 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Book Name:</span> {selectedCircle.bookName}
+                                    </p>
+                                  )}
+                                  <p className="font-medium text-brand-text">
+                                    🎓 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Moderator:</span> {selectedCircle.moderator}
+                                  </p>
+                                  <p className="font-medium">
+                                    📅 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Schedule:</span> {selectedCircle.schedule}
+                                  </p>
+                                  {selectedCircle.duration && (
+                                    <p className="font-medium cursor-help" title={formatDateFull(selectedCircle.duration)}>
+                                      ⏳ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Target Date:</span> {formatDateDDMMYYYY(selectedCircle.duration)}
+                                    </p>
+                                  )}
+                                  {selectedCircle.startDate && (
+                                    <p className="font-medium">
+                                      🗓️ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Starts:</span> {formatDateDDMMYYYY(selectedCircle.startDate)}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Book Reading Tracking inside Lounge */}
+                                <div className="p-4 bg-brand-white/90 border border-brand-border rounded-xl space-y-3">
+                                  <div className="flex items-center gap-2 text-brand-brown">
+                                    <span>📚</span>
+                                    <h5 className="text-xs font-bold uppercase tracking-wider">Book Page Tracking</h5>
                                   </div>
-                                </div>
-                                {focusIsOnline && (
-                                   <div className="mb-4">
-                                     <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Source / Link</label>
-                                     <input type="text" value={focusSource} onChange={e => setFocusSource(e.target.value)} required={focusIsOnline} className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown" placeholder="e.g. YouTube channel link, Zoom ID etc." />
-                                   </div>
-                                )}
-                                <div className="mb-4">
-                                  <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Name of Ustad</label>
-                                  <input type="text" value={focusUstadName} onChange={e => setFocusUstadName(e.target.value)} required className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown" placeholder="e.g. Ustadh Majed Mahmoud" />
-                                </div>
-                                <div className="flex items-center gap-3 mb-4 p-3.5 bg-brand-bg-alt/70 border border-brand-border/60 rounded-xl">
-                                  <input
-                                    id="focusHasCommunity"
-                                    type="checkbox"
-                                    checked={focusHasCommunity}
-                                    onChange={(e) => setFocusHasCommunity(e.target.checked)}
-                                    className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown mt-0.5"
-                                  />
-                                  <div className="flex flex-col">
-                                    <label htmlFor="focusHasCommunity" className="text-xs font-bold uppercase tracking-wide text-brand-text cursor-pointer select-none">
-                                      Was this studied as part of a Study Circle / Community?
-                                    </label>
-                                  </div>
-                                </div>
-                                {focusHasCommunity && (
-                                  <motion.div
-                                    initial={{ opacity: 0, height: 0 }}
-                                    animate={{ opacity: 1, height: 'auto' }}
-                                    className="overflow-hidden mb-4"
-                                  >
-                                    <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                                      Circle / Community Name
+                                  <div>
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1.5">
+                                      Total Pages in Book <span className="text-red-500">*</span>
                                     </label>
                                     <input
-                                      type="text"
-                                      value={focusCommunity}
-                                      onChange={(e) => setFocusCommunity(e.target.value)}
-                                      placeholder="e.g. AlMaghrib Institute"
-                                      className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                                      type="number"
+                                      required
+                                      min="1"
+                                      value={focusBookTotalPages}
+                                      onChange={(e) => setFocusBookTotalPages(e.target.value)}
+                                      placeholder="e.g. 350"
+                                      className="w-full px-4 py-2.5 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
                                     />
-                                  </motion.div>
+                                  </div>
+                                  {focusBookTotalPages && focusEstimatedDuration && (() => {
+                                    const pages = parseInt(focusBookTotalPages, 10);
+                                    if (isNaN(pages) || pages <= 0) return null;
+                                    const today = new Date();
+                                    today.setHours(0,0,0,0);
+                                    const target = new Date(focusEstimatedDuration);
+                                    target.setHours(0,0,0,0);
+                                    const diffTime = target.getTime() - today.getTime();
+                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                    const pagesPerDay = diffDays > 0 ? Math.ceil(pages / diffDays) : pages;
+                                    return (
+                                      <div className="bg-brand-beige/40 p-3 rounded-lg border border-brand-border/60 text-xs space-y-1">
+                                        <p className="text-brand-brown font-semibold">
+                                          📅 <strong>Time Remaining:</strong> {diffDays > 0 ? `${diffDays} days` : 'Today'} (Target: {new Date(focusEstimatedDuration).toLocaleDateString()})
+                                        </p>
+                                        <p className="text-brand-brown font-semibold">
+                                          📖 <strong>Average Pages Daily:</strong> <span className="text-amber-700 font-extrabold text-sm">{pagesPerDay}</span> pages/day
+                                        </p>
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+
+                                <p className="text-[11px] text-green-800 leading-relaxed font-semibold">
+                                  ✓ Ready! Click the "Update Focus" button at the bottom of the modal to submit your request to study this book inside the Wisdom Lounge.
+                                </p>
+                              </motion.div>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="border-b border-brand-border pb-2">
+                                  <h4 className="font-sans text-base font-bold text-brand-text">Choose an Ongoing Circle to Join</h4>
+                                  <p className="text-xs text-brand-brown-light mt-1">
+                                    Book reading inside the Lounge must be registered by joining one of our active study circles. Select a group to prefill.
+                                  </p>
+                                </div>
+
+                                {circlesLoading ? (
+                                  <div className="flex flex-col items-center justify-center py-8 opacity-65">
+                                    <Activity className="w-6 h-6 text-brand-brown animate-spin mb-2" />
+                                    <span className="text-xs font-bold uppercase tracking-wider text-brand-brown-light">Loading study circles...</span>
+                                  </div>
+                                ) : loungeCircles.filter(c => c.status !== 'past' && c.category === 'Book Reading').length === 0 ? (
+                                  <div className="p-6 bg-brand-offwhite rounded-xl border border-dashed border-brand-border text-center">
+                                    <p className="text-xs text-brand-brown-light font-bold">No active study circles found.</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                                    {loungeCircles
+                                      .filter(c => c.status !== 'past' && c.category === 'Book Reading')
+                                      .map((circle) => {
+                                        const bookNameOrTitle = circle.bookName || circle.title;
+                                        const isAlreadyJoined = activeLearner?.currentFocuses?.some(f => 
+                                          f.title.toLowerCase() === bookNameOrTitle.toLowerCase()
+                                        );
+
+                                        return (
+                                          <div 
+                                            key={circle.id} 
+                                            className={`p-4 bg-brand-white border border-brand-border rounded-2xl flex flex-col justify-between gap-3 shadow-xs transition-all ${
+                                              isAlreadyJoined 
+                                                ? 'opacity-65 bg-brand-offwhite/80 border-dashed' 
+                                                : 'hover:border-brand-brown/50'
+                                            }`}
+                                          >
+                                            <div>
+                                              <div className="flex items-center justify-between gap-2">
+                                                <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200 rounded">
+                                                  {circle.category || 'Study Circle'}
+                                                </span>
+                                                <span className="text-[9px] font-bold text-brand-brown-light/60">
+                                                  {circle.format || 'Onsite'}
+                                                </span>
+                                              </div>
+
+                                              <h5 className="font-sans font-bold text-brand-text text-sm mt-1.5 leading-tight">{circle.title}</h5>
+                                              {circle.bookName && (
+                                                <p className="text-xs text-brand-brown font-extrabold mt-1">
+                                                  Book: <span className="text-brand-text">{circle.bookName}</span>{circle.bookAuthor ? ` (by ${circle.bookAuthor})` : ''}
+                                                </p>
+                                              )}
+                                              {circle.subject && (
+                                                <p className="text-[11px] text-emerald-800 font-extrabold mt-0.5">
+                                                  Subject: <span className="text-emerald-950 font-semibold">{circle.subject}</span>
+                                                </p>
+                                              )}
+                                              <p className="text-[11px] text-brand-brown-light font-bold mt-0.5">
+                                                Host: {circle.moderator} | Schedule: {circle.schedule}
+                                                {circle.startDate ? ` | Starts: ${formatDateDDMMYYYY(circle.startDate)}` : ''}
+                                              </p>
+                                            </div>
+
+                                            {isAlreadyJoined ? (
+                                              <div className="w-full text-center py-2 px-3 bg-green-50 text-green-700 text-xs font-black uppercase tracking-wider rounded-xl border border-green-200 border-dashed select-none">
+                                                Already Joined ✓
+                                              </div>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setSelectedCircle(circle);
+                                                  setFocusTitle(circle.bookName || circle.title);
+                                                  setFocusAuthor(circle.bookAuthor || (focusDomain === 'book' ? '' : circle.moderator) || '');
+                                                  
+                                                  if (circle.duration) {
+                                                    setFocusEstimatedDuration(circle.duration);
+                                                  } else {
+                                                    const d = new Date();
+                                                    d.setMonth(d.getMonth() + 2);
+                                                    const yyyymmdd = d.toISOString().split('T')[0];
+                                                    setFocusEstimatedDuration(yyyymmdd);
+                                                  }
+                                                }}
+                                                className="w-full py-2 px-3 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 active:scale-95"
+                                              >
+                                                Select Circle <ArrowRight className="w-3 h-3" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
                                 )}
-                              </>
+                              </div>
                             )}
-                          </>
-                        ) : (
-                          <>
-                            <div className="mt-4">
-                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                                Course Title
+                          </div>
+                        )}
+
+                        {/* 3. CIRCLES: GUIDED STUDIES (Talaqqi) */}
+                        {focusDomain === 'talaqqi' && (
+                          <div>
+                            {selectedCircle ? (
+                              <motion.div 
+                                initial={{ opacity: 0, scale: 0.98 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                className="p-5 bg-green-50/50 border border-green-200 rounded-2xl flex flex-col space-y-4 shadow-sm"
+                              >
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center border border-green-200">
+                                      <CheckCircle2 className="w-5 h-5 text-green-700" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <span className="text-[10px] font-black uppercase tracking-widest text-green-700 block">Selected Guided Study Circle</span>
+                                      <h4 className="font-sans text-base font-bold text-brand-text mt-0.5 truncate">{selectedCircle.title}</h4>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedCircle(null);
+                                      setFocusModuleId(undefined);
+                                      setFocusTitle('');
+                                      setFocusAuthor('');
+                                      setFocusEstimatedDuration('');
+                                    }}
+                                    className="px-3 py-1.5 border border-brand-border hover:bg-brand-offwhite text-brand-brown rounded-xl text-xs font-bold uppercase tracking-wider transition-colors shrink-0"
+                                  >
+                                    Change
+                                  </button>
+                                </div>
+
+                                <div className="bg-brand-white/80 p-4 rounded-xl border border-brand-border-light space-y-2 text-xs text-brand-brown">
+                                  {selectedCircle.bookName && (
+                                    <p className="font-medium text-brand-text">
+                                      📖 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Course / Topic:</span> {selectedCircle.bookName}
+                                    </p>
+                                  )}
+                                  <p className="font-medium text-brand-text">
+                                    🎓 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Moderator / Teacher:</span> {selectedCircle.moderator}
+                                  </p>
+                                  {selectedCircle.subject && (
+                                    <p className="font-medium text-brand-text">
+                                      🏷️ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Subject:</span> {selectedCircle.subject}
+                                    </p>
+                                  )}
+                                  <p className="font-medium">
+                                    📅 <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Schedule:</span> {selectedCircle.schedule}
+                                  </p>
+                                  {selectedCircle.duration && (
+                                    <p className="font-medium cursor-help" title={formatDateFull(selectedCircle.duration)}>
+                                      ⏳ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Target Date:</span> {formatDateDDMMYYYY(selectedCircle.duration)}
+                                    </p>
+                                  )}
+                                  {selectedCircle.startDate && (
+                                    <p className="font-medium">
+                                      🗓️ <span className="font-extrabold uppercase text-[10px] text-brand-brown-light tracking-wider">Starts:</span> {formatDateDDMMYYYY(selectedCircle.startDate)}
+                                    </p>
+                                  )}
+                                </div>
+
+                                <p className="text-[11px] text-green-800 leading-relaxed font-semibold">
+                                  ✓ Ready! Click the "Update Focus" button at the bottom of the modal to submit your request to join this Guided Study circle inside the Wisdom Lounge.
+                                </p>
+                              </motion.div>
+                            ) : (
+                              <div className="space-y-3">
+                                <div className="border-b border-brand-border pb-2">
+                                  <h4 className="font-sans text-base font-bold text-brand-text">Choose an Ongoing Guided Study Circle to Join</h4>
+                                  <p className="text-xs text-brand-brown-light mt-1">
+                                    Guided studies inside the Lounge are structured cohorts led by teachers and moderators. Select an active circle to join.
+                                  </p>
+                                </div>
+
+                                {circlesLoading ? (
+                                  <div className="flex flex-col items-center justify-center py-8 opacity-65">
+                                    <Activity className="w-6 h-6 text-brand-brown animate-spin mb-2" />
+                                    <span className="text-xs font-bold uppercase tracking-wider text-brand-brown-light">Loading guided study circles...</span>
+                                  </div>
+                                ) : loungeCircles.filter(c => c.status !== 'past' && c.category !== 'Book Reading').length === 0 ? (
+                                  <div className="p-6 bg-brand-offwhite rounded-xl border border-dashed border-brand-border text-center">
+                                    <p className="text-xs text-brand-brown-light font-bold">No active guided study circles found.</p>
+                                    <p className="text-[11px] text-brand-brown-light/70 mt-1">Please select "Personal (Outside)" to log independent guided study.</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                                    {loungeCircles
+                                      .filter(c => c.status !== 'past' && c.category !== 'Book Reading')
+                                      .map((circle) => {
+                                        const isAlreadyJoined = activeLearner?.currentFocuses?.some(f => 
+                                          f.title.toLowerCase() === (circle.bookName || circle.title).toLowerCase()
+                                        );
+
+                                        return (
+                                          <div 
+                                            key={circle.id} 
+                                            className={`p-4 bg-brand-white border border-brand-border rounded-2xl flex flex-col justify-between gap-3 shadow-xs transition-all ${
+                                              isAlreadyJoined 
+                                                ? 'opacity-65 bg-brand-offwhite/80 border-dashed' 
+                                                : 'hover:border-brand-brown/50'
+                                            }`}
+                                          >
+                                            <div>
+                                              <div className="flex items-center justify-between gap-2">
+                                                <span className="px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-emerald-100/80 text-emerald-900 border border-emerald-200/80 rounded">
+                                                  {circle.category || 'Guided Study'}
+                                                </span>
+                                                <span className="text-[9px] font-bold text-brand-brown-light/60">
+                                                  {circle.format || 'Inside the Lounge'}
+                                                </span>
+                                              </div>
+
+                                              <h5 className="font-sans font-bold text-brand-text text-sm mt-1.5 leading-tight">{circle.title}</h5>
+                                              {circle.bookName && (
+                                                <p className="text-xs text-brand-brown font-extrabold mt-1">
+                                                  Course: <span className="text-brand-text">{circle.bookName}</span>
+                                                </p>
+                                              )}
+                                              {circle.subject && (
+                                                <p className="text-[11px] text-emerald-800 font-extrabold mt-0.5">
+                                                  Subject: <span className="text-emerald-950 font-semibold">{circle.subject}</span>
+                                                </p>
+                                              )}
+                                              <p className="text-[11px] text-brand-brown-light font-bold mt-0.5">
+                                                Host: {circle.moderator} | Schedule: {circle.schedule}
+                                                {circle.startDate ? ` | Starts: ${formatDateDDMMYYYY(circle.startDate)}` : ''}
+                                              </p>
+                                            </div>
+
+                                            {isAlreadyJoined ? (
+                                              <div className="w-full text-center py-2 px-3 bg-green-50 text-green-700 text-xs font-black uppercase tracking-wider rounded-xl border border-green-200 border-dashed select-none">
+                                                Already Joined ✓
+                                              </div>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setSelectedCircle(circle);
+                                                  setFocusModuleId(circle.id);
+                                                  setFocusTitle(circle.bookName || circle.title);
+                                                  setFocusAuthor(circle.moderator || circle.bookAuthor || '');
+                                                  if (circle.duration) {
+                                                    setFocusEstimatedDuration(circle.duration);
+                                                  } else {
+                                                    const d = new Date();
+                                                    d.setMonth(d.getMonth() + 2);
+                                                    const yyyymmdd = d.toISOString().split('T')[0];
+                                                    setFocusEstimatedDuration(yyyymmdd);
+                                                  }
+                                                }}
+                                                className="w-full py-2 px-3 bg-brand-brown hover:bg-brand-brown-dark text-brand-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-xs flex items-center justify-center gap-1 active:scale-95"
+                                              >
+                                                Select Circle <ArrowRight className="w-3 h-3" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 4. OTHERS (Presentations, Tasks, Research Paper / Article) */}
+                        {focusDomain === 'research papers/article' && (
+                          <div className="p-5 bg-brand-white border border-brand-border rounded-2xl space-y-4 shadow-xs">
+                            <div className="flex items-center gap-2 border-b border-brand-border/60 pb-3">
+                              <div className="w-8 h-8 rounded-full bg-sky-100 flex items-center justify-center border border-sky-200">
+                                <FileText className="w-4 h-4 text-sky-800" />
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-sky-900 block">Lounge Scholarly Initiative</span>
+                                <h4 className="font-sans text-sm font-bold text-brand-text">Research Paper or Article</h4>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1.5">
+                                Title / Topic <span className="text-red-500">*</span>
                               </label>
                               <input
                                 type="text"
                                 required
                                 value={focusTitle}
                                 onChange={(e) => setFocusTitle(e.target.value)}
-                                placeholder="e.g. Tafsir of Surah Nisaa"
-                                className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
+                                placeholder="e.g. History of Fiqh or Islamic Financial Ethics"
+                                className="w-full px-4 py-2.5 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
                               />
                             </div>
-                            {focusDomain !== 'presentation' && (
-                              <div className="mt-4">
-                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                                  Author / Teacher
-                                </label>
-                                <input
-                                  type="text"
-                                  required={focusDomain !== 'presentation'}
-                                  value={focusAuthor}
-                                  onChange={(e) => setFocusAuthor(e.target.value)}
-                                  placeholder="e.g. Dr. Mustafa Khattab"
-                                  className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                                />
+
+                            {/* Series vs Single Selection */}
+                            <div className="bg-brand-offwhite p-3.5 rounded-xl border border-brand-border space-y-2.5">
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-text">
+                                Publication Structure
+                              </label>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setFocusIsSeries(false)}
+                                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                                    !focusIsSeries 
+                                      ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                      : 'bg-brand-white hover:bg-brand-beige text-brand-brown border-brand-border'
+                                  }`}
+                                >
+                                  <div className="text-xs font-bold">📄 Single Piece</div>
+                                  <div className="text-[10px] opacity-80 mt-0.5">Standalone article / paper</div>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setFocusIsSeries(true)}
+                                  className={`p-2.5 rounded-xl border text-left transition-all ${
+                                    focusIsSeries 
+                                      ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm font-bold' 
+                                      : 'bg-brand-white hover:bg-brand-beige text-brand-brown border-brand-border'
+                                  }`}
+                                >
+                                  <div className="text-xs font-bold">📚 Article Series</div>
+                                  <div className="text-[10px] opacity-80 mt-0.5">Multiple related parts</div>
+                                </button>
                               </div>
-                            )}
-                            <div className="flex items-center gap-2 mt-4 mb-2">
-                              <input
-                                id="focusHasCommunity"
-                                type="checkbox"
-                                checked={focusHasCommunity}
-                                onChange={(e) => {
-                                  setFocusHasCommunity(e.target.checked);
-                                  if (!e.target.checked) setFocusCommunity('');
-                                }}
-                                className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown"
-                              />
-                              <label htmlFor="focusHasCommunity" className="text-sm font-semibold text-brand-brown-light cursor-pointer">
-                                Was this studied as part of a Study Circle / Community?
-                              </label>
-                            </div>
-                            {focusHasCommunity && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                className="overflow-hidden mb-4"
-                              >
-                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                                  Circle / Community Name
-                                </label>
-                                <input
-                                  type="text"
-                                  value={focusCommunity}
-                                  onChange={(e) => setFocusCommunity(e.target.value)}
-                                  placeholder="e.g. AlMaghrib Institute"
-                                  className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                                />
-                              </motion.div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ) : focusDomain === 'task' ? (
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Current Task Focus / Description</label>
-                        <input
-                          type="text"
-                          required
-                          value={focusTitle}
-                          onChange={(e) => setFocusTitle(e.target.value)}
-                          placeholder="e.g. Helping with Event Logistics"
-                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                        />
-                      </div>
-                    ) : (focusDomain === 'book' && focusLocation === 'lounge') ? null : (
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                          Specific Title or Subject
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={focusTitle}
-                          onChange={(e) => setFocusTitle(e.target.value)}
-                          placeholder={`e.g. ${APP_DOMAINS.find(d => d.type === focusDomain)?.label === 'Books' ? 'The Clear Quran' : 'Focus Topic'}`}
-                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                        />
-                      </div>
-                    )}
 
-                    {['book'].includes(focusDomain) && focusLocation !== 'lounge' && (
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2 mt-4">
-                          Author / Editor
-                        </label>
-                        <input
-                          type="text"
-                          required
-                          value={focusAuthor}
-                          onChange={(e) => setFocusAuthor(e.target.value)}
-                          placeholder="e.g. Dr. Mustafa Khattab"
-                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                        />
-                        {focusLocation === 'personal' && (
-                          <>
-                            <div className="flex items-center gap-2 mt-4 mb-2">
-                              <input
-                                id="focusBookHasCommunity"
-                                type="checkbox"
-                                checked={focusHasCommunity}
-                                onChange={(e) => {
-                                  setFocusHasCommunity(e.target.checked);
-                                  if (!e.target.checked) setFocusCommunity('');
-                                }}
-                                className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown"
-                              />
-                              <label htmlFor="focusBookHasCommunity" className="text-sm font-semibold text-brand-brown-light cursor-pointer">
-                                Is this read as part of a Study Circle / Community?
-                              </label>
+                              {focusIsSeries && (
+                                <div className="mt-2 pt-2 border-t border-brand-border/60 space-y-2.5 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                                  <div className="flex items-center justify-between">
+                                    <label className="block text-xs font-bold uppercase tracking-wider text-amber-950">
+                                      Pieces in Series <span className="text-red-500">*</span>
+                                    </label>
+                                    <span className="text-[10px] font-mono font-bold text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded-md border border-amber-300">
+                                      +{(focusIsResearchPaper ? 30 : 15) * Math.max(2, focusSeriesCount)} Pts Total
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="number"
+                                    min={2}
+                                    max={100}
+                                    required={focusIsSeries}
+                                    value={focusSeriesCount}
+                                    onChange={(e) => setFocusSeriesCount(Math.max(2, parseInt(e.target.value) || 2))}
+                                    className="w-full px-3 py-2 bg-white border border-amber-300 rounded-lg text-sm font-bold text-amber-950 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                  />
+                                </div>
+                              )}
                             </div>
-                            {focusHasCommunity && (
-                              <motion.div
-                                initial={{ opacity: 0, height: 0 }}
-                                animate={{ opacity: 1, height: 'auto' }}
-                                className="overflow-hidden"
-                              >
-                                <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                                  Circle / Community Name
+
+                            <div className="flex items-start gap-3 p-3 bg-brand-offwhite border border-brand-border rounded-xl">
+                              <input
+                                id="focusIsResearchPaperLounge"
+                                type="checkbox"
+                                checked={focusIsResearchPaper}
+                                onChange={(e) => setFocusIsResearchPaper(e.target.checked)}
+                                className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown mt-0.5 cursor-pointer"
+                              />
+                              <div className="flex flex-col">
+                                <label htmlFor="focusIsResearchPaperLounge" className="text-xs font-bold uppercase tracking-wide text-brand-text cursor-pointer select-none">
+                                  Academic Research Paper (30 pts)
                                 </label>
-                                <input
-                                  type="text"
-                                  value={focusCommunity}
-                                  onChange={(e) => setFocusCommunity(e.target.value)}
-                                  placeholder="e.g. AlMaghrib Institute"
-                                  className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                                />
-                              </motion.div>
-                            )}
-                          </>
+                                <span className="text-[10px] text-brand-brown-light leading-relaxed mt-0.5">
+                                  Full scholarly paper rather than an article.
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {focusDomain === 'presentation' && (
+                          <div className="p-5 bg-brand-white border border-brand-border rounded-2xl space-y-4 shadow-xs">
+                            <div className="flex items-center gap-2 border-b border-brand-border/60 pb-3">
+                              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center border border-amber-200">
+                                <Sparkles className="w-4 h-4 text-amber-800" />
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-amber-900 block">Lounge Session</span>
+                                <h4 className="font-sans text-sm font-bold text-brand-text">Knowledge Sharing Presentation</h4>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1.5">
+                                Presentation Topic / Title <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={focusTitle}
+                                onChange={(e) => setFocusTitle(e.target.value)}
+                                placeholder="e.g. Overview of Imam al-Ghazali's Epistemology"
+                                className="w-full px-4 py-2.5 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {focusDomain === 'task' && (
+                          <div className="p-5 bg-brand-white border border-brand-border rounded-2xl space-y-4 shadow-xs">
+                            <div className="flex items-center gap-2 border-b border-brand-border/60 pb-3">
+                              <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center border border-emerald-200">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-800" />
+                              </div>
+                              <div>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-900 block">Lounge Initiative</span>
+                                <h4 className="font-sans text-sm font-bold text-brand-text">Wisdom Lounge Community Task</h4>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1.5">
+                                Task Focus / Description <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="text"
+                                required
+                                value={focusTitle}
+                                onChange={(e) => setFocusTitle(e.target.value)}
+                                placeholder="e.g. Assisting with Lounge library indexing or event organizing"
+                                className="w-full px-4 py-2.5 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
+                              />
+                            </div>
+                          </div>
                         )}
                       </div>
                     )}
 
-                    {focusDomain === 'book' && (
-                      <div className="mt-4 p-4 bg-brand-beige/50 border border-brand-border/60 rounded-xl space-y-4">
-                        <div className="flex items-center gap-2 text-brand-brown">
-                          <span>📚</span>
-                          <h4 className="text-xs font-bold uppercase tracking-wider">Book Reading Tracking</h4>
-                        </div>
+                    {/* ========================================================================= */}
+                    {/* PERSONAL (OUTSIDE) MODE */}
+                    {/* ========================================================================= */}
+                    {focusLocation === 'personal' && (
+                      <div className="space-y-4">
+                        {/* Domain Specific inputs for personal mode */}
                         <div>
                           <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                            Total Pages in Book <span className="text-red-500">*</span>
+                            Specific Title or Subject <span className="text-red-500">*</span>
                           </label>
                           <input
-                            type="number"
+                            type="text"
                             required
-                            min="1"
-                            value={focusBookTotalPages}
-                            onChange={(e) => setFocusBookTotalPages(e.target.value)}
-                            placeholder="e.g. 350"
+                            value={focusTitle}
+                            onChange={(e) => setFocusTitle(e.target.value)}
+                            placeholder={`e.g. ${focusDomain === 'book' ? 'The Clear Quran' : focusDomain === 'talaqqi' ? 'Aqeedah Essentials' : 'Focus Topic'}`}
                             className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
                           />
                         </div>
-                        {focusBookTotalPages && focusEstimatedDuration && (() => {
-                          const pages = parseInt(focusBookTotalPages, 10);
-                          if (isNaN(pages) || pages <= 0) return null;
-                          const today = new Date();
-                          today.setHours(0,0,0,0);
-                          const target = new Date(focusEstimatedDuration);
-                          target.setHours(0,0,0,0);
-                          const diffTime = target.getTime() - today.getTime();
-                          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                          const pagesPerDay = diffDays > 0 ? Math.ceil(pages / diffDays) : pages;
-                          return (
-                            <div className="bg-brand-white p-3.5 rounded-lg border border-brand-border-light text-xs space-y-1.5 shadow-xs">
-                              <p className="text-brand-brown font-semibold">
-                                📅 <strong>Time Remaining:</strong> {diffDays > 0 ? `${diffDays} days` : 'Today'} (Target: {new Date(focusEstimatedDuration).toLocaleDateString()})
-                              </p>
-                              <p className="text-brand-brown font-semibold">
-                                📖 <strong>Average Pages Daily:</strong> <span className="text-amber-700 font-extrabold text-sm">{pagesPerDay}</span> pages/day
-                              </p>
-                              <p className="text-[10px] text-brand-brown-light/80 italic leading-relaxed">
-                                Once approved, your daily target of {pagesPerDay} pages will be tracked automatically!
-                              </p>
+
+                        {['book', 'tafsir', 'seerah', 'dowra', 'talaqqi'].includes(focusDomain) && (
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                              {focusDomain === 'book' ? 'Author / Editor' : 'Teacher / Ustadh'}
+                            </label>
+                            <input
+                              type="text"
+                              value={focusAuthor}
+                              onChange={(e) => setFocusAuthor(e.target.value)}
+                              placeholder="e.g. Dr. Mustafa Khattab / Shaykh Yasir Qadhi"
+                              className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
+                            />
+                          </div>
+                        )}
+
+                        {focusDomain === 'book' && (
+                          <div className="p-4 bg-brand-beige/50 border border-brand-border/60 rounded-xl space-y-3">
+                            <div className="flex items-center gap-2 text-brand-brown">
+                              <span>📚</span>
+                              <h4 className="text-xs font-bold uppercase tracking-wider">Book Reading Tracking</h4>
                             </div>
-                          );
-                        })()}
+                            <div>
+                              <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1.5">
+                                Total Pages in Book <span className="text-red-500">*</span>
+                              </label>
+                              <input
+                                type="number"
+                                required
+                                min="1"
+                                value={focusBookTotalPages}
+                                onChange={(e) => setFocusBookTotalPages(e.target.value)}
+                                placeholder="e.g. 350"
+                                className="w-full px-4 py-2.5 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 p-3 bg-brand-offwhite border border-brand-border rounded-xl">
+                          <input
+                            id="focusHasCommunityPersonal"
+                            type="checkbox"
+                            checked={focusHasCommunity}
+                            onChange={(e) => {
+                              setFocusHasCommunity(e.target.checked);
+                              if (!e.target.checked) setFocusCommunity('');
+                            }}
+                            className="w-4 h-4 text-brand-brown rounded border-brand-border focus:ring-brand-brown"
+                          />
+                          <label htmlFor="focusHasCommunityPersonal" className="text-xs font-semibold text-brand-brown cursor-pointer select-none">
+                            Studied as part of an external Study Circle / Community?
+                          </label>
+                        </div>
+
+                        {focusHasCommunity && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="overflow-hidden"
+                          >
+                            <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-1.5">
+                              Circle / Community Name
+                            </label>
+                            <input
+                              type="text"
+                              value={focusCommunity}
+                              onChange={(e) => setFocusCommunity(e.target.value)}
+                              placeholder="e.g. AlMaghrib Institute"
+                              className="w-full px-4 py-2.5 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-medium"
+                            />
+                          </motion.div>
+                        )}
+
+                        {/* Requirement for Personal Study Note */}
+                        <div className="bg-brand-beige/70 border border-brand-border rounded-xl p-4 text-xs text-brand-brown space-y-2">
+                          <p className="font-bold uppercase tracking-wider text-[10px] text-brand-brown-light">Requirement for Personal Study</p>
+                          <p>Since this goal is pursued independently, you will be requested to share an overview or reflection upon completion (via a lounge session or written notes).</p>
+                        </div>
                       </div>
                     )}
 
-                    {!(focusLocation === 'lounge' && (focusDomain === 'book' || focusDomain === 'talaqqi')) && (
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
+                    {/* Target Date Picker */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">
                           Target Date
                         </label>
-                        <input
-                          type="date"
-                          lang="en-GB"
-                          required
-                          value={focusEstimatedDuration}
-                          onChange={(e) => setFocusEstimatedDuration(e.target.value)}
-                          className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                        />
+                        {focusLocation === 'lounge' && (selectedFocusModule || selectedCircle) && (
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md">
+                            Auto-synced with Lounge Schedule
+                          </span>
+                        )}
                       </div>
-                    )}
+                      <input
+                        type="date"
+                        lang="en-GB"
+                        required
+                        value={focusEstimatedDuration}
+                        onChange={(e) => setFocusEstimatedDuration(e.target.value)}
+                        className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown font-mono"
+                      />
+                    </div>
 
-                    {!['book', 'tafsir', 'seerah', 'dowra', 'talaqqi'].includes(focusDomain) && (
-                      <div>
-                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Location</label>
-                        <div className="flex gap-4">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="focusLocation"
-                              value="lounge"
-                              checked={focusLocation === 'lounge'}
-                              onChange={() => setFocusLocation('lounge')}
-                              className="text-brand-brown focus:ring-brand-brown"
-                            />
-                            <span className="text-sm text-brand-brown font-medium">Inside the Lounge</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="focusLocation"
-                              value="personal"
-                              checked={focusLocation === 'personal'}
-                              onChange={() => setFocusLocation('personal')}
-                              className="text-brand-brown focus:ring-brand-brown"
-                            />
-                            <span className="text-sm text-brand-brown font-medium">Personal (Outside)</span>
-                          </label>
-                        </div>
-                      </div>
-                    )}
-
-                    {focusLocation === 'personal' && (
-                      <motion.div 
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        className="bg-brand-beige border border-brand-border rounded-xl p-4 text-sm text-brand-brown"
-                      >
-                        <p className="font-bold uppercase tracking-wider text-[10px] mb-2 text-brand-brown-light">Requirement for Personal Study</p>
-                        <div className="leading-relaxed space-y-3">
-                          {focusDomain === 'book' && (
-                            <>
-                              <p>Since this goal is being pursued independently, you will be required to share a meaningful overview of the book after completion. The purpose of this is to encourage sincerity, reflection, and genuine understanding rather than passive reading.</p>
-                              <p>You may fulfill this by either:</p>
-                              <ul className="list-disc pl-5 space-y-1">
-                                <li>Conducting a lounge session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
-                                <li>Submitting a detailed written reflection or summary document.</li>
-                              </ul>
-                              <p>Your overview should ideally include key lessons, reflections, important insights, and practical takeaways from the book.</p>
-
-                              <div className="space-y-3 pt-4 mt-4 border-t border-brand-border/40">
-                                <h4 className="text-sm font-bold text-brand-text">How would you like to present this completed book?</h4>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                  <button
-                                    type="button"
-                                    onClick={() => setFocusBookOverviewFormat('overview')}
-                                    className={`p-2.5 rounded-xl border transition-colors text-left group ${focusBookOverviewFormat === 'overview' ? 'bg-brand-brown text-brand-offwhite border-brand-brown' : 'bg-brand-offwhite hover:bg-brand-brown hover:text-brand-offwhite text-brand-brown border-brand-border'}`}
-                                  >
-                                    <div className="font-bold uppercase tracking-wider text-[11px] mb-1 group-hover:text-amber-200">Lounge Session</div>
-                                    <div className="text-[10px] opacity-80 leading-snug">Present book insights in a live session. (Adds a presentation focus)</div>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setFocusBookOverviewFormat('written');
-                                    }}
-                                    className={`p-2.5 rounded-xl border transition-colors text-left group ${focusBookOverviewFormat === 'written' ? 'bg-brand-brown text-brand-offwhite border-brand-brown' : 'bg-brand-offwhite hover:bg-brand-brown hover:text-brand-offwhite text-brand-brown border-brand-border'}`}
-                                  >
-                                    <div className="font-bold uppercase tracking-wider text-[11px] mb-1 group-hover:text-amber-200">Written Reflection</div>
-                                    <div className="text-[10px] opacity-80 leading-snug">Submit a written reflection or summary document.</div>
-                                  </button>
-                                </div>
-
-                                {focusBookOverviewFormat === 'overview' && (
-                                  <div className="pt-2.5 animate-fadeIn">
-                                    <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">
-                                      Target Presentation Date <span className="text-red-500">*</span>
-                                    </label>
-                                    <input
-                                      type="date"
-                                      lang="en-GB"
-                                      required
-                                      value={focusPresentationTargetDate}
-                                      onChange={(e) => setFocusPresentationTargetDate(e.target.value)}
-                                      className="w-full px-4 py-3 bg-brand-offwhite border border-brand-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-brown"
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            </>
-                          )}
-                          {focusDomain === 'presentation' && (
-                            <>
-                              <p>Since this goal is being pursued independently, you will be expected to share your completed presentation within the lounge. This may be done through:</p>
-                              <ul className="list-disc pl-5 space-y-1">
-                                <li>A live lounge presentation/session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
-                                <li>A well-structured written document or presentation file.</li>
-                              </ul>
-                              <p>The objective is to encourage beneficial knowledge-sharing and meaningful contribution to the learning environment.</p>
-                            </>
-                          )}
-                          {focusDomain === 'task' && (
-                            <>
-                              <p>Since this goal is being pursued independently, you will be required to submit a clear and detailed overview of the completed task or project.</p>
-                              <p>You may fulfill this by either:</p>
-                              <ul className="list-disc pl-5 space-y-1">
-                                <li>Conducting a brief lounge session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
-                                <li>Submitting a detailed written overview.</li>
-                              </ul>
-                              <p>Your submission should briefly explain:</p>
-                              <ul className="list-disc pl-5 space-y-1">
-                                <li>What was completed</li>
-                                <li>The process or effort involved</li>
-                                <li>Key outcomes, reflections, or lessons learned</li>
-                              </ul>
-                              <p>This helps maintain accountability, consistency, and purposeful progress.</p>
-                            </>
-                          )}
-                          {['dowra', 'tafsir', 'seerah', 'research papers/article', 'talaqqi'].includes(focusDomain) && (
-                            <>
-                              <p>Since these goals are being pursued independently, you will be expected to share your learnings with the lounge after completion or throughout your progress.</p>
-                              <p>This may be done through:</p>
-                              <ul className="list-disc pl-5 space-y-1">
-                                <li>A lounge session <em className="text-xs text-brand-brown-light">(recommended, as it may grant additional lounge perks such as reduced module fees and similar benefits)</em>, or</li>
-                                <li>A written reflection, notes document, or learning summary.</li>
-                              </ul>
-                              <p>The aim is to strengthen understanding, reflection, and beneficial sharing of knowledge within the community.</p>
-                            </>
-                          )}
-                          <p className="text-[10px] font-medium text-brand-brown/70 pt-2 mt-2 border-t border-brand-border/30">* Required to choose at least one.</p>
-                        </div>
-                      </motion.div>
-                    )}
-
-                    <div className="pt-4 flex gap-3">
+                    {/* Modal Footer Actions */}
+                    <div className="pt-3 flex gap-3">
                       <button
                         type="button"
                         onClick={() => setIsFocusModalOpen(false)}
-                        className={`${(focusDomain === 'book' && focusLocation === 'lounge' && !selectedCircle) ? 'w-full' : 'flex-1'} px-6 py-3 border border-brand-border rounded-xl text-xs font-bold uppercase tracking-widest text-brand-brown hover:bg-brand-offwhite active:scale-95 transition-all`}
+                        className={`${
+                          focusLocation === 'lounge' && 
+                          ['tafsir', 'seerah', 'dowra', 'book', 'talaqqi'].includes(focusDomain) && 
+                          !selectedFocusModule && !selectedCircle
+                            ? 'w-full'
+                            : 'flex-1'
+                        } px-6 py-3 border border-brand-border rounded-xl text-xs font-bold uppercase tracking-widest text-brand-brown hover:bg-brand-offwhite active:scale-95 transition-all`}
                       >
                         Cancel
                       </button>
-                      {!(focusDomain === 'book' && focusLocation === 'lounge' && !selectedCircle) && (
+
+                      {!(
+                        focusLocation === 'lounge' && 
+                        ['tafsir', 'seerah', 'dowra', 'book', 'talaqqi'].includes(focusDomain) && 
+                        !selectedFocusModule && !selectedCircle
+                      ) && (
                         <button
                           type="submit"
                           disabled={isFocusSubmitting}
@@ -5355,31 +6064,125 @@ export function LearnerDashboard({
                   
                   <form onSubmit={handleAddToBucketList} className="p-6 space-y-5 overflow-y-auto flex-1">
                     
-                    {/* Domain Selection */}
-                    <div>
-                      <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light mb-2">Category (Domain)</label>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 bg-brand-offwhite p-2 rounded-xl border border-brand-border">
-                        {APP_DOMAINS.map(domain => {
-                          return (
-                            <button
-                              key={domain.type}
-                              type="button"
-                              onClick={() => {
-                                setBucketItemDomain(domain.type);
-                              }}
-                              className={`relative w-full py-2 px-1 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all z-10 active:scale-95 cursor-pointer`}
-                            >
-                              {bucketItemDomain === domain.type && (
-                                <motion.div
-                                  layoutId="bucket-segmented-control-bg"
-                                  className="absolute inset-0 bg-brand-brown rounded-lg shadow-md"
-                                  transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
-                                />
-                              )}
-                              <span className={`relative z-10 block whitespace-normal break-words leading-tight text-center px-1 ${bucketItemDomain === domain.type ? 'text-brand-offwhite' : 'text-brand-brown-light hover:text-brand-brown'}`}>{domain.label}</span>
-                            </button>
-                          );
-                        })}
+                    {/* Sub-categorized Domain Selection */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-brand-brown-light">
+                          Select Domain
+                        </label>
+                        <span className="text-[10px] text-brand-brown-light/70 font-semibold">
+                          Choose a category below
+                        </span>
+                      </div>
+
+                      {/* 1st Category: Modules */}
+                      <div className="bg-brand-offwhite p-3 rounded-2xl border border-brand-border/80 space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200/70 flex items-center gap-1.5">
+                            <BookOpen className="w-3 h-3 text-amber-700" /> Modules
+                          </span>
+                          <span className="text-[10px] text-brand-brown-light/70 font-medium">Structured Islamic courses</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { type: 'tafsir', label: 'Tafsir' },
+                            { type: 'seerah', label: 'Seerah' },
+                            { type: 'dowra', label: 'Dowra e Quran' }
+                          ].map(domain => {
+                            const isSelected = bucketItemDomain === domain.type;
+                            return (
+                              <button
+                                key={domain.type}
+                                type="button"
+                                onClick={() => {
+                                  setBucketItemDomain(domain.type);
+                                  setBucketItemTitle('');
+                                  setBucketItemAuthor('');
+                                }}
+                                className={`py-2.5 px-2 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                    : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40 hover:bg-brand-beige/20'
+                                } active:scale-98`}
+                              >
+                                <span className="leading-tight truncate">{domain.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 2nd Category: Circles */}
+                      <div className="bg-brand-offwhite p-3 rounded-2xl border border-brand-border/80 space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-900 bg-emerald-100/80 px-2 py-0.5 rounded-md border border-emerald-200/70 flex items-center gap-1.5">
+                            <Users className="w-3 h-3 text-emerald-700" /> Circles
+                          </span>
+                          <span className="text-[10px] text-brand-brown-light/70 font-medium">Reading & guided cohorts</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {[
+                            { type: 'book', label: 'Books' },
+                            { type: 'talaqqi', label: 'Guided Studies' }
+                          ].map(domain => {
+                            const isSelected = bucketItemDomain === domain.type;
+                            return (
+                              <button
+                                key={domain.type}
+                                type="button"
+                                onClick={() => {
+                                  setBucketItemDomain(domain.type);
+                                  setBucketItemTitle('');
+                                  setBucketItemAuthor('');
+                                }}
+                                className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                    : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40 hover:bg-brand-beige/20'
+                                } active:scale-98`}
+                              >
+                                <span className="leading-tight truncate">{domain.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 3rd Category: Others */}
+                      <div className="bg-brand-offwhite p-3 rounded-2xl border border-brand-border/80 space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-sky-900 bg-sky-100/80 px-2 py-0.5 rounded-md border border-sky-200/70 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3 h-3 text-sky-700" /> Others
+                          </span>
+                          <span className="text-[10px] text-brand-brown-light/70 font-medium">Independent learning tasks</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { type: 'presentation', label: 'Presentations' },
+                            { type: 'task', label: 'Tasks' },
+                            { type: 'research papers/article', label: 'Research Paper / Article' }
+                          ].map(domain => {
+                            const isSelected = bucketItemDomain === domain.type;
+                            return (
+                              <button
+                                key={domain.type}
+                                type="button"
+                                onClick={() => {
+                                  setBucketItemDomain(domain.type);
+                                  setBucketItemTitle('');
+                                  setBucketItemAuthor('');
+                                }}
+                                className={`py-2.5 px-2 rounded-xl border text-xs font-bold transition-all text-center flex items-center justify-center cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-brand-brown text-brand-offwhite border-brand-brown shadow-sm'
+                                    : 'bg-brand-white text-brand-brown border-brand-border hover:border-brand-brown/40 hover:bg-brand-beige/20'
+                                } active:scale-98`}
+                              >
+                                <span className="leading-tight text-[11px] truncate">{domain.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 

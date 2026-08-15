@@ -33,6 +33,7 @@ export function AdminModules() {
   const [color, setColor] = useState('amber');
   const [status, setStatus] = useState<'ongoing' | 'upcoming' | 'past'>('ongoing');
   const [orientationDate, setOrientationDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [sessionDates, setSessionDates] = useState<string[]>([]);
   const [newSessionDate, setNewSessionDate] = useState('');
 
@@ -78,6 +79,7 @@ export function AdminModules() {
     setColor(mod.color || 'amber');
     setStatus(mod.status || 'ongoing');
     setOrientationDate(mod.orientationDate || '');
+    setEndDate(mod.endDate || mod.estimatedEndDate || '');
     setSessionDates(mod.sessionDates || []);
     setIsAdding(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -85,7 +87,10 @@ export function AdminModules() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title || !batch || !speaker) return;
+    if (!title || !batch || !speaker || !endDate) {
+      alert("Please fill in all mandatory fields including Module Title, Batch/Topic, Speaker, and Estimated/Approximate End Date.");
+      return;
+    }
 
     // Sort session dates ascending before saving
     const sortedSessionDates = [...sessionDates].sort((a, b) => a.localeCompare(b));
@@ -114,6 +119,8 @@ export function AdminModules() {
       color,
       status,
       orientationDate: orientationDate || undefined,
+      endDate: endDate || undefined,
+      estimatedEndDate: endDate || undefined,
       sessionDates: sortedSessionDates,
       createdAt: editingModule ? editingModule.createdAt : Date.now()
     };
@@ -168,6 +175,7 @@ export function AdminModules() {
     setColor('amber');
     setStatus('ongoing');
     setOrientationDate('');
+    setEndDate('');
     setSessionDates([]);
     setNewSessionDate('');
   };
@@ -511,9 +519,27 @@ export function AdminModules() {
               />
             </div>
 
+            <div className="space-y-2 col-span-1">
+              <label className="block text-xs font-black uppercase tracking-wider text-brand-brown-light flex items-center justify-between">
+                <span>Estimated End Date *</span>
+                <span className="text-[10px] text-amber-700 font-bold lowercase tracking-normal font-sans">(mandatory)</span>
+              </label>
+              <input
+                type="date"
+                lang="en-GB"
+                required
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-4 py-2.5 bg-brand-white border border-amber-300 focus:border-brand-brown rounded-xl text-sm focus:outline-none focus:ring-1 focus:ring-brand-brown font-mono shadow-xs"
+              />
+              <p className="text-[10px] text-brand-brown-light/80 leading-tight">
+                Sets target deadline for enrolled learners & prevents false overdue alerts.
+              </p>
+            </div>
+
             {/* Individual Session Dates configuration */}
-            <div className="space-y-2 md:col-span-2">
-              <label className="block text-xs font-black uppercase tracking-wider text-brand-brown-light">Assign Individual Sessions Dates</label>
+            <div className="space-y-2 md:col-span-1">
+              <label className="block text-xs font-black uppercase tracking-wider text-brand-brown-light">Assign Session Dates</label>
               <div className="flex gap-2">
                 <input
                   type="date"
@@ -525,7 +551,7 @@ export function AdminModules() {
                 <button
                   type="button"
                   onClick={addSessionDate}
-                  className="px-4 py-2 bg-brand-brown hover:bg-brand-brown-light text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors"
+                  className="px-4 py-2 bg-brand-brown hover:bg-brand-brown-light text-white text-xs font-bold uppercase tracking-wider rounded-xl transition-colors shrink-0"
                 >
                   Add Date
                 </button>
@@ -649,6 +675,12 @@ export function AdminModules() {
                 {mod.orientationDate && (
                   <div className="col-span-2 text-[10px] font-mono text-brand-brown-light/80 bg-brand-beige/50 px-2 py-1 rounded">
                     Orientation: <span className="font-bold">{formatDateDDMMYYYY(mod.orientationDate)}</span>
+                  </div>
+                )}
+                {(mod.endDate || mod.estimatedEndDate) && (
+                  <div className="col-span-2 text-[10px] font-mono text-amber-900 bg-amber-50/80 border border-amber-200/60 px-2 py-1 rounded flex items-center justify-between">
+                    <span className="font-semibold">Est. End Date:</span>
+                    <span className="font-bold">{formatDateDDMMYYYY(mod.endDate || mod.estimatedEndDate || '')}</span>
                   </div>
                 )}
               </div>

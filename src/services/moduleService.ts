@@ -26,6 +26,8 @@ export interface LoungeModule {
   category: string; // e.g. tafsir, seerah, dowra, articles
   color: string; // e.g. amber, green, blue, purple, rose, sky
   orientationDate?: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD (Mandatory estimated / approximate end date)
+  estimatedEndDate?: string; // Alias for backward compatibility
   sessionDates?: string[]; // Custom assigned session dates
   createdAt: number;
 }
@@ -52,6 +54,8 @@ export const fallbackModules: LoungeModule[] = [
     location: 'Inside the Lounge',
     category: 'tafsir',
     orientationDate: '2026-06-14',
+    endDate: '2026-09-30',
+    estimatedEndDate: '2026-09-30',
     sessionDates: [
       '2026-06-15', '2026-06-17', '2026-06-22', '2026-06-24', 
       '2026-06-29', '2026-07-01', '2026-07-06', '2026-07-08', 
@@ -82,6 +86,8 @@ export const fallbackModules: LoungeModule[] = [
     location: 'Inside the Lounge',
     category: 'seerah',
     orientationDate: '2026-08-15',
+    endDate: '2026-10-31',
+    estimatedEndDate: '2026-10-31',
     sessionDates: [],
     createdAt: 1718880000000,
   },
@@ -104,6 +110,8 @@ export const fallbackModules: LoungeModule[] = [
     location: 'Inside the Lounge',
     category: 'dowra',
     orientationDate: '2026-03-01',
+    endDate: '2026-04-15',
+    estimatedEndDate: '2026-04-15',
     sessionDates: [],
     createdAt: 1718890000000,
   }

@@ -87,11 +87,13 @@ export const getModulePoints = (learner: Learner, type: string) => {
 
 export const isTargetDateExceeded = (dateInput: string | undefined | null): boolean => {
   if (!dateInput) return false;
-  let rawDate = dateInput.trim();
+  const rawDate = dateInput.trim();
   const dLower = rawDate.toLowerCase();
   
-  if (dLower === '2 months') rawDate = '2026-08-14';
-  else if (dLower === '30 days') rawDate = '2026-07-14';
+  // Ignore non-date descriptions or placeholders
+  if (['tbd', 'ongoing', 'n/a', 'unknown', 'bi-weekly', 'monthly', 'whole month', '2 months', '30 days', 'none'].includes(dLower)) {
+    return false;
+  }
 
   const isDateRegex = /^\d{4}-\d{2}-\d{2}$/;
   if (isDateRegex.test(rawDate)) {
@@ -103,12 +105,15 @@ export const isTargetDateExceeded = (dateInput: string | undefined | null): bool
       return targetDate < today;
     }
   } else {
-    const targetDate = new Date(rawDate);
-    if (!isNaN(targetDate.getTime())) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      targetDate.setHours(0, 0, 0, 0);
-      return targetDate < today;
+    // Attempt standard parse only if there is a year-like number
+    if (/\d{4}/.test(rawDate)) {
+      const targetDate = new Date(rawDate);
+      if (!isNaN(targetDate.getTime())) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        targetDate.setHours(0, 0, 0, 0);
+        return targetDate < today;
+      }
     }
   }
   return false;
