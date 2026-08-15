@@ -2541,13 +2541,23 @@ export function LearnerDashboard({
               )}
 
               {activeLearner.currentFocuses && activeLearner.currentFocuses.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  {activeLearner.currentFocuses.length > 1 && (
+                    <div className="md:hidden flex items-center justify-between text-[10px] text-brand-beige/60 font-medium px-1">
+                      <span>← Swipe cards to browse focuses →</span>
+                      <span>{activeLearner.currentFocuses.length} Focuses</span>
+                    </div>
+                  )}
+                  <div 
+                    className="flex overflow-x-auto md:grid md:grid-cols-2 gap-4 pb-3 md:pb-0 snap-x snap-mandatory md:snap-none scrollbar-none [&::-webkit-scrollbar]:hidden -mx-2 px-2 md:mx-0 md:px-0"
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                  >
                     {activeLearner.currentFocuses.map((focus) => {
                       const isFocusOverdue = isTargetDateExceeded(focus.estimatedDuration || focus.presentationTargetDate);
                       return (
                       <div 
                         key={focus.id || focus.title} 
-                        className={`p-5 rounded-2xl border flex flex-col justify-between relative overflow-hidden pb-6 transition-all ${
+                        className={`p-5 rounded-2xl border flex flex-col justify-between relative overflow-hidden pb-6 transition-all w-[85vw] max-w-[340px] md:w-auto md:max-w-none shrink-0 md:shrink snap-start md:snap-align-none ${
                           isFocusOverdue 
                             ? 'bg-gradient-to-br from-red-950/90 via-red-900/50 to-brand-brown-dark/95 border-2 border-red-500/60 shadow-lg shadow-red-950/50 ring-2 ring-red-500/30 text-red-100' 
                             : 'bg-brand-brown-dark/30 border-brand-beige/10'
@@ -2780,6 +2790,7 @@ export function LearnerDashboard({
                     );
                   })}
                   </div>
+                </div>
                 ) : (
                   <div className="py-2">
                     <h4 className="font-sans text-2xl text-brand-beige border-b border-brand-beige/20 border-dashed pb-1 inline-block">
@@ -2817,63 +2828,74 @@ export function LearnerDashboard({
             </div>
 
             {activeLearner.bucketList && activeLearner.bucketList.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {activeLearner.bucketList.map((item) => {
-                  const domainObj = APP_DOMAINS.find(d => d.type === item.domain);
-                  const domainLabel = domainObj ? domainObj.label : item.domain;
-                  
-                  return (
-                    <div 
-                      key={item.id} 
-                      className="bg-brand-offwhite/40 hover:bg-brand-offwhite/80 p-5 rounded-2xl border border-brand-border-light transition-all flex flex-col justify-between"
-                    >
-                      <div>
-                        <div className="flex justify-between items-start gap-2 mb-2">
-                          <h4 className="font-sans text-lg font-bold text-brand-text leading-tight">
-                            {item.title}
-                          </h4>
-                          <span className="text-[9px] font-black uppercase tracking-widest text-brand-brown-light bg-brand-beige/25 px-2 py-1 rounded border border-brand-border">
-                            {domainLabel}
-                          </span>
+              <div className="space-y-2">
+                {activeLearner.bucketList.length > 1 && (
+                  <div className="md:hidden flex items-center justify-between text-[10px] text-brand-brown-light/70 font-medium px-1 pb-1">
+                    <span>← Swipe cards to browse bucket list →</span>
+                    <span>{activeLearner.bucketList.length} Items</span>
+                  </div>
+                )}
+                <div 
+                  className="flex overflow-x-auto md:grid md:grid-cols-2 gap-4 pb-3 md:pb-0 snap-x snap-mandatory md:snap-none scrollbar-none [&::-webkit-scrollbar]:hidden -mx-2 px-2 md:mx-0 md:px-0"
+                  style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                >
+                  {activeLearner.bucketList.map((item) => {
+                    const domainObj = APP_DOMAINS.find(d => d.type === item.domain);
+                    const domainLabel = domainObj ? domainObj.label : item.domain;
+                    
+                    return (
+                      <div 
+                        key={item.id} 
+                        className="bg-brand-offwhite/40 hover:bg-brand-offwhite/80 p-5 rounded-2xl border border-brand-border-light transition-all flex flex-col justify-between w-[85vw] max-w-[340px] md:w-auto md:max-w-none shrink-0 md:shrink snap-start md:snap-align-none"
+                      >
+                        <div>
+                          <div className="flex justify-between items-start gap-2 mb-2">
+                            <h4 className="font-sans text-lg font-bold text-brand-text leading-tight">
+                              {item.title}
+                            </h4>
+                            <span className="text-[9px] font-black uppercase tracking-widest text-brand-brown-light bg-brand-beige/25 px-2 py-1 rounded border border-brand-border shrink-0">
+                              {domainLabel}
+                            </span>
+                          </div>
+
+                          {item.author && (
+                            <p className="text-xs text-brand-brown-light italic mb-3">
+                              by {item.author}
+                            </p>
+                          )}
+
+                          {item.notes && (
+                            <div className="mt-2 bg-white/50 border border-brand-border-light/60 p-3 rounded-xl">
+                              <span className="text-[9px] font-black text-brand-brown-light uppercase tracking-wider block mb-1">Notes / Why I want to study:</span>
+                              <p className="text-xs text-brand-brown/85 font-medium leading-relaxed italic line-clamp-3">
+                                "{item.notes}"
+                              </p>
+                            </div>
+                          )}
                         </div>
 
-                        {item.author && (
-                          <p className="text-xs text-brand-brown-light italic mb-3">
-                            by {item.author}
-                          </p>
-                        )}
-
-                        {item.notes && (
-                          <div className="mt-2 bg-white/50 border border-brand-border-light/60 p-3 rounded-xl">
-                            <span className="text-[9px] font-black text-brand-brown-light uppercase tracking-wider block mb-1">Notes / Why I want to study:</span>
-                            <p className="text-xs text-brand-brown/85 font-medium leading-relaxed italic">
-                              "{item.notes}"
-                            </p>
-                          </div>
-                        )}
+                        <div className="flex gap-2 mt-4 pt-4 border-t border-brand-border-light/40 w-full">
+                          <button
+                            type="button"
+                            onClick={() => handleActivateBucketItem(item)}
+                            className="flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider text-brand-white bg-brand-brown hover:bg-brand-brown-dark rounded-lg shadow-xs transition-all flex justify-center items-center gap-1 cursor-pointer"
+                          >
+                            <Flame className="w-3.5 h-3.5" />
+                            Activate Focus
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFromBucketList(item.id)}
+                            className="px-3 py-1.5 text-[10px] font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors flex justify-center items-center gap-1 cursor-pointer"
+                            title="Remove from Bucket List"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-
-                      <div className="flex gap-2 mt-4 pt-4 border-t border-brand-border-light/40 w-full">
-                        <button
-                          type="button"
-                          onClick={() => handleActivateBucketItem(item)}
-                          className="flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider text-brand-white bg-brand-brown hover:bg-brand-brown-dark rounded-lg shadow-xs transition-all flex justify-center items-center gap-1 cursor-pointer"
-                        >
-                          <Flame className="w-3.5 h-3.5" />
-                          Activate Focus
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFromBucketList(item.id)}
-                          className="px-3 py-1.5 text-[10px] font-bold text-red-700 bg-red-50 hover:bg-red-100 rounded-lg transition-colors flex justify-center items-center gap-1 cursor-pointer"
-                          title="Remove from Bucket List"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <div className="py-8 text-center border-2 border-dashed border-brand-border/60 rounded-2xl bg-brand-offwhite/10">
